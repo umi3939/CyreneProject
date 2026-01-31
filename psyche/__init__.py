@@ -9,6 +9,7 @@ Gemini is voice-only (parse_percept auxiliary + render_expression).
 Pillar system: identity / attachment / continuity / projection → fear
 Responsibility system: decisions → outcomes → psychological burden
 Short-term memory loop: stimulus → residue → emotion influence → decay
+Persistence: atomic snapshot save/restore for continuity across restarts
 """
 
 from .state import DriveVector, EmotionVector, Mood, Percept, PsycheState
@@ -70,6 +71,21 @@ from .reaction_with_stm import (
     summarize_residue_influence,
 )
 
+# Persistence (永続化)
+from .snapshot import (
+    Snapshot,
+    create_default_snapshot,
+    validate_snapshot,
+    SNAPSHOT_VERSION,
+)
+from .persistence import (
+    PersistenceManager,
+    save_snapshot,
+    load_snapshot,
+    restore_or_create,
+    create_persistence_hooks,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -96,6 +112,10 @@ __all__ = [
     "create_loop_state", "execute_full_loop", "get_loop_diagnostics",
     "CombinedReactionState", "react_with_stm", "react_combined",
     "create_combined_state", "get_stm_diagnostics", "summarize_residue_influence",
+    # Persistence (永続化)
+    "Snapshot", "create_default_snapshot", "validate_snapshot", "SNAPSHOT_VERSION",
+    "PersistenceManager", "save_snapshot", "load_snapshot", "restore_or_create",
+    "create_persistence_hooks",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

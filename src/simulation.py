@@ -31,6 +31,18 @@ from psyche import (
     select_policy,
     compute_fear_index,
     ResponsibilityManager,
+    # Short-term memory
+    ShortTermMemory,
+    # Dynamics
+    DynamicsState,
+    DynamicsConfig,
+    DynamicsPhase,
+    create_dynamics_state,
+    update_dynamics,
+    # Decision Bias
+    DecisionBias,
+    DecisionBiasConfig,
+    compute_decision_bias,
 )
 from psyche.responsibility import apply_decay
 
@@ -112,9 +124,24 @@ class TurnRecord:
     influence_anxiety: float
     influence_fear_amp: float
 
+    # Short-term memory state
+    stm_entry_count: int = 0
+    stm_residue_intensity: float = 0.0
+    stm_continuity: float = 0.0
+
+    # Dynamics state
+    dynamics_phase: str = "normal"
+    dynamics_peak_emotion: str = ""
+    dynamics_accumulated: float = 0.0
+
+    # Decision bias
+    bias_valence: float = 0.0
+    bias_peak_boost: float = 0.0
+    bias_rebound_dampening: float = 0.0
+
     # Policy selected
-    policy_label: str
-    policy_score: float
+    policy_label: str = ""
+    policy_score: float = 0.0
 
 
 @dataclass
@@ -163,6 +190,30 @@ class SimulationEngine:
         self.identity_mgr = IdentityManager()
         self.projection_mgr = ProjectionManager()
 
+        # Short-term memory (for residue influence)
+        self.short_term_memory = ShortTermMemory()
+
+        # Dynamics state (for peak/rebound phases)
+        dynamics_config = DynamicsConfig(
+            peak_intensity_threshold=0.7,
+            peak_accumulation_threshold=2.0,
+            peak_duration_turns=3,
+            rebound_duration_turns=2,
+            peak_decay_multiplier=0.5,
+            rebound_decay_multiplier=1.5,
+            peak_intensity_boost=0.2,
+            rebound_dampening=0.3,
+        )
+        self.dynamics_state = create_dynamics_state(dynamics_config)
+
+        # Decision bias config
+        self.bias_config = DecisionBiasConfig(
+            residue_emotion_scale=1.0,
+            residue_valence_scale=1.0,
+            dynamics_phase_scale=1.0,
+            global_scale=1.0,
+        )
+
         self._pattern_index = 0
 
     @staticmethod
@@ -203,6 +254,7 @@ class SimulationEngine:
         input_data: dict,
         psyche_state: PsycheState,
         policy: dict,
+        decision_bias: DecisionBias,
     ) -> TurnRecord:
         """Record state snapshot for a turn."""
         resp_state = self.responsibility_mgr.get_state(self.config.user_id)
@@ -227,6 +279,19 @@ class SimulationEngine:
             influence_empathy=influence.empathy_bias,
             influence_anxiety=influence.anxiety_baseline,
             influence_fear_amp=influence.fear_amplification,
+            # Short-term memory state
+            stm_entry_count=len(self.short_term_memory.entries),
+            stm_residue_intensity=decision_bias.residue_intensity,
+            stm_continuity=self.short_term_memory.context_continuity_score,
+            # Dynamics state
+            dynamics_phase=self.dynamics_state.phase.value,
+            dynamics_peak_emotion=self.dynamics_state.peak_emotion,
+            dynamics_accumulated=self.dynamics_state.accumulated_intensity,
+            # Decision bias
+            bias_valence=decision_bias.valence_bias,
+            bias_peak_boost=decision_bias.peak_boost,
+            bias_rebound_dampening=decision_bias.rebound_dampening,
+            # Policy
             policy_label=policy.get("policy_label", "unknown"),
             policy_score=policy.get("_score", 0.0),
         )
@@ -235,6 +300,7 @@ class SimulationEngine:
         """Execute a single simulation turn using existing logic.
 
         This follows the exact same flow as src/api.py without modification.
+        Now includes short-term memory, dynamics, and decision bias.
         """
         user_id = self.config.user_id
 
@@ -262,6 +328,16 @@ class SimulationEngine:
                 "recent_decisions": decayed.recent_decisions,
             }
 
+        # ── Short-term memory: Add stimulus ──
+        self.short_term_memory = self.short_term_memory.add_stimulus(
+            source_text=input_data["text"],
+            topics=[input_data["emotion"], input_data["intent"]],
+            emotion_label=input_data["emotion"],
+            intent=input_data["intent"],
+            raw_intensity=abs(input_data["valence"]),
+            valence=input_data["valence"],
+        )
+
         # React (same as api.py step 4)
         psyche_state = react(
             percept, psyche_state,
@@ -269,14 +345,38 @@ class SimulationEngine:
             responsibility_influence=responsibility_influence,
         )
 
+        # ── Dynamics: Update with current emotions ──
+        current_emotions = psyche_state.emotions.as_dict()
+        residue_intensity = sum(
+            e.residue_weight * e.raw_intensity
+            for e in self.short_term_memory.get_unprocessed_residue()
+        )
+        self.dynamics_state = update_dynamics(
+            self.dynamics_state,
+            current_emotions,
+            residue_intensity=residue_intensity,
+        )
+
+        # ── Decision Bias: Compute from STM and Dynamics ──
+        decision_bias = compute_decision_bias(
+            memory=self.short_term_memory,
+            dynamics=self.dynamics_state,
+            config=self.bias_config,
+        )
+
         # Recall memories (same as api.py step 3/recall)
         recalled = await recall_by_mood(percept, psyche_state, self.memory_mgr, top_k=3)
 
-        # Generate candidates and select policy (same as api.py steps 5-6)
+        # Generate candidates and select policy (with decision bias)
         candidates = generate_thought_candidates(
             psyche_state, percept, recalled, responsibility_influence,
+            decision_bias=decision_bias,
         )
         policy = select_policy(candidates, psyche_state, responsibility_influence)
+
+        # ── Short-term memory: Mark processed and apply decay ──
+        self.short_term_memory = self.short_term_memory.mark_processed()
+        self.short_term_memory = self.short_term_memory.apply_decay()
 
         # Record the decision (same as api.py step 9c)
         decision_context = {
@@ -313,8 +413,8 @@ class SimulationEngine:
             last_updated=datetime.now().isoformat(timespec="seconds"),
         )
 
-        # Record turn data
-        record = self._record_turn(turn, input_data, psyche_state, policy)
+        # Record turn data (including bias state)
+        record = self._record_turn(turn, input_data, psyche_state, policy, decision_bias)
         self.records.append(record)
 
         return psyche_state, record

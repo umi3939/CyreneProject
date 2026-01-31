@@ -100,6 +100,17 @@ from .dynamics import (
     apply_dynamics_to_decay,
 )
 
+# Decision Bias (短期記憶由来の判断バイアス)
+from .decision_bias import (
+    DecisionBias,
+    DecisionBiasConfig,
+    compute_decision_bias,
+    apply_bias_to_score,
+    get_policy_bias_breakdown,
+    create_neutral_bias,
+    merge_biases,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -135,6 +146,10 @@ __all__ = [
     "create_dynamics_state", "update_dynamics",
     "get_decay_modifier", "get_intensity_modifier",
     "get_dynamics_summary", "apply_dynamics_to_decay",
+    # Decision Bias (短期記憶由来の判断バイアス)
+    "DecisionBias", "DecisionBiasConfig",
+    "compute_decision_bias", "apply_bias_to_score",
+    "get_policy_bias_breakdown", "create_neutral_bias", "merge_biases",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

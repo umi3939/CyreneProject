@@ -8,10 +8,19 @@ No LLM calls.  Drives, fear_index, mood, percept, and **responsibility** determi
 - caution_bias: 判断時の慎重さ → からかう等のリスキーな選択を抑制
 - empathy_bias: 共感へのバイアス → 寄り添う選択を促進
 
+短期記憶・ダイナミクス由来のバイアス:
+- DecisionBias: 短期記憶の余韻とピーク/反動状態が判断スコアに影響
+- バイアスは一時的で、時間経過により自然に減衰する
+
 Usage::
 
     candidates = generate_thought_candidates(state, percept, recalled, responsibility_influence)
     policy = select_policy(candidates, state, responsibility_influence)
+
+    # With decision bias from STM/dynamics:
+    candidates = generate_thought_candidates(
+        state, percept, recalled, responsibility_influence, decision_bias
+    )
 """
 
 from __future__ import annotations
@@ -21,6 +30,7 @@ from typing import Any, Optional
 
 from .state import Percept, PsycheState
 from .responsibility import ResponsibilityInfluence
+from .decision_bias import DecisionBias, apply_bias_to_score
 
 logger = logging.getLogger(__name__)
 
@@ -84,17 +94,20 @@ def generate_thought_candidates(
     percept: Percept,
     recalled: list[dict],
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
+    decision_bias: Optional[DecisionBias] = None,
 ) -> list[dict]:
     """Generate response policy candidates from local state analysis.
 
     **No LLM calls.**  All logic is deterministic from state + percept.
     責任の影響がある場合、判断に慎重さと共感バイアスが加わる。
+    短期記憶/ダイナミクス由来のバイアスがある場合、スコアに微調整が加わる。
 
     Args:
         state: Current psychological state.
         percept: Interpreted input stimulus.
         recalled: Retrieved memories.
         responsibility_influence: Optional responsibility influence on decisions.
+        decision_bias: Optional bias from short-term memory and dynamics.
 
     Returns a list of candidate dicts, each with:
       - policy_label, rationale, expected_drive_change, text
@@ -103,7 +116,9 @@ def generate_thought_candidates(
 
     for policy_def in POLICIES:
         label = policy_def["policy_label"]
-        score = _score_candidate(policy_def, state, percept, recalled, responsibility_influence)
+        score = _score_candidate(
+            policy_def, state, percept, recalled, responsibility_influence, decision_bias
+        )
         candidates.append({
             "policy_label": label,
             "rationale": policy_def["rationale_template"],
@@ -163,12 +178,17 @@ def _score_candidate(
     percept: Percept,
     recalled: list[dict],
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
+    decision_bias: Optional[DecisionBias] = None,
 ) -> float:
     """Score a candidate policy against current state.  Pure function.
 
     責任の影響がある場合:
     - caution_bias: リスキーな選択（からかう）にペナルティ
     - empathy_bias: 共感・励ましにボーナス
+
+    短期記憶/ダイナミクス由来のバイアスがある場合:
+    - 直近の感情の余韻がスコアに影響
+    - ピーク/反動状態が選択傾向を微調整
     """
     score = 0.0
     drives = state.drives
@@ -263,5 +283,11 @@ def _score_candidate(
         if anxiety > 0.1:
             if label in ("共感する", "励ます", "質問で会話を広げる"):
                 score += anxiety * 2.0
+
+    # 10. 短期記憶/ダイナミクス由来のバイアス（DecisionBias）
+    # 直近の体験や感情の余韻によって判断が微妙に傾く
+    # バイアスは一時的で、時間経過により自然に減衰する
+    if decision_bias is not None:
+        score = apply_bias_to_score(score, decision_bias, label, policy_def)
 
     return score

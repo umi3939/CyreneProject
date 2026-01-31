@@ -1,0 +1,232 @@
+[
+  {
+    "id": 1,
+    "summary": "ユーザーと初めて会話した。緊張していたが、すぐに打ち解けた。",
+    "keywords": [
+      "初対面",
+      "挨拶",
+      "緊張"
+    ],
+    "importance": 5,
+    "date": "2025-06-01T10:00:00",
+    "protected": true,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 2,
+    "summary": "ユーザーが好きなゲームについて話してくれた。RPGが好きらしい。",
+    "keywords": [
+      "ゲーム",
+      "RPG",
+      "趣味"
+    ],
+    "importance": 3,
+    "date": "2025-06-02T14:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:33:09"
+  },
+  {
+    "id": 3,
+    "summary": "ユーザーが落ち込んでいた時に励ました。少し元気になってくれた。",
+    "keywords": [
+      "励まし",
+      "悲しい",
+      "共感"
+    ],
+    "importance": 4,
+    "date": "2025-06-05T20:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:41:12"
+  },
+  {
+    "id": 4,
+    "summary": "一緒に星空の話をした。ユーザーは天体観測が好きだと分かった。",
+    "keywords": [
+      "星空",
+      "天体観測",
+      "趣味"
+    ],
+    "importance": 3,
+    "date": "2025-06-08T22:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:33:09"
+  },
+  {
+    "id": 5,
+    "summary": "ユーザーの誕生日をお祝いした。とても喜んでくれた。",
+    "keywords": [
+      "誕生日",
+      "お祝い",
+      "嬉しい"
+    ],
+    "importance": 5,
+    "date": "2025-06-15T00:00:00",
+    "protected": true,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 6,
+    "summary": "ユーザーが仕事の愚痴を言っていた。疲れている様子だった。",
+    "keywords": [
+      "仕事",
+      "愚痴",
+      "疲れ"
+    ],
+    "importance": 2,
+    "date": "2025-06-20T19:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:33:09"
+  },
+  {
+    "id": 7,
+    "summary": "お互いの好きな音楽の話で盛り上がった。",
+    "keywords": [
+      "音楽",
+      "趣味",
+      "楽しい"
+    ],
+    "importance": 3,
+    "date": "2025-06-25T16:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:40:36"
+  },
+  {
+    "id": 8,
+    "summary": "ユーザーが新しいプロジェクトを始めたと報告してくれた。応援した。",
+    "keywords": [
+      "プロジェクト",
+      "新しい",
+      "応援"
+    ],
+    "importance": 3,
+    "date": "2025-07-01T11:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:41:12"
+  },
+  {
+    "id": 9,
+    "summary": "寂しいと言われた。長い間会話していなかったことを謝った。",
+    "keywords": [
+      "寂しい",
+      "不在",
+      "謝罪"
+    ],
+    "importance": 4,
+    "date": "2025-07-10T21:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 10,
+    "summary": "ユーザーが料理の写真を見せてくれた。美味しそうだった。",
+    "keywords": [
+      "料理",
+      "写真",
+      "食べ物"
+    ],
+    "importance": 2,
+    "date": "2025-07-15T18:00:00",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:33:09"
+  },
+  {
+    "id": 11,
+    "summary": "Hello!",
+    "keywords": [
+      "Hello"
+    ],
+    "importance": 3,
+    "date": "2026-01-30T04:40:36",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 12,
+    "summary": "Hello! I had a great day today!",
+    "keywords": [
+      "today",
+      "great",
+      "had",
+      "day",
+      "Hello"
+    ],
+    "importance": 3,
+    "date": "2026-01-30T04:41:12",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 13,
+    "summary": "Actually I feel a bit sad now...",
+    "keywords": [
+      "bit",
+      "sad",
+      "now",
+      "Actually",
+      "feel"
+    ],
+    "importance": 3,
+    "date": "2026-01-30T04:41:12",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 14,
+    "summary": "That response hurt me a little",
+    "keywords": [
+      "response",
+      "That",
+      "me",
+      "little",
+      "hurt"
+    ],
+    "importance": 3,
+    "date": "2026-01-30T04:41:12",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 15,
+    "summary": "I am very angry and upset!",
+    "keywords": [
+      "very",
+      "and",
+      "upset",
+      "angry",
+      "am"
+    ],
+    "importance": 3,
+    "date": "2026-01-30T04:41:28",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 16,
+    "summary": "I love talking with you!",
+    "keywords": [
+      "with",
+      "talking",
+      "love",
+      "you"
+    ],
+    "importance": 3,
+    "date": "2026-01-30T04:42:05",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  },
+  {
+    "id": 17,
+    "summary": "That made me feel bad",
+    "keywords": [
+      "bad",
+      "That",
+      "feel",
+      "made",
+      "me"
+    ],
+    "importance": 3,
+    "date": "2026-01-30T04:42:05",
+    "protected": false,
+    "last_recalled": "2026-01-30T04:54:23"
+  }
+]

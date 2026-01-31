@@ -1,0 +1,83 @@
+{
+  "default_user": {
+    "bonds": {
+      "user_A": 0.5
+    },
+    "last_interaction": {
+      "user_A": "2025-07-15T18:00:00"
+    },
+    "risk": 0.3
+  },
+  "test_user": {
+    "bonds": {
+      "partner": 0.36
+    },
+    "last_interaction": {
+      "partner": "2026-01-28T17:28:01"
+    },
+    "risk": 0.3
+  },
+  "simulation_user": {
+    "bonds": {
+      "partner": 0.0
+    },
+    "last_interaction": {
+      "partner": "2026-01-29T18:29:29"
+    },
+    "risk": 0.6
+  },
+  "sim_test": {
+    "bonds": {
+      "partner": 0.0
+    },
+    "last_interaction": {
+      "partner": "2026-01-29T19:30:52"
+    },
+    "risk": 0.6
+  },
+  "integration_test_user": {
+    "bonds": {
+      "partner": 0.0
+    },
+    "last_interaction": {
+      "partner": "2026-01-30T04:33:09"
+    },
+    "risk": 0.6
+  },
+  "live_test": {
+    "bonds": {
+      "partner": 0.24
+    },
+    "last_interaction": {
+      "partner": "2026-01-30T04:41:12"
+    },
+    "risk": 0.6
+  },
+  "debug_test": {
+    "bonds": {
+      "partner": 0.06
+    },
+    "last_interaction": {
+      "partner": "2026-01-30T04:41:28"
+    },
+    "risk": 0.6
+  },
+  "debug_user": {
+    "bonds": {
+      "partner": 0.12
+    },
+    "last_interaction": {
+      "partner": "2026-01-30T04:42:05"
+    },
+    "risk": 0.6
+  },
+  "sim_integration_test": {
+    "bonds": {
+      "partner": 0.0
+    },
+    "last_interaction": {
+      "partner": "2026-01-30T04:54:23"
+    },
+    "risk": 0.6
+  }
+}

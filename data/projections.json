@@ -1,0 +1,17 @@
+{
+  "goals": [
+    {
+      "id": "entertain",
+      "description": "視聴者を楽しませる",
+      "progress": 0.1,
+      "status": "active"
+    },
+    {
+      "id": "learn_games",
+      "description": "ゲームの知識を深める",
+      "progress": 0.0,
+      "status": "active"
+    }
+  ],
+  "risk": 0.1
+}

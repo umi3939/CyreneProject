@@ -1,0 +1,82 @@
+{
+  "default_user": {
+    "emotions": {
+      "joy": 0.0,
+      "sad": 0.0,
+      "fear": 0.0,
+      "anger": 0.0,
+      "calm": 0.5
+    },
+    "drives": {
+      "social": 0.5,
+      "curiosity": 0.5
+    },
+    "mood": 0.0,
+    "last_updated": "2026-01-29T00:00:00",
+    "loss_aversion": 0.3,
+    "fear_index": 0.0
+  },
+  "live_test": {
+    "emotions": {
+      "joy": 0.0,
+      "sad": 0.0,
+      "fear": 0.0,
+      "anger": 0.0,
+      "calm": 1.0
+    },
+    "drives": {
+      "social": 0.5770990199999999,
+      "curiosity": 0.8854291099999999,
+      "expression": 0.22950778450198794
+    },
+    "mood": {
+      "valence": 0.0,
+      "arousal": 0.19683
+    },
+    "fear_index": 0.26,
+    "loss_aversion": 0.3,
+    "last_updated": "2026-01-30T04:41:12"
+  },
+  "debug_test": {
+    "emotions": {
+      "joy": 0.0,
+      "sad": 0.0,
+      "fear": 0.0,
+      "anger": 0.0,
+      "calm": 1.0
+    },
+    "drives": {
+      "social": 0.35471862,
+      "curiosity": 0.50235931,
+      "expression": 0.4976224482659491
+    },
+    "mood": {
+      "valence": 0.0,
+      "arousal": 0.27
+    },
+    "fear_index": 0.26,
+    "loss_aversion": 0.3,
+    "last_updated": "2026-01-30T04:41:28"
+  },
+  "debug_user": {
+    "emotions": {
+      "joy": 0.0,
+      "sad": 0.0,
+      "fear": 0.0,
+      "anger": 0.0,
+      "calm": 1.0
+    },
+    "drives": {
+      "social": 0.23051861999999992,
+      "curiosity": 0.51525931,
+      "expression": 0.48482119896758347
+    },
+    "mood": {
+      "valence": 0.0,
+      "arousal": 0.24300000000000002
+    },
+    "fear_index": 0.26,
+    "loss_aversion": 0.3,
+    "last_updated": "2026-01-30T04:42:05"
+  }
+}

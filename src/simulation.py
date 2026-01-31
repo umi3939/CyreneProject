@@ -270,7 +270,7 @@ class SimulationEngine:
         )
 
         # Recall memories (same as api.py step 3/recall)
-        recalled = recall_by_mood(percept, psyche_state, self.memory_mgr, top_k=3)
+        recalled = await recall_by_mood(percept, psyche_state, self.memory_mgr, top_k=3)
 
         # Generate candidates and select policy (same as api.py steps 5-6)
         candidates = generate_thought_candidates(

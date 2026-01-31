@@ -5,6 +5,7 @@ Combines all psychological state components into a single persistable unit:
 - PsycheState (emotions, drives, mood, fear pillars)
 - ShortTermMemory (recent stimuli, context)
 - ResponsibilityState (decision burden)
+- DynamicsState (peak/rebound emotional phases)
 
 Design principles:
 - All-or-nothing persistence (no partial saves/restores)
@@ -23,9 +24,11 @@ from .state import PsycheState
 from .short_term_memory import ShortTermMemory
 from .short_term_loop import LoopState, LoopConfig
 from .responsibility import ResponsibilityState, create_default_state as create_default_responsibility
+from .dynamics import DynamicsState, create_dynamics_state
 
 # Current snapshot version for compatibility checks
-SNAPSHOT_VERSION = 1
+# Version 2: Added DynamicsState for peak/rebound emotional phases
+SNAPSHOT_VERSION = 2
 
 
 @dataclass
@@ -39,6 +42,7 @@ class Snapshot:
     - Fear/loss pillar states
     - Short-term memory and context
     - Responsibility burden from past decisions
+    - Emotional dynamics (peak/rebound phases)
 
     The snapshot is treated as an atomic unit - either fully saved/restored
     or not at all.
@@ -52,6 +56,9 @@ class Snapshot:
 
     # Responsibility state (decision burden)
     responsibility: ResponsibilityState = field(default_factory=create_default_responsibility)
+
+    # Emotional dynamics state (peak/rebound phases)
+    dynamics: DynamicsState = field(default_factory=create_dynamics_state)
 
     # Metadata
     version: int = SNAPSHOT_VERSION
@@ -75,6 +82,7 @@ class Snapshot:
             "psyche": self.psyche.to_dict(),
             "loop": self.loop.to_dict(),
             "responsibility": self.responsibility.model_dump(),
+            "dynamics": self.dynamics.to_dict(),
         }
 
     @classmethod
@@ -94,7 +102,7 @@ class Snapshot:
             # Future version - cannot safely load
             return None
 
-        # Required fields check
+        # Required fields check (dynamics is optional for v1 compatibility)
         required = ["psyche", "loop", "responsibility"]
         for key in required:
             if key not in data or not isinstance(data[key], dict):
@@ -109,10 +117,17 @@ class Snapshot:
             from .responsibility import from_dict as resp_from_dict
             responsibility = resp_from_dict(data["responsibility"])
 
+            # Dynamics (optional for backward compatibility with v1)
+            if "dynamics" in data and isinstance(data["dynamics"], dict):
+                dynamics = DynamicsState.from_dict(data["dynamics"])
+            else:
+                dynamics = create_dynamics_state()
+
             return cls(
                 psyche=psyche,
                 loop=loop,
                 responsibility=responsibility,
+                dynamics=dynamics,
                 version=version,
                 user_id=data.get("user_id", "default"),
                 created_at=data.get("created_at", datetime.now().isoformat(timespec="seconds")),
@@ -129,6 +144,7 @@ class Snapshot:
             psyche=self.psyche,
             loop=self.loop,
             responsibility=self.responsibility,
+            dynamics=self.dynamics,
             version=self.version,
             user_id=self.user_id,
             created_at=self.created_at,
@@ -146,6 +162,7 @@ def create_default_snapshot(user_id: str = "default") -> Snapshot:
             config=LoopConfig(),
         ),
         responsibility=create_default_responsibility(),
+        dynamics=create_dynamics_state(),
         version=SNAPSHOT_VERSION,
         user_id=user_id,
         created_at=now,
@@ -210,5 +227,13 @@ def validate_snapshot(snapshot: Snapshot) -> tuple[bool, list[str]]:
             issues.append(f"Negative responsibility weight: {snapshot.responsibility.total_weight}")
     except Exception as e:
         issues.append(f"Invalid responsibility: {e}")
+
+    # Check dynamics
+    try:
+        from .dynamics import DynamicsPhase
+        if snapshot.dynamics.phase not in DynamicsPhase:
+            issues.append(f"Invalid dynamics phase: {snapshot.dynamics.phase}")
+    except Exception as e:
+        issues.append(f"Invalid dynamics: {e}")
 
     return (len(issues) == 0, issues)

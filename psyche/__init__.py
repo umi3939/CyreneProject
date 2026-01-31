@@ -10,6 +10,7 @@ Pillar system: identity / attachment / continuity / projection → fear
 Responsibility system: decisions → outcomes → psychological burden
 Short-term memory loop: stimulus → residue → emotion influence → decay
 Persistence: atomic snapshot save/restore for continuity across restarts
+Dynamics: peak & rebound emotional phases for non-monotonic emotion curves
 """
 
 from .state import DriveVector, EmotionVector, Mood, Percept, PsycheState
@@ -86,6 +87,19 @@ from .persistence import (
     create_persistence_hooks,
 )
 
+# Dynamics (感情ピークと反動)
+from .dynamics import (
+    DynamicsPhase,
+    DynamicsConfig,
+    DynamicsState,
+    create_dynamics_state,
+    update_dynamics,
+    get_decay_modifier,
+    get_intensity_modifier,
+    get_dynamics_summary,
+    apply_dynamics_to_decay,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -116,6 +130,11 @@ __all__ = [
     "Snapshot", "create_default_snapshot", "validate_snapshot", "SNAPSHOT_VERSION",
     "PersistenceManager", "save_snapshot", "load_snapshot", "restore_or_create",
     "create_persistence_hooks",
+    # Dynamics (感情ピークと反動)
+    "DynamicsPhase", "DynamicsConfig", "DynamicsState",
+    "create_dynamics_state", "update_dynamics",
+    "get_decay_modifier", "get_intensity_modifier",
+    "get_dynamics_summary", "apply_dynamics_to_decay",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

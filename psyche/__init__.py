@@ -214,6 +214,28 @@ from .responsibility_dispersion import (
     get_dispersion_summary,
 )
 
+# Silence / Hesitation as Choice (沈黙・躊躇の選択)
+from .silence_hesitation import (
+    SilenceType,
+    SilenceConfig,
+    SilenceCandidate,
+    SilenceResult,
+    SilenceState,
+    generate_silence_candidate,
+    evaluate_silence_score,
+    create_silence_result,
+    create_speech_result,
+    silence_candidate_to_policy,
+    is_silence_policy,
+    is_silence_result,
+    get_silence_duration,
+    generate_candidates_with_silence,
+    get_silence_summary,
+    create_silence_config,
+    to_dict as silence_config_to_dict,
+    from_dict as silence_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -291,6 +313,14 @@ __all__ = [
     "apply_accumulation", "apply_stm_coupling",
     "get_coupling_summary", "get_emotion_persistence_breakdown",
     "create_coupling_config", "stm_coupling_config_to_dict", "stm_coupling_config_from_dict",
+    # Silence / Hesitation as Choice (沈黙・躊躇の選択)
+    "SilenceType", "SilenceConfig", "SilenceCandidate", "SilenceResult", "SilenceState",
+    "generate_silence_candidate", "evaluate_silence_score",
+    "create_silence_result", "create_speech_result",
+    "silence_candidate_to_policy", "is_silence_policy", "is_silence_result",
+    "get_silence_duration", "generate_candidates_with_silence",
+    "get_silence_summary", "create_silence_config",
+    "silence_config_to_dict", "silence_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

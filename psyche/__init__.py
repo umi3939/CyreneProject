@@ -124,6 +124,10 @@ from .self_reference import (
     apply_self_tags_to_bias,
     get_self_reference_summary,
     create_self_reference_state,
+    # Responsibility distribution summary (自己参照による責任要約)
+    ResponsibilityDistributionSummary,
+    summarize_responsibility_units,
+    generate_responsibility_distribution_tags,
 )
 
 # Responsibility Dispersion & Sublimation (責任の発散・昇華)
@@ -199,6 +203,9 @@ __all__ = [
     "acquire_self_reference_targets", "summarize_state", "generate_self_tags",
     "execute_self_reference", "apply_self_tags_to_bias",
     "get_self_reference_summary", "create_self_reference_state",
+    # Responsibility distribution summary (自己参照による責任要約)
+    "ResponsibilityDistributionSummary", "summarize_responsibility_units",
+    "generate_responsibility_distribution_tags",
     # Responsibility Dispersion & Sublimation (責任の発散・昇華)
     "ResponsibilityUnit", "DispersionPlan", "SublimationPath",
     "TimeSlice", "TimeDistributionPlan", "DispersionState", "DispersionConfig",

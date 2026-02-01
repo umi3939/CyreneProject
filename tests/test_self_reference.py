@@ -8,6 +8,7 @@ Verifies:
 4. Self-reference execution (circulation)
 5. Integration with decision bias
 6. No state modification
+7. Responsibility distribution summary (from DispersionState)
 """
 
 import pytest
@@ -24,12 +25,22 @@ from psyche.self_reference import (
     apply_self_tags_to_bias,
     get_self_reference_summary,
     create_self_reference_state,
+    ResponsibilityDistributionSummary,
+    summarize_responsibility_units,
+    generate_responsibility_distribution_tags,
 )
 from psyche.state import PsycheState, EmotionVector, Mood
 from psyche.responsibility import ResponsibilityState
 from psyche.short_term_memory import ShortTermMemory
 from psyche.dynamics import DynamicsState, DynamicsPhase, create_dynamics_state, enter_peak
 from psyche.decision_bias import DecisionBias, create_neutral_bias
+from psyche.responsibility_dispersion import (
+    DispersionState,
+    create_responsibility_unit,
+    disperse_responsibility,
+    DispersionPlan,
+    create_dispersion_state,
+)
 
 
 class TestSelfTag:
@@ -486,6 +497,361 @@ class TestDiagnostics:
         summary_str = get_self_reference_summary(state)
 
         assert "no tags" in summary_str
+
+
+class TestResponsibilityDistributionSummary:
+    """Tests for ResponsibilityDistributionSummary structure."""
+
+    def test_create_empty_summary(self):
+        """Empty summary has default values."""
+        summary = ResponsibilityDistributionSummary()
+
+        assert summary.total_weight == 0.0
+        assert summary.unit_count == 0
+        assert summary.average_distance == 0.0
+        assert summary.dominant_meaning == ""
+
+    def test_summary_serialization(self):
+        """Summary survives serialization roundtrip."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=0.5,
+            unit_count=3,
+            average_distance=1.5,
+            near_weight_ratio=0.3,
+            far_weight_ratio=0.7,
+            dominant_meaning="caused_harm",
+            meaning_count=2,
+        )
+
+        data = summary.to_dict()
+        restored = ResponsibilityDistributionSummary.from_dict(data)
+
+        assert restored.total_weight == summary.total_weight
+        assert restored.unit_count == summary.unit_count
+        assert restored.average_distance == summary.average_distance
+        assert restored.dominant_meaning == summary.dominant_meaning
+
+
+class TestSummarizeResponsibilityUnits:
+    """Tests for summarize_responsibility_units function."""
+
+    def test_summarize_empty_state(self):
+        """Empty dispersion state produces empty summary."""
+        state = create_dispersion_state()
+
+        summary = summarize_responsibility_units(state)
+
+        assert summary.total_weight == 0.0
+        assert summary.unit_count == 0
+
+    def test_summarize_none_state(self):
+        """None dispersion state produces empty summary."""
+        summary = summarize_responsibility_units(None)
+
+        assert summary.total_weight == 0.0
+        assert summary.unit_count == 0
+
+    def test_summarize_single_unit(self):
+        """Single unit produces correct summary."""
+        unit, state = create_responsibility_unit(
+            weight=0.5,
+            origin="test",
+            meaning="caused_harm",
+            distance=0.5,
+            time_slice="immediate",
+        )
+
+        summary = summarize_responsibility_units(state)
+
+        assert summary.total_weight == 0.5
+        assert summary.unit_count == 1
+        assert summary.average_distance == 0.5
+        assert summary.dominant_meaning == "caused_harm"
+        assert summary.time_concentrated is True
+
+    def test_summarize_multiple_units(self):
+        """Multiple units produce correct summary."""
+        unit1, state = create_responsibility_unit(
+            weight=0.3,
+            origin="a",
+            meaning="meaning_a",
+            distance=0.5,
+        )
+        unit2, state = create_responsibility_unit(
+            weight=0.7,
+            origin="b",
+            meaning="meaning_b",
+            distance=2.0,
+            state=state,
+        )
+
+        summary = summarize_responsibility_units(state)
+
+        assert summary.total_weight == pytest.approx(1.0)
+        assert summary.unit_count == 2
+        # Weighted average distance: (0.3*0.5 + 0.7*2.0) / 1.0 = 1.55
+        assert summary.average_distance == pytest.approx(1.55)
+        # Dominant meaning is meaning_b (weight 0.7 > 0.3)
+        assert summary.dominant_meaning == "meaning_b"
+        assert summary.meaning_count == 2
+
+    def test_summarize_distance_distribution(self):
+        """Distance distribution is correctly calculated."""
+        # Near unit (distance < 1.0)
+        unit1, state = create_responsibility_unit(
+            weight=0.4,
+            origin="a",
+            distance=0.5,
+        )
+        # Far unit (distance >= 1.0)
+        unit2, state = create_responsibility_unit(
+            weight=0.6,
+            origin="b",
+            distance=2.0,
+            state=state,
+        )
+
+        summary = summarize_responsibility_units(state)
+
+        assert summary.near_weight_ratio == pytest.approx(0.4)
+        assert summary.far_weight_ratio == pytest.approx(0.6)
+
+    def test_summarize_time_distribution(self):
+        """Time distribution is correctly calculated."""
+        unit1, state = create_responsibility_unit(
+            weight=0.3,
+            origin="a",
+            time_slice="immediate",
+        )
+        unit2, state = create_responsibility_unit(
+            weight=0.4,
+            origin="b",
+            time_slice="near_future",
+            state=state,
+        )
+        unit3, state = create_responsibility_unit(
+            weight=0.3,
+            origin="c",
+            time_slice="distant_future",
+            state=state,
+        )
+
+        summary = summarize_responsibility_units(state)
+
+        assert summary.time_slice_count == 3
+        assert summary.time_concentrated is False
+        # Dominant is near_future (0.4)
+        assert summary.dominant_time_slice == "near_future"
+
+    def test_summarize_does_not_modify_state(self):
+        """Summarization is read-only."""
+        unit, state = create_responsibility_unit(weight=0.5, origin="test")
+        original_unit_count = len(state.units)
+
+        summarize_responsibility_units(state)
+
+        assert len(state.units) == original_unit_count
+
+
+class TestGenerateResponsibilityDistributionTags:
+    """Tests for generate_responsibility_distribution_tags function."""
+
+    def test_generate_from_empty_summary(self):
+        """Empty summary produces no tags."""
+        summary = ResponsibilityDistributionSummary()
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        assert len(tags) == 0
+
+    def test_generate_weight_present_tag(self):
+        """Weight > 0 generates weight_present tag."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=0.5,
+            unit_count=1,
+        )
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        weight_tags = [t for t in tags if t.label == "responsibility_weight_present"]
+        assert len(weight_tags) == 1
+        assert weight_tags[0].source_value == 0.5
+
+    def test_generate_near_dominant_tag(self):
+        """Near dominant generates near_dominant tag."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=1.0,
+            unit_count=2,
+            near_weight_ratio=0.7,
+            far_weight_ratio=0.3,
+        )
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        near_tags = [t for t in tags if t.label == "responsibility_near_dominant"]
+        assert len(near_tags) == 1
+
+    def test_generate_far_dominant_tag(self):
+        """Far dominant generates far_dominant tag."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=1.0,
+            unit_count=2,
+            near_weight_ratio=0.3,
+            far_weight_ratio=0.7,
+        )
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        far_tags = [t for t in tags if t.label == "responsibility_far_dominant"]
+        assert len(far_tags) == 1
+
+    def test_generate_time_concentrated_tag(self):
+        """Concentrated time generates time_concentrated tag."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=0.5,
+            unit_count=1,
+            time_slice_count=1,
+            time_concentrated=True,
+        )
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        time_tags = [t for t in tags if t.label == "responsibility_time_concentrated"]
+        assert len(time_tags) == 1
+
+    def test_generate_time_dispersed_tag(self):
+        """Dispersed time generates time_dispersed tag."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=0.5,
+            unit_count=3,
+            time_slice_count=3,
+            time_concentrated=False,
+        )
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        time_tags = [t for t in tags if t.label == "responsibility_time_dispersed"]
+        assert len(time_tags) == 1
+
+    def test_generate_meaning_tag(self):
+        """Dominant meaning generates meaning tag."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=0.5,
+            unit_count=1,
+            dominant_meaning="caused_harm",
+            meaning_weights={"caused_harm": 0.5},
+        )
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        meaning_tags = [t for t in tags if "meaning_caused_harm" in t.label]
+        assert len(meaning_tags) == 1
+
+    def test_generate_meaning_diverse_tag(self):
+        """Multiple meanings generate meaning_diverse tag."""
+        summary = ResponsibilityDistributionSummary(
+            total_weight=1.0,
+            unit_count=2,
+            meaning_count=3,
+        )
+
+        tags = generate_responsibility_distribution_tags(summary)
+
+        diverse_tags = [t for t in tags if t.label == "responsibility_meaning_diverse"]
+        assert len(diverse_tags) == 1
+
+
+class TestAcquireWithDispersionState:
+    """Tests for acquire_self_reference_targets with dispersion state."""
+
+    def test_acquire_with_dispersion_state(self):
+        """Dispersion state is acquired correctly."""
+        unit, state = create_responsibility_unit(
+            weight=0.5,
+            origin="test",
+            meaning="test_meaning",
+        )
+
+        targets = acquire_self_reference_targets(dispersion_state=state)
+
+        assert "responsibility_distribution" in targets
+        assert targets["responsibility_distribution"]["total_weight"] == 0.5
+        assert targets["responsibility_distribution"]["unit_count"] == 1
+
+    def test_acquire_without_dispersion_state(self):
+        """Missing dispersion state is handled."""
+        targets = acquire_self_reference_targets()
+
+        assert "responsibility_distribution" not in targets
+
+
+class TestExecuteWithDispersionState:
+    """Tests for execute_self_reference with dispersion state."""
+
+    def test_execute_includes_dispersion_tags(self):
+        """Execution with dispersion state generates distribution tags."""
+        unit, state = create_responsibility_unit(
+            weight=0.5,
+            origin="test",
+            meaning="test_meaning",
+            distance=0.5,
+        )
+
+        result = execute_self_reference(dispersion_state=state)
+
+        # Should have responsibility distribution tags
+        dist_tags = [
+            t for t in result.tags
+            if t.category == SelfTagCategory.RESPONSIBILITY_DISTRIBUTION
+        ]
+        assert len(dist_tags) > 0
+
+    def test_execute_does_not_modify_dispersion_state(self):
+        """Execution does not modify dispersion state."""
+        unit, state = create_responsibility_unit(weight=0.5, origin="test")
+        original_unit_count = len(state.units)
+
+        execute_self_reference(dispersion_state=state)
+
+        assert len(state.units) == original_unit_count
+
+
+class TestApplyResponsibilityDistributionTags:
+    """Tests for apply_self_tags_to_bias with distribution tags."""
+
+    def test_apply_near_dominant_tag(self):
+        """Near dominant tag adjusts intensity."""
+        bias = create_neutral_bias()
+        state = SelfReferenceState(tags=[
+            SelfTag(
+                category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+                label="responsibility_near_dominant",
+                source_value=0.7,
+                weight=1.0,
+            ),
+        ])
+
+        result = apply_self_tags_to_bias(bias, state)
+
+        # Near dominant should increase intensity
+        assert result.residue_intensity > bias.residue_intensity
+
+    def test_apply_weight_present_tag(self):
+        """Weight present tag adjusts intensity."""
+        bias = create_neutral_bias()
+        state = SelfReferenceState(tags=[
+            SelfTag(
+                category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+                label="responsibility_weight_present",
+                source_value=0.8,
+                weight=1.0,
+            ),
+        ])
+
+        result = apply_self_tags_to_bias(bias, state)
+
+        # Weight present should slightly increase intensity
+        assert result.residue_intensity > bias.residue_intensity
 
 
 if __name__ == "__main__":

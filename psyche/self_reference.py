@@ -15,16 +15,24 @@ Design principles (from design_self_reference.md):
 - Presence/absence of tags does NOT branch logic
 - No hardcoded values, coefficients, or thresholds
 
+Extended with responsibility summarization (from design_responsibility_summary.md):
+- Read-only access to active responsibility units
+- Extracts distribution features: weight, distance, time, meaning
+- Generates coarse self-reference summary for responsibility state
+- Does NOT modify, delete, or redistribute responsibilities
+
 Usage::
 
     from psyche.self_reference import (
         execute_self_reference,
         apply_self_tags_to_bias,
+        summarize_responsibility_units,
     )
 
     # Execute self-reference loop (read-only)
     self_ref_state = execute_self_reference(
-        psyche_state, responsibility_state, short_term_memory, dynamics_state
+        psyche_state, responsibility_state, short_term_memory, dynamics_state,
+        dispersion_state=dispersion_state,  # Optional: for unit-level summary
     )
 
     # Apply tags to decision bias
@@ -43,6 +51,7 @@ class SelfTagCategory(Enum):
     EMOTION = "emotion"
     FEAR = "fear"
     RESPONSIBILITY = "responsibility"
+    RESPONSIBILITY_DISTRIBUTION = "responsibility_distribution"  # For unit-level features
     MEMORY = "memory"
     TENDENCY = "tendency"
 
@@ -166,6 +175,291 @@ class SelfReferenceState:
         )
 
 
+# ── Responsibility Distribution Summary ─────────────────────────
+
+
+@dataclass
+class ResponsibilityDistributionSummary:
+    """
+    Coarse summary of active responsibility units.
+
+    Extracts distribution features from responsibility units:
+    - Weight magnitude (total responsibility sense)
+    - Distance bias (near vs far)
+    - Time concentration (concentrated vs dispersed)
+    - Meaning direction (centroid of meanings)
+
+    This is a TEMPORARY self-reference summary, not a permanent definition.
+    Does NOT modify, delete, or redistribute responsibilities.
+    """
+
+    # Total weight magnitude (coarse sense of burden)
+    total_weight: float = 0.0
+    unit_count: int = 0
+
+    # Distance distribution (near=0, far=∞)
+    # Weighted average distance
+    average_distance: float = 0.0
+    # Ratio of weight in "near" units (distance < 1.0)
+    near_weight_ratio: float = 0.0
+    # Ratio of weight in "far" units (distance >= 1.0)
+    far_weight_ratio: float = 0.0
+
+    # Time distribution
+    # Count of distinct time slices
+    time_slice_count: int = 0
+    # Dominant time slice by weight
+    dominant_time_slice: str = ""
+    # Whether time is concentrated (single slice) or dispersed (multiple)
+    time_concentrated: bool = False
+
+    # Meaning direction (centroid)
+    # Most frequent meaning by weight
+    dominant_meaning: str = ""
+    # Count of distinct meanings
+    meaning_count: int = 0
+    # Meanings weighted by responsibility weight
+    meaning_weights: dict[str, float] = field(default_factory=dict)
+
+    # Generation depth (how transformed)
+    max_generation: int = 0
+    average_generation: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "total_weight": self.total_weight,
+            "unit_count": self.unit_count,
+            "average_distance": self.average_distance,
+            "near_weight_ratio": self.near_weight_ratio,
+            "far_weight_ratio": self.far_weight_ratio,
+            "time_slice_count": self.time_slice_count,
+            "dominant_time_slice": self.dominant_time_slice,
+            "time_concentrated": self.time_concentrated,
+            "dominant_meaning": self.dominant_meaning,
+            "meaning_count": self.meaning_count,
+            "meaning_weights": self.meaning_weights.copy(),
+            "max_generation": self.max_generation,
+            "average_generation": self.average_generation,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ResponsibilityDistributionSummary":
+        return cls(
+            total_weight=data.get("total_weight", 0.0),
+            unit_count=data.get("unit_count", 0),
+            average_distance=data.get("average_distance", 0.0),
+            near_weight_ratio=data.get("near_weight_ratio", 0.0),
+            far_weight_ratio=data.get("far_weight_ratio", 0.0),
+            time_slice_count=data.get("time_slice_count", 0),
+            dominant_time_slice=data.get("dominant_time_slice", ""),
+            time_concentrated=data.get("time_concentrated", False),
+            dominant_meaning=data.get("dominant_meaning", ""),
+            meaning_count=data.get("meaning_count", 0),
+            meaning_weights=data.get("meaning_weights", {}),
+            max_generation=data.get("max_generation", 0),
+            average_generation=data.get("average_generation", 0.0),
+        )
+
+
+def summarize_responsibility_units(
+    dispersion_state: Any,
+    config: Optional[SelfReferenceConfig] = None,
+) -> ResponsibilityDistributionSummary:
+    """
+    Summarize active responsibility units into coarse distribution features.
+
+    This is a READ-ONLY operation. Does not modify the dispersion state.
+
+    Args:
+        dispersion_state: DispersionState containing responsibility units
+        config: Optional configuration (for custom summarization)
+
+    Returns:
+        ResponsibilityDistributionSummary with extracted features
+    """
+    # Import here to avoid circular dependency
+    try:
+        from .responsibility_dispersion import (
+            DispersionState,
+            ResponsibilityUnit,
+            get_active_units,
+        )
+    except ImportError:
+        # If module not available, return empty summary
+        return ResponsibilityDistributionSummary()
+
+    if dispersion_state is None:
+        return ResponsibilityDistributionSummary()
+
+    if not isinstance(dispersion_state, DispersionState):
+        return ResponsibilityDistributionSummary()
+
+    # Get active (non-transformed) units - read-only
+    active_units = get_active_units(dispersion_state)
+
+    if not active_units:
+        return ResponsibilityDistributionSummary()
+
+    # Compute features from active units
+    total_weight = sum(u.weight for u in active_units)
+    unit_count = len(active_units)
+
+    # Distance distribution
+    if total_weight > 0:
+        weighted_distance = sum(u.weight * u.distance for u in active_units)
+        average_distance = weighted_distance / total_weight
+
+        near_weight = sum(u.weight for u in active_units if u.distance < 1.0)
+        far_weight = sum(u.weight for u in active_units if u.distance >= 1.0)
+        near_weight_ratio = near_weight / total_weight
+        far_weight_ratio = far_weight / total_weight
+    else:
+        average_distance = 0.0
+        near_weight_ratio = 0.0
+        far_weight_ratio = 0.0
+
+    # Time distribution
+    time_slices: dict[str, float] = {}
+    for u in active_units:
+        slice_label = u.time_slice or "unspecified"
+        time_slices[slice_label] = time_slices.get(slice_label, 0.0) + u.weight
+
+    time_slice_count = len(time_slices)
+    dominant_time_slice = ""
+    if time_slices:
+        dominant_time_slice = max(time_slices.items(), key=lambda x: x[1])[0]
+    time_concentrated = time_slice_count <= 1
+
+    # Meaning distribution
+    meaning_weights: dict[str, float] = {}
+    for u in active_units:
+        meaning = u.meaning or "unspecified"
+        meaning_weights[meaning] = meaning_weights.get(meaning, 0.0) + u.weight
+
+    meaning_count = len(meaning_weights)
+    dominant_meaning = ""
+    if meaning_weights:
+        dominant_meaning = max(meaning_weights.items(), key=lambda x: x[1])[0]
+
+    # Generation depth
+    generations = [u.generation for u in active_units]
+    max_generation = max(generations) if generations else 0
+    average_generation = sum(generations) / len(generations) if generations else 0.0
+
+    return ResponsibilityDistributionSummary(
+        total_weight=total_weight,
+        unit_count=unit_count,
+        average_distance=average_distance,
+        near_weight_ratio=near_weight_ratio,
+        far_weight_ratio=far_weight_ratio,
+        time_slice_count=time_slice_count,
+        dominant_time_slice=dominant_time_slice,
+        time_concentrated=time_concentrated,
+        dominant_meaning=dominant_meaning,
+        meaning_count=meaning_count,
+        meaning_weights=meaning_weights,
+        max_generation=max_generation,
+        average_generation=average_generation,
+    )
+
+
+def generate_responsibility_distribution_tags(
+    summary: ResponsibilityDistributionSummary,
+    config: Optional[SelfReferenceConfig] = None,
+) -> list[SelfTag]:
+    """
+    Generate self-reference tags from responsibility distribution summary.
+
+    Tags are TEMPORARY markers, not permanent definitions.
+    Does NOT branch logic based on presence/absence.
+
+    Args:
+        summary: ResponsibilityDistributionSummary from summarize_responsibility_units
+        config: Optional configuration for tag weights
+
+    Returns:
+        List of SelfTag instances
+    """
+    cfg = config or SelfReferenceConfig()
+    tags: list[SelfTag] = []
+
+    # Skip if no units
+    if summary.unit_count == 0:
+        return tags
+
+    scale = cfg.category_scales.get("responsibility_distribution", 1.0) * cfg.global_scale
+
+    # Weight magnitude tag
+    if summary.total_weight > 0:
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label="responsibility_weight_present",
+            source_value=summary.total_weight,
+            weight=scale,
+        ))
+
+    # Distance bias tags
+    if summary.near_weight_ratio > summary.far_weight_ratio:
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label="responsibility_near_dominant",
+            source_value=summary.near_weight_ratio,
+            weight=scale,
+        ))
+    elif summary.far_weight_ratio > summary.near_weight_ratio:
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label="responsibility_far_dominant",
+            source_value=summary.far_weight_ratio,
+            weight=scale,
+        ))
+
+    # Time concentration tag
+    if summary.time_concentrated:
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label="responsibility_time_concentrated",
+            source_value=1.0,
+            weight=scale,
+        ))
+    elif summary.time_slice_count > 1:
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label="responsibility_time_dispersed",
+            source_value=float(summary.time_slice_count),
+            weight=scale,
+        ))
+
+    # Dominant meaning tag (if exists)
+    if summary.dominant_meaning and summary.dominant_meaning != "unspecified":
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label=f"responsibility_meaning_{summary.dominant_meaning}",
+            source_value=summary.meaning_weights.get(summary.dominant_meaning, 0.0),
+            weight=scale,
+        ))
+
+    # Meaning diversity tag
+    if summary.meaning_count > 1:
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label="responsibility_meaning_diverse",
+            source_value=float(summary.meaning_count),
+            weight=scale,
+        ))
+
+    # Generation depth tag (transformation depth)
+    if summary.max_generation > 0:
+        tags.append(SelfTag(
+            category=SelfTagCategory.RESPONSIBILITY_DISTRIBUTION,
+            label="responsibility_transformed",
+            source_value=summary.average_generation,
+            weight=scale,
+        ))
+
+    return tags
+
+
 # ── Step 1: Acquire Self-Reference Targets ──────────────────────
 
 
@@ -174,6 +468,7 @@ def acquire_self_reference_targets(
     responsibility_state: Any = None,
     short_term_memory: Any = None,
     dynamics_state: Any = None,
+    dispersion_state: Any = None,
 ) -> dict[str, Any]:
     """
     Acquire internal state for self-reference (read-only).
@@ -186,6 +481,7 @@ def acquire_self_reference_targets(
         responsibility_state: Current ResponsibilityState (optional)
         short_term_memory: Current ShortTermMemory (optional)
         dynamics_state: Current DynamicsState (optional)
+        dispersion_state: Current DispersionState for unit-level summary (optional)
 
     Returns:
         Dict of acquired state values for summarization
@@ -249,6 +545,12 @@ def acquire_self_reference_targets(
             "peak_emotion": getattr(dynamics_state, "peak_emotion", ""),
             "accumulated_intensity": getattr(dynamics_state, "accumulated_intensity", 0.0),
         }
+
+    # Acquire from DispersionState (read-only) - responsibility unit distribution
+    if dispersion_state is not None:
+        # Summarize active responsibility units
+        dist_summary = summarize_responsibility_units(dispersion_state)
+        targets["responsibility_distribution"] = dist_summary.to_dict()
 
     return targets
 
@@ -321,6 +623,10 @@ def summarize_state(
             max_drive = max(drives.items(), key=lambda x: x[1]) if drives else ("", 0.0)
             summary["dominant_drive"] = max_drive[0]
             summary["dominant_drive_value"] = max_drive[1]
+
+    # Responsibility distribution summary (from DispersionState)
+    if "responsibility_distribution" in targets:
+        summary["responsibility_distribution"] = targets["responsibility_distribution"]
 
     return summary
 
@@ -445,6 +751,13 @@ def generate_self_tags(
             weight=cfg.category_scales.get("tendency", 1.0) * cfg.global_scale,
         ))
 
+    # Generate responsibility distribution tags (from DispersionState)
+    if "responsibility_distribution" in summary:
+        dist_data = summary["responsibility_distribution"]
+        dist_summary = ResponsibilityDistributionSummary.from_dict(dist_data)
+        dist_tags = generate_responsibility_distribution_tags(dist_summary, cfg)
+        tags.extend(dist_tags)
+
     return tags
 
 
@@ -456,6 +769,7 @@ def execute_self_reference(
     responsibility_state: Any = None,
     short_term_memory: Any = None,
     dynamics_state: Any = None,
+    dispersion_state: Any = None,
     previous_state: Optional[SelfReferenceState] = None,
     config: Optional[SelfReferenceConfig] = None,
 ) -> SelfReferenceState:
@@ -475,6 +789,7 @@ def execute_self_reference(
         responsibility_state: Current ResponsibilityState
         short_term_memory: Current ShortTermMemory
         dynamics_state: Current DynamicsState
+        dispersion_state: Current DispersionState for unit-level summary (optional)
         previous_state: Previous SelfReferenceState (for circulation tracking)
         config: Self-reference configuration
 
@@ -489,6 +804,7 @@ def execute_self_reference(
         responsibility_state=responsibility_state,
         short_term_memory=short_term_memory,
         dynamics_state=dynamics_state,
+        dispersion_state=dispersion_state,
     )
 
     # Step 2: Summarize
@@ -559,6 +875,19 @@ def apply_self_tags_to_bias(
         # Responsibility present → slight intensity
         elif tag.label == "responsibility_present":
             intensity_adjustment += tag.source_value * tag.weight * 0.05
+
+        # Responsibility distribution tags (from DispersionState)
+        # Near responsibility → slightly higher intensity
+        elif tag.label == "responsibility_near_dominant":
+            intensity_adjustment += tag.source_value * tag.weight * 0.05
+
+        # Concentrated time responsibility → slightly higher intensity
+        elif tag.label == "responsibility_time_concentrated":
+            intensity_adjustment += tag.source_value * tag.weight * 0.03
+
+        # Overall responsibility weight → base intensity
+        elif tag.label == "responsibility_weight_present":
+            intensity_adjustment += tag.source_value * tag.weight * 0.02
 
     # Create new bias with adjustments (immutable pattern)
     return DecisionBias(

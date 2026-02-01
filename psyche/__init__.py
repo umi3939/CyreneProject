@@ -236,6 +236,28 @@ from .silence_hesitation import (
     from_dict as silence_config_from_dict,
 )
 
+# Tone / Light-Tone Mode (冗談・軽口モード)
+from .tone import (
+    Tone,
+    ToneConfig,
+    ToneModifier,
+    ToneState,
+    compute_tone_bias,
+    apply_tone_to_candidate,
+    get_candidate_tone,
+    select_candidate_tone,
+    generate_tone_variants,
+    add_tone_to_candidates,
+    apply_tone_to_silence,
+    get_tone_summary,
+    get_tone_from_candidate,
+    is_light_tone,
+    is_serious_tone,
+    create_tone_config,
+    to_dict as tone_config_to_dict,
+    from_dict as tone_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -321,6 +343,13 @@ __all__ = [
     "get_silence_duration", "generate_candidates_with_silence",
     "get_silence_summary", "create_silence_config",
     "silence_config_to_dict", "silence_config_from_dict",
+    # Tone / Light-Tone Mode (冗談・軽口モード)
+    "Tone", "ToneConfig", "ToneModifier", "ToneState",
+    "compute_tone_bias", "apply_tone_to_candidate", "get_candidate_tone",
+    "select_candidate_tone", "generate_tone_variants", "add_tone_to_candidates",
+    "apply_tone_to_silence", "get_tone_summary", "get_tone_from_candidate",
+    "is_light_tone", "is_serious_tone", "create_tone_config",
+    "tone_config_to_dict", "tone_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

@@ -144,6 +144,28 @@ from .emotion_amplitude import (
     get_amplitude_summary,
 )
 
+# Multi-Emotion Reference (複数感情参照)
+from .multi_emotion import (
+    EmotionDecayConfig,
+    MultiEmotionConfig,
+    get_active_emotions,
+    get_all_emotions,
+    get_coexisting_pairs,
+    has_conflicting_emotions,
+    get_emotion_intensity,
+    get_emotion_spread,
+    apply_independent_decay,
+    apply_independent_update,
+    set_emotions_independently,
+    reference_emotions_for_judgment,
+    reference_emotion_by_name,
+    reference_multiple_emotions,
+    get_emotion_vector_summary,
+    create_multi_emotion_config,
+    to_dict as multi_emotion_config_to_dict,
+    from_dict as multi_emotion_config_from_dict,
+)
+
 # Responsibility Dispersion & Sublimation (責任の発散・昇華)
 from .responsibility_dispersion import (
     ResponsibilityUnit,
@@ -235,6 +257,14 @@ __all__ = [
     "get_audit_trail", "get_unit_by_id", "get_active_units", "get_total_active_weight",
     "get_lineage", "verify_state_conservation", "create_dispersion_state",
     "get_dispersion_summary",
+    # Multi-Emotion Reference (複数感情参照)
+    "EmotionDecayConfig", "MultiEmotionConfig",
+    "get_active_emotions", "get_all_emotions", "get_coexisting_pairs",
+    "has_conflicting_emotions", "get_emotion_intensity", "get_emotion_spread",
+    "apply_independent_decay", "apply_independent_update", "set_emotions_independently",
+    "reference_emotions_for_judgment", "reference_emotion_by_name", "reference_multiple_emotions",
+    "get_emotion_vector_summary", "create_multi_emotion_config",
+    "multi_emotion_config_to_dict", "multi_emotion_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

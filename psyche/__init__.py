@@ -111,6 +111,21 @@ from .decision_bias import (
     merge_biases,
 )
 
+# Self-Reference Loop (自己参照ループ)
+from .self_reference import (
+    SelfTag,
+    SelfTagCategory,
+    SelfReferenceConfig,
+    SelfReferenceState,
+    acquire_self_reference_targets,
+    summarize_state,
+    generate_self_tags,
+    execute_self_reference,
+    apply_self_tags_to_bias,
+    get_self_reference_summary,
+    create_self_reference_state,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -150,6 +165,11 @@ __all__ = [
     "DecisionBias", "DecisionBiasConfig",
     "compute_decision_bias", "apply_bias_to_score",
     "get_policy_bias_breakdown", "create_neutral_bias", "merge_biases",
+    # Self-Reference Loop (自己参照ループ)
+    "SelfTag", "SelfTagCategory", "SelfReferenceConfig", "SelfReferenceState",
+    "acquire_self_reference_targets", "summarize_state", "generate_self_tags",
+    "execute_self_reference", "apply_self_tags_to_bias",
+    "get_self_reference_summary", "create_self_reference_state",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

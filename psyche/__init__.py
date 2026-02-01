@@ -126,6 +126,35 @@ from .self_reference import (
     create_self_reference_state,
 )
 
+# Responsibility Dispersion & Sublimation (責任の発散・昇華)
+from .responsibility_dispersion import (
+    ResponsibilityUnit,
+    DispersionPlan,
+    SublimationPath,
+    TimeSlice,
+    TimeDistributionPlan,
+    DispersionState,
+    DispersionConfig,
+    AuditEntry,
+    AuditEventType,
+    DispersionStrategy,
+    ConservationViolationError,
+    create_responsibility_unit,
+    disperse_responsibility,
+    sublimate_responsibility,
+    distribute_over_time,
+    adjust_distance,
+    merge_responsibilities,
+    get_audit_trail,
+    get_unit_by_id,
+    get_active_units,
+    get_total_active_weight,
+    get_lineage,
+    verify_state_conservation,
+    create_dispersion_state,
+    get_dispersion_summary,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -170,6 +199,15 @@ __all__ = [
     "acquire_self_reference_targets", "summarize_state", "generate_self_tags",
     "execute_self_reference", "apply_self_tags_to_bias",
     "get_self_reference_summary", "create_self_reference_state",
+    # Responsibility Dispersion & Sublimation (責任の発散・昇華)
+    "ResponsibilityUnit", "DispersionPlan", "SublimationPath",
+    "TimeSlice", "TimeDistributionPlan", "DispersionState", "DispersionConfig",
+    "AuditEntry", "AuditEventType", "DispersionStrategy", "ConservationViolationError",
+    "create_responsibility_unit", "disperse_responsibility", "sublimate_responsibility",
+    "distribute_over_time", "adjust_distance", "merge_responsibilities",
+    "get_audit_trail", "get_unit_by_id", "get_active_units", "get_total_active_weight",
+    "get_lineage", "verify_state_conservation", "create_dispersion_state",
+    "get_dispersion_summary",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

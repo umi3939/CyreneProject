@@ -166,6 +166,25 @@ from .multi_emotion import (
     from_dict as multi_emotion_config_from_dict,
 )
 
+# STM-Emotion Coupling (短期記憶の感情連動)
+from .stm_emotion_coupling import (
+    STMEmotionCouplingConfig,
+    EmotionCouplingData,
+    CouplingInfluence,
+    compute_coupling_influence,
+    compute_decay_modifier_from_stm,
+    apply_persistence_modifier,
+    apply_reactivation,
+    apply_reactivation_to_existing,
+    apply_accumulation,
+    apply_stm_coupling,
+    get_coupling_summary,
+    get_emotion_persistence_breakdown,
+    create_coupling_config,
+    to_dict as stm_coupling_config_to_dict,
+    from_dict as stm_coupling_config_from_dict,
+)
+
 # Responsibility Dispersion & Sublimation (責任の発散・昇華)
 from .responsibility_dispersion import (
     ResponsibilityUnit,
@@ -265,6 +284,13 @@ __all__ = [
     "reference_emotions_for_judgment", "reference_emotion_by_name", "reference_multiple_emotions",
     "get_emotion_vector_summary", "create_multi_emotion_config",
     "multi_emotion_config_to_dict", "multi_emotion_config_from_dict",
+    # STM-Emotion Coupling (短期記憶の感情連動)
+    "STMEmotionCouplingConfig", "EmotionCouplingData", "CouplingInfluence",
+    "compute_coupling_influence", "compute_decay_modifier_from_stm",
+    "apply_persistence_modifier", "apply_reactivation", "apply_reactivation_to_existing",
+    "apply_accumulation", "apply_stm_coupling",
+    "get_coupling_summary", "get_emotion_persistence_breakdown",
+    "create_coupling_config", "stm_coupling_config_to_dict", "stm_coupling_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
 ]

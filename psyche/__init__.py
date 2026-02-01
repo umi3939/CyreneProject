@@ -258,6 +258,31 @@ from .tone import (
     from_dict as tone_config_from_dict,
 )
 
+# Context Sensitivity (空気読みバイアス)
+from .context_sensitivity import (
+    ExternalContext,
+    SensitivityBias,
+    ContextSensitivityConfig,
+    ContextState,
+    create_external_context,
+    create_neutral_context,
+    create_heavy_context,
+    create_light_context,
+    create_neutral_bias as create_neutral_sensitivity_bias,
+    compute_sensitivity_bias,
+    get_policy_risk,
+    apply_sensitivity_to_candidate,
+    apply_sensitivity_to_candidates,
+    process_with_context_sensitivity,
+    get_sensitivity_summary,
+    get_context_summary,
+    is_high_caution,
+    is_low_caution,
+    create_config as create_sensitivity_config,
+    to_dict as sensitivity_config_to_dict,
+    from_dict as sensitivity_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -352,4 +377,12 @@ __all__ = [
     "tone_config_to_dict", "tone_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
+    # Context Sensitivity (空気読みバイアス)
+    "ExternalContext", "SensitivityBias", "ContextSensitivityConfig", "ContextState",
+    "create_external_context", "create_neutral_context", "create_heavy_context", "create_light_context",
+    "create_neutral_sensitivity_bias", "compute_sensitivity_bias",
+    "get_policy_risk", "apply_sensitivity_to_candidate", "apply_sensitivity_to_candidates",
+    "process_with_context_sensitivity", "get_sensitivity_summary", "get_context_summary",
+    "is_high_caution", "is_low_caution", "create_sensitivity_config",
+    "sensitivity_config_to_dict", "sensitivity_config_from_dict",
 ]

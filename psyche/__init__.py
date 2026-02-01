@@ -130,6 +130,20 @@ from .self_reference import (
     generate_responsibility_distribution_tags,
 )
 
+# Emotion Amplitude Expansion (感情振れ幅拡張)
+from .emotion_amplitude import (
+    AmplitudeState,
+    AmplitudeConfig,
+    apply_amplitude_to_delta,
+    apply_amplitude_to_emotion_deltas,
+    update_amplitude,
+    decay_amplitude,
+    compute_amplitude_from_dynamics,
+    compute_amplitude_from_residue,
+    create_amplitude_state,
+    get_amplitude_summary,
+)
+
 # Responsibility Dispersion & Sublimation (責任の発散・昇華)
 from .responsibility_dispersion import (
     ResponsibilityUnit,
@@ -206,6 +220,12 @@ __all__ = [
     # Responsibility distribution summary (自己参照による責任要約)
     "ResponsibilityDistributionSummary", "summarize_responsibility_units",
     "generate_responsibility_distribution_tags",
+    # Emotion Amplitude Expansion (感情振れ幅拡張)
+    "AmplitudeState", "AmplitudeConfig",
+    "apply_amplitude_to_delta", "apply_amplitude_to_emotion_deltas",
+    "update_amplitude", "decay_amplitude",
+    "compute_amplitude_from_dynamics", "compute_amplitude_from_residue",
+    "create_amplitude_state", "get_amplitude_summary",
     # Responsibility Dispersion & Sublimation (責任の発散・昇華)
     "ResponsibilityUnit", "DispersionPlan", "SublimationPath",
     "TimeSlice", "TimeDistributionPlan", "DispersionState", "DispersionConfig",

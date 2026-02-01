@@ -7,6 +7,11 @@ Handles emotion updates, decay, drive changes, mood drift, and **responsibility 
 責任（Responsibility）の影響:
 - anxiety_baseline: 不安・恐怖系感情のベースラインを上昇
 - fear_amplification: 喪失への恐れを増幅
+
+感情振れ幅拡張（Emotion Amplitude Expansion）:
+- amplitude_modifier: 感情の変化量（delta）を増減させる
+- 方向（符号）は変えず、変化量のみをスケール
+- 一時的であり、時間経過で基準値に戻る
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from typing import Optional
 from .fear import fear_drive_boost, fear_emotion_boost
 from .responsibility import ResponsibilityInfluence
 from .state import DriveVector, EmotionVector, Mood, Percept, PsycheState
+from .emotion_amplitude import apply_amplitude_to_delta
 
 # Mapping from percept emotion labels to emotion vector fields
 _EMOTION_MAP: dict[str, str] = {
@@ -45,11 +51,12 @@ def react(
     state: PsycheState,
     delta_time: float = 1.0,
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
+    amplitude_modifier: float = 1.0,
 ) -> PsycheState:
     """
     Produce a new PsycheState by reacting to a Percept over delta_time seconds.
 
-    1. Apply emotion stimulus from the Percept.
+    1. Apply emotion stimulus from the Percept (scaled by amplitude_modifier).
     2. Decay all emotions toward zero over time.
     3. Apply responsibility-driven anxiety baseline.
     4. Update drives (social, curiosity, expression).
@@ -60,6 +67,8 @@ def react(
         state: Current psychological state (not mutated).
         delta_time: Seconds elapsed since last update.
         responsibility_influence: Optional responsibility influence on emotions.
+        amplitude_modifier: Scales emotion change amounts (1.0 = no change).
+                          Does NOT change direction, only magnitude.
 
     Returns:
         New PsycheState reflecting the reaction.
@@ -67,19 +76,25 @@ def react(
     emo = state.emotions.as_dict()
 
     # --- 1. Emotion stimulus from Percept ---
-    # Direct emotion mapping
+    # Direct emotion mapping (with amplitude scaling)
     target_field = _EMOTION_MAP.get(percept.emotion, "")
     if target_field and target_field in emo:
-        emo[target_field] = _clamp(emo[target_field] + 0.2)
+        base_delta = 0.2
+        scaled_delta = apply_amplitude_to_delta(base_delta, amplitude_modifier)
+        emo[target_field] = _clamp(emo[target_field] + scaled_delta)
 
-    # Valence-based secondary effects
+    # Valence-based secondary effects (with amplitude scaling)
     v = percept.emotion_valence
     if v > 0:
         for field, weight in _VALENCE_POSITIVE.items():
-            emo[field] = _clamp(emo[field] + v * weight)
+            base_delta = v * weight
+            scaled_delta = apply_amplitude_to_delta(base_delta, amplitude_modifier)
+            emo[field] = _clamp(emo[field] + scaled_delta)
     elif v < 0:
         for field, weight in _VALENCE_NEGATIVE.items():
-            emo[field] = _clamp(emo[field] + abs(v) * weight)
+            base_delta = abs(v) * weight
+            scaled_delta = apply_amplitude_to_delta(base_delta, amplitude_modifier)
+            emo[field] = _clamp(emo[field] + scaled_delta)
 
     # --- 2. Time-based emotion decay ---
     decay = DECAY_RATE ** delta_time

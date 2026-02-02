@@ -425,6 +425,27 @@ from .transient_goal import (
     from_dict as transient_goal_config_from_dict,
 )
 
+# Scoped Goal Commitment (行動スコープ限定の目的コミット)
+from .scoped_goal import (
+    ScopeType,
+    ScopeStatus,
+    ScopedGoal,
+    ScopedBias,
+    ScopedResponsibility,
+    ScopedGoalConfig,
+    ScopedGoalSystem,
+    create_system as create_scoped_goal_system,
+    create_config as create_scoped_goal_config,
+    apply_scoped_bias_to_candidate,
+    apply_scoped_bias_to_candidates,
+    get_scoped_goal_summary,
+    create_scope_context_for_trace,
+    get_responsibilities_for_integration,
+    execute_scoped_decision_flow,
+    to_dict as scoped_goal_config_to_dict,
+    from_dict as scoped_goal_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -577,4 +598,12 @@ __all__ = [
     "get_transient_goal_summary", "create_goal_context_for_trace",
     "create_goal_stats_for_dynamics", "get_responsibilities_for_dispersion",
     "transient_goal_config_to_dict", "transient_goal_config_from_dict",
+    # Scoped Goal Commitment (行動スコープ限定の目的コミット)
+    "ScopeType", "ScopeStatus", "ScopedGoal", "ScopedBias", "ScopedResponsibility",
+    "ScopedGoalConfig", "ScopedGoalSystem",
+    "create_scoped_goal_system", "create_scoped_goal_config",
+    "apply_scoped_bias_to_candidate", "apply_scoped_bias_to_candidates",
+    "get_scoped_goal_summary", "create_scope_context_for_trace",
+    "get_responsibilities_for_integration", "execute_scoped_decision_flow",
+    "scoped_goal_config_to_dict", "scoped_goal_config_from_dict",
 ]

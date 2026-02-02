@@ -258,6 +258,27 @@ from .tone import (
     from_dict as tone_config_from_dict,
 )
 
+# Introspection Trace (内省ログ生成)
+from .introspection_trace import (
+    InfluenceDirection,
+    FactorCategory,
+    OutcomeType,
+    ContributingFactor,
+    EmotionSnapshot,
+    ResponsibilitySnapshot,
+    ValueOrientationSnapshot,
+    DecisionSnapshot,
+    TraceLog,
+    IntrospectionConfig,
+    IntrospectionSystem,
+    generate_trace,
+    create_introspection_system,
+    create_config as create_introspection_config,
+    get_trace_summary,
+    traces_to_json,
+    traces_from_json,
+)
+
 # Value Orientation (一貫した価値軸)
 from .value_orientation import (
     ValueOrientation,
@@ -402,6 +423,13 @@ __all__ = [
     "tone_config_to_dict", "tone_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
+    # Introspection Trace (内省ログ生成)
+    "InfluenceDirection", "FactorCategory", "OutcomeType",
+    "ContributingFactor", "EmotionSnapshot", "ResponsibilitySnapshot",
+    "ValueOrientationSnapshot", "DecisionSnapshot", "TraceLog",
+    "IntrospectionConfig", "IntrospectionSystem",
+    "generate_trace", "create_introspection_system", "create_introspection_config",
+    "get_trace_summary", "traces_to_json", "traces_from_json",
     # Value Orientation (一貫した価値軸)
     "ValueOrientation", "ValueOrientationConfig", "OrientationBias",
     "compute_effective_learning_rate", "update_dimension", "update_orientation",

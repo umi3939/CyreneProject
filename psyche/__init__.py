@@ -258,6 +258,24 @@ from .tone import (
     from_dict as tone_config_from_dict,
 )
 
+# Long-Term Dynamics (長期挙動ログ)
+from .long_term_dynamics import (
+    EmotionStats,
+    DecisionStats,
+    ValueOrientationStats,
+    ResponsibilityStats,
+    StabilityValveStats,
+    WindowStats,
+    LongTermEntry,
+    DynamicsObserverConfig,
+    DynamicsObserver,
+    create_observer,
+    create_config as create_observer_config,
+    get_observer_summary,
+    entries_to_json,
+    entries_from_json,
+)
+
 # Stability Valve (極端回避防止)
 from .stability_valve import (
     ExtremityIndicators,
@@ -443,6 +461,12 @@ __all__ = [
     "tone_config_to_dict", "tone_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
+    # Long-Term Dynamics (長期挙動ログ)
+    "EmotionStats", "DecisionStats", "ValueOrientationStats",
+    "ResponsibilityStats", "StabilityValveStats", "WindowStats", "LongTermEntry",
+    "DynamicsObserverConfig", "DynamicsObserver",
+    "create_observer", "create_observer_config", "get_observer_summary",
+    "entries_to_json", "entries_from_json",
     # Stability Valve (極端回避防止)
     "ExtremityIndicators", "StabilityBias", "StabilityValveConfig", "StabilityValve",
     "create_neutral_stability_bias", "flatten_scores",

@@ -258,6 +258,31 @@ from .tone import (
     from_dict as tone_config_from_dict,
 )
 
+# Value Orientation (一貫した価値軸)
+from .value_orientation import (
+    ValueOrientation,
+    ValueOrientationConfig,
+    OrientationBias,
+    compute_effective_learning_rate,
+    update_dimension,
+    update_orientation,
+    generate_decision_signal,
+    update_from_decision,
+    compute_orientation_bias,
+    apply_orientation_to_candidate,
+    apply_orientation_to_candidates,
+    generate_emotion_signal,
+    generate_responsibility_signal,
+    get_orientation_summary,
+    get_orientation_vector,
+    compute_orientation_distance,
+    is_orientation_stable,
+    create_orientation,
+    create_config as create_orientation_config,
+    to_dict as orientation_config_to_dict,
+    from_dict as orientation_config_from_dict,
+)
+
 # Context Sensitivity (空気読みバイアス)
 from .context_sensitivity import (
     ExternalContext,
@@ -377,6 +402,15 @@ __all__ = [
     "tone_config_to_dict", "tone_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
+    # Value Orientation (一貫した価値軸)
+    "ValueOrientation", "ValueOrientationConfig", "OrientationBias",
+    "compute_effective_learning_rate", "update_dimension", "update_orientation",
+    "generate_decision_signal", "update_from_decision",
+    "compute_orientation_bias", "apply_orientation_to_candidate", "apply_orientation_to_candidates",
+    "generate_emotion_signal", "generate_responsibility_signal",
+    "get_orientation_summary", "get_orientation_vector", "compute_orientation_distance",
+    "is_orientation_stable", "create_orientation", "create_orientation_config",
+    "orientation_config_to_dict", "orientation_config_from_dict",
     # Context Sensitivity (空気読みバイアス)
     "ExternalContext", "SensitivityBias", "ContextSensitivityConfig", "ContextState",
     "create_external_context", "create_neutral_context", "create_heavy_context", "create_light_context",

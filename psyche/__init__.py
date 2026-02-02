@@ -367,6 +367,24 @@ from .context_sensitivity import (
     from_dict as sensitivity_config_from_dict,
 )
 
+# Proto-Goal Direction Vector (自発的方向ベクトル)
+from .proto_goal_vector import (
+    VectorSourceType,
+    VectorSource,
+    ProtoGoalVector,
+    VectorStateConfig,
+    VectorState,
+    VectorGenerator,
+    create_vector_generator,
+    create_config as create_vector_config,
+    get_vector_summary,
+    vectors_to_json,
+    vectors_from_json,
+    create_vector_context_for_trace,
+    to_dict as vector_config_to_dict,
+    from_dict as vector_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -498,4 +516,10 @@ __all__ = [
     "process_with_context_sensitivity", "get_sensitivity_summary", "get_context_summary",
     "is_high_caution", "is_low_caution", "create_sensitivity_config",
     "sensitivity_config_to_dict", "sensitivity_config_from_dict",
+    # Proto-Goal Direction Vector (自発的方向ベクトル)
+    "VectorSourceType", "VectorSource", "ProtoGoalVector",
+    "VectorStateConfig", "VectorState", "VectorGenerator",
+    "create_vector_generator", "create_vector_config", "get_vector_summary",
+    "vectors_to_json", "vectors_from_json", "create_vector_context_for_trace",
+    "vector_config_to_dict", "vector_config_from_dict",
 ]

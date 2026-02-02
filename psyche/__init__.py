@@ -446,6 +446,26 @@ from .scoped_goal import (
     from_dict as scoped_goal_config_from_dict,
 )
 
+# Repeated Tendency (反復傾向の形成)
+from .repeated_tendency import (
+    TendencyPattern,
+    UsageRecord,
+    Tendency,
+    TendencyBias,
+    RepeatedTendencyConfig,
+    RepeatedTendencyState,
+    RepeatedTendencySystem,
+    create_system as create_tendency_system,
+    create_config as create_tendency_config,
+    apply_tendency_bias_to_candidate,
+    apply_tendency_bias_to_candidates,
+    get_tendency_summary,
+    create_tendency_context_for_trace,
+    create_tendency_stats_for_dynamics,
+    to_dict as tendency_config_to_dict,
+    from_dict as tendency_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -606,4 +626,12 @@ __all__ = [
     "get_scoped_goal_summary", "create_scope_context_for_trace",
     "get_responsibilities_for_integration", "execute_scoped_decision_flow",
     "scoped_goal_config_to_dict", "scoped_goal_config_from_dict",
+    # Repeated Tendency (反復傾向の形成)
+    "TendencyPattern", "UsageRecord", "Tendency", "TendencyBias",
+    "RepeatedTendencyConfig", "RepeatedTendencyState", "RepeatedTendencySystem",
+    "create_tendency_system", "create_tendency_config",
+    "apply_tendency_bias_to_candidate", "apply_tendency_bias_to_candidates",
+    "get_tendency_summary", "create_tendency_context_for_trace",
+    "create_tendency_stats_for_dynamics",
+    "tendency_config_to_dict", "tendency_config_from_dict",
 ]

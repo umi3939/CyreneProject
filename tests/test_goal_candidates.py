@@ -687,7 +687,12 @@ class TestDecayBehavior:
         assert intensities[1] == pytest.approx(0.81, rel=0.01)
 
     def test_candidate_removed_when_below_threshold(self):
-        config = create_config(decay_rate=0.5, min_intensity=0.2, vector_threshold=0.1)
+        config = create_config(
+            decay_rate=0.5,
+            min_intensity=0.2,
+            vector_threshold=0.1,
+            generation_probability=0.0,  # Disable generation to test decay only
+        )
         generator = CandidateGenerator(config=config)
 
         candidate = GoalCandidate(

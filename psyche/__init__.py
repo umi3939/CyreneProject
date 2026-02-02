@@ -385,6 +385,25 @@ from .proto_goal_vector import (
     from_dict as vector_config_from_dict,
 )
 
+# Goal Candidates (自発的目的候補)
+from .goal_candidates import (
+    CandidateCategory,
+    CandidateSource,
+    GoalCandidate,
+    CandidateStateConfig,
+    CandidateState,
+    CandidateGenerator,
+    create_candidate_generator,
+    create_config as create_candidate_config,
+    get_candidate_summary,
+    candidates_to_json,
+    candidates_from_json,
+    create_candidate_context_for_trace,
+    create_candidate_stats_for_dynamics,
+    to_dict as candidate_config_to_dict,
+    from_dict as candidate_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -522,4 +541,11 @@ __all__ = [
     "create_vector_generator", "create_vector_config", "get_vector_summary",
     "vectors_to_json", "vectors_from_json", "create_vector_context_for_trace",
     "vector_config_to_dict", "vector_config_from_dict",
+    # Goal Candidates (自発的目的候補)
+    "CandidateCategory", "CandidateSource", "GoalCandidate",
+    "CandidateStateConfig", "CandidateState", "CandidateGenerator",
+    "create_candidate_generator", "create_candidate_config", "get_candidate_summary",
+    "candidates_to_json", "candidates_from_json",
+    "create_candidate_context_for_trace", "create_candidate_stats_for_dynamics",
+    "candidate_config_to_dict", "candidate_config_from_dict",
 ]

@@ -332,6 +332,7 @@ class TestOrphanedCandidates:
             decay_rate=0.0,
             min_intensity=0.01,
             vector_threshold=0.3,
+            generation_probability=0.0,  # Disable new generation for this test
         )
         generator = CandidateGenerator(config=config)
 
@@ -355,6 +356,7 @@ class TestOrphanedCandidates:
             decay_rate=0.0,
             min_intensity=0.01,
             vector_threshold=0.3,
+            generation_probability=0.0,  # Disable new generation for this test
         )
         generator = CandidateGenerator(config=config)
 

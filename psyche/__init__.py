@@ -404,6 +404,27 @@ from .goal_candidates import (
     from_dict as candidate_config_from_dict,
 )
 
+# Transient Goal Selection (一時的目的選択)
+from .transient_goal import (
+    GoalReleaseReason,
+    ActiveGoal,
+    GoalBias,
+    LightResponsibility,
+    TransientGoalConfig,
+    TransientGoalState,
+    TransientGoalManager,
+    create_manager as create_transient_goal_manager,
+    create_config as create_transient_goal_config,
+    apply_goal_bias_to_candidate,
+    apply_goal_bias_to_candidates,
+    get_transient_goal_summary,
+    create_goal_context_for_trace,
+    create_goal_stats_for_dynamics,
+    get_responsibilities_for_dispersion,
+    to_dict as transient_goal_config_to_dict,
+    from_dict as transient_goal_config_from_dict,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -548,4 +569,12 @@ __all__ = [
     "candidates_to_json", "candidates_from_json",
     "create_candidate_context_for_trace", "create_candidate_stats_for_dynamics",
     "candidate_config_to_dict", "candidate_config_from_dict",
+    # Transient Goal Selection (一時的目的選択)
+    "GoalReleaseReason", "ActiveGoal", "GoalBias", "LightResponsibility",
+    "TransientGoalConfig", "TransientGoalState", "TransientGoalManager",
+    "create_transient_goal_manager", "create_transient_goal_config",
+    "apply_goal_bias_to_candidate", "apply_goal_bias_to_candidates",
+    "get_transient_goal_summary", "create_goal_context_for_trace",
+    "create_goal_stats_for_dynamics", "get_responsibilities_for_dispersion",
+    "transient_goal_config_to_dict", "transient_goal_config_from_dict",
 ]

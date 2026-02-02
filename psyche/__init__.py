@@ -258,6 +258,26 @@ from .tone import (
     from_dict as tone_config_from_dict,
 )
 
+# Stability Valve (極端回避防止)
+from .stability_valve import (
+    ExtremityIndicators,
+    StabilityBias,
+    StabilityValveConfig,
+    StabilityValve,
+    create_neutral_bias as create_neutral_stability_bias,
+    flatten_scores,
+    apply_stability_to_candidate,
+    apply_stability_bias,
+    create_stability_factor,
+    get_stability_trace_context,
+    create_stability_valve,
+    create_config as create_stability_config,
+    observe_extremity,
+    get_stability_summary,
+    to_dict as stability_config_to_dict,
+    from_dict as stability_config_from_dict,
+)
+
 # Introspection Trace (内省ログ生成)
 from .introspection_trace import (
     InfluenceDirection,
@@ -423,6 +443,13 @@ __all__ = [
     "tone_config_to_dict", "tone_config_from_dict",
     # Pillar managers
     "attachment_manager", "continuity_manager", "identity_manager", "projection_manager",
+    # Stability Valve (極端回避防止)
+    "ExtremityIndicators", "StabilityBias", "StabilityValveConfig", "StabilityValve",
+    "create_neutral_stability_bias", "flatten_scores",
+    "apply_stability_to_candidate", "apply_stability_bias",
+    "create_stability_factor", "get_stability_trace_context",
+    "create_stability_valve", "create_stability_config", "observe_extremity",
+    "get_stability_summary", "stability_config_to_dict", "stability_config_from_dict",
     # Introspection Trace (内省ログ生成)
     "InfluenceDirection", "FactorCategory", "OutcomeType",
     "ContributingFactor", "EmotionSnapshot", "ResponsibilitySnapshot",

@@ -466,6 +466,24 @@ from .repeated_tendency import (
     from_dict as tendency_config_from_dict,
 )
 
+# Tendency Awareness (反復傾向の自己認知)
+from .tendency_awareness import (
+    StrengthLevel,
+    DurationLevel,
+    ConfidenceLevel,
+    AwarenessType,
+    TendencyAwarenessItem,
+    TendencyAwareness,
+    AwarenessConfig,
+    observe_tendency,
+    observe_tendencies,
+    generate_awareness_tags,
+    get_awareness_summary,
+    get_awareness_for_introspection,
+    create_config as create_awareness_config,
+    create_empty_awareness,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -634,4 +652,10 @@ __all__ = [
     "get_tendency_summary", "create_tendency_context_for_trace",
     "create_tendency_stats_for_dynamics",
     "tendency_config_to_dict", "tendency_config_from_dict",
+    # Tendency Awareness (反復傾向の自己認知)
+    "StrengthLevel", "DurationLevel", "ConfidenceLevel", "AwarenessType",
+    "TendencyAwarenessItem", "TendencyAwareness", "AwarenessConfig",
+    "observe_tendency", "observe_tendencies",
+    "generate_awareness_tags", "get_awareness_summary", "get_awareness_for_introspection",
+    "create_awareness_config", "create_empty_awareness",
 ]

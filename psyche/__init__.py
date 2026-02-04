@@ -529,6 +529,99 @@ from .self_model import (
     create_config as create_self_model_config,
 )
 
+# Temporal Self-Difference (自己モデル差分認知)
+from .temporal_self_difference import (
+    # Abstract enums
+    DifferenceMagnitude,
+    ChangeNature,
+    ComponentChangeType,
+    TemporalSpan,
+    # Structures
+    ComponentDifference,
+    SelfDifferenceSummary,
+    TemporalDifferenceConfig,
+    TemporalDifferenceState,
+    TemporalSelfDifferenceSystem,
+    # Comparison functions
+    compare_emotional_state as compare_emotional_diff,
+    compare_responsibility_state as compare_responsibility_diff,
+    compare_tendency_state as compare_tendency_diff,
+    compare_direction_state as compare_direction_diff,
+    compare_value_state as compare_value_diff,
+    determine_magnitude,
+    determine_nature,
+    # Integration functions
+    generate_difference_tags,
+    get_difference_summary,
+    get_difference_for_introspection,
+    # Persistence
+    save_difference_history,
+    load_difference_history,
+    # Convenience
+    create_config as create_difference_config,
+    create_empty_summary as create_empty_difference_summary,
+)
+
+# Continuity Strain (自己連続性負荷)
+from .continuity_strain import (
+    # Abstract enums
+    StrainPresence,
+    StrainLevel,
+    StrainPersistence,
+    StrainTrend,
+    # Structures
+    StrainState,
+    DifferenceObservation,
+    ContinuityStrainConfig,
+    ContinuityStrainInternalState,
+    ContinuityStrainSystem,
+    # Determination functions
+    determine_strain_level,
+    determine_strain_persistence,
+    determine_strain_trend,
+    get_average_magnitude,
+    generate_strain_description,
+    # Integration functions
+    generate_strain_tags,
+    get_strain_summary,
+    get_strain_for_introspection,
+    # Persistence
+    save_strain_state,
+    load_strain_state,
+    # Convenience
+    create_config as create_strain_config,
+    create_empty_strain,
+    # Verification (test support)
+    verify_no_decision_impact,
+    verify_no_correction_mechanism,
+)
+
+# Self-Image Integration (自己像統合システム)
+from .self_image_integration import (
+    # Abstract enums
+    EmotionalTone,
+    TendencyHint,
+    StabilityFeeling,
+    ChangePresence,
+    ContinuityFeeling,
+    OverallImpression,
+    # Structures
+    ImageAspect,
+    ProvisionalSelfImage,
+    SelfImageConfig,
+    SelfImageIntegrationSystem,
+    # Integration functions
+    generate_self_image_tags,
+    get_self_image_summary,
+    get_self_image_for_introspection,
+    # Convenience
+    create_config as create_self_image_config,
+    create_empty_image,
+    # Verification (test support)
+    verify_no_decision_impact as verify_image_no_decision_impact,
+    verify_provisional_nature,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -718,4 +811,31 @@ __all__ = [
     "generate_self_model_tags", "get_self_model_summary", "get_self_model_for_introspection",
     "save_self_model_state", "load_self_model_state",
     "create_empty_self_view", "create_self_model_config",
+    # Temporal Self-Difference (自己モデル差分認知)
+    "DifferenceMagnitude", "ChangeNature", "ComponentChangeType", "TemporalSpan",
+    "ComponentDifference", "SelfDifferenceSummary",
+    "TemporalDifferenceConfig", "TemporalDifferenceState", "TemporalSelfDifferenceSystem",
+    "compare_emotional_diff", "compare_responsibility_diff",
+    "compare_tendency_diff", "compare_direction_diff", "compare_value_diff",
+    "determine_magnitude", "determine_nature",
+    "generate_difference_tags", "get_difference_summary", "get_difference_for_introspection",
+    "save_difference_history", "load_difference_history",
+    "create_difference_config", "create_empty_difference_summary",
+    # Continuity Strain (自己連続性負荷)
+    "StrainPresence", "StrainLevel", "StrainPersistence", "StrainTrend",
+    "StrainState", "DifferenceObservation",
+    "ContinuityStrainConfig", "ContinuityStrainInternalState", "ContinuityStrainSystem",
+    "determine_strain_level", "determine_strain_persistence", "determine_strain_trend",
+    "get_average_magnitude", "generate_strain_description",
+    "generate_strain_tags", "get_strain_summary", "get_strain_for_introspection",
+    "save_strain_state", "load_strain_state",
+    "create_strain_config", "create_empty_strain",
+    "verify_no_decision_impact", "verify_no_correction_mechanism",
+    # Self-Image Integration (自己像統合システム)
+    "EmotionalTone", "TendencyHint", "StabilityFeeling",
+    "ChangePresence", "ContinuityFeeling", "OverallImpression",
+    "ImageAspect", "ProvisionalSelfImage", "SelfImageConfig", "SelfImageIntegrationSystem",
+    "generate_self_image_tags", "get_self_image_summary", "get_self_image_for_introspection",
+    "create_self_image_config", "create_empty_image",
+    "verify_image_no_decision_impact", "verify_provisional_nature",
 ]

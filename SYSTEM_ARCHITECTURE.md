@@ -1,8 +1,8 @@
-# Cyrene AI VTuber - 完全システムアーキテクチャ仕様書
+# Cyrene AI  - 完全システムアーキテクチャ仕様書
 
-作成日: 2026-02-04
-総コード行数: ~42,000行
-総テスト数: 1,011テスト
+作成日: 2026-02-05
+総コード行数: ~47,000行
+総テスト数: 1,194テスト
 
 ---
 
@@ -65,18 +65,21 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 41 | 20,900 | 心理システム本体 |
-| tests/ | 30 | 16,458 | 自動テストコード |
+| psyche/ | 44 | 24,463 | 心理システム本体 |
+| tests/ | 33 | 19,595 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,686 | コアシステム |
-| **合計** | **89** | **41,634** | |
+| **合計** | **95** | **48,334** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
 | # | モジュール | 行数 | テスト数 | カテゴリ | 説明 |
 |---|-----------|------|---------|---------|------|
 | 1 | self_model.py | 1,601 | 70 | 内省 | 自己状態統合モデル（統一ビュー） |
-| 2 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 2 | temporal_self_difference.py | 1,320 | 56 | 内省 | 自己モデル差分認知（時間変化認識） |
+| 3 | continuity_strain.py | 939 | 68 | 内省 | 自己連続性負荷（違和感認知） |
+| 4 | self_image_integration.py | 1,184 | 59 | 内省 | 自己像統合（暫定的自己像生成） |
+| 5 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -88,7 +91,7 @@
 | 11 | value_orientation.py | 746 | 34 | 目的 | 長期価値観 |
 | 12 | stability_valve.py | 728 | 40 | 判断 | 極端回避バルブ |
 | 13 | silence_hesitation.py | 724 | 36 | 出力 | 沈黙・躊躇い表現 |
-| 14 | __init__.py | 721 | - | 基盤 | エクスポート定義 |
+| 14 | __init__.py | 764 | - | 基盤 | エクスポート定義 |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
 | 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
@@ -809,6 +812,15 @@ Psyche初期化詳細:
 │               │   (CALM / BURDENED / HABITUAL / etc.)           │
 │               ├─ 判断には一切影響しない（鏡）                   │
 │               └─ SelfReference・IntrospectionTraceへ接続        │
+│                        │                                        │
+│                        │ 時間差分認知                           │
+│                        ▼                                        │
+│  【観測】     temporal_self_difference.py  なし    変化認識     │
+│               ├─ 過去と現在のSelfModelを比較                    │
+│               │   (STABLE / FLUCTUATING / SHIFTING / etc.)      │
+│               ├─ 評価なし（良い悪いの判断なし）                 │
+│               ├─ 判断に影響しない、認知のみ                     │
+│               └─ 自然収束で差分縮小                             │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -1445,6 +1457,9 @@ scoped_goal.py              -     -      -      -       -       -        -      
 repeated_tendency.py        -     -      -      -       -       -        -        -        -      ○     -      -
 tendency_awareness.py       -     -      -      -       -       -        -        -        -      ○     -      -
 self_model.py               -     -      -      -       -       ○        -        -        ○      ○     ○      -
+temporal_self_difference.py -     -      -      -       -       -        -        -        -      -     -      -
+continuity_strain.py        -     -      -      -       -       -        -        -        -      -     -      -
+self_image_integration.py   -     -      -      -       -       -        -        -        -      -     -      -
 responsibility.py           -     -      -      -       -       -        -        -        -      -     -      -
 responsibility_dispersion.py-     -      -      -       -       -        -        -        -      -     ○      -
 context_sensitivity.py      -     -      -      -       -       -        -        ○        -      -     -      -
@@ -1486,7 +1501,18 @@ GoalCandidate:
   proto_goal_vector.py → goal_candidates.py → transient_goal.py
                        → scoped_goal.py → repeated_tendency.py
                        → tendency_awareness.py → self_model.py
+                       → temporal_self_difference.py → continuity_strain.py
                        → self_reference.py / introspection_trace.py
+
+SelfStateView (自己状態の流れ):
+  self_model.py → temporal_self_difference.py → continuity_strain.py
+                → self_image_integration.py → self_reference.py (introspection only)
+
+ProvisionalSelfImage (暫定的自己像):
+  self_model.py (SelfStateView) ─┐
+  tendency_awareness.py ─────────┼→ self_image_integration.py → self_reference.py
+  temporal_self_difference.py ───┤   (generates ProvisionalSelfImage)
+  continuity_strain.py ──────────┘
 
 DecisionBias:
   decision_bias.py → context_sensitivity.py → stability_valve.py
@@ -1585,6 +1611,7 @@ psyche/
 ├── repeated_tendency.py           (858行)  - 反復傾向（習慣）
 ├── tendency_awareness.py          (651行)  - 傾向の自己認知
 ├── self_model.py                  (1601行) - 自己状態統合モデル
+├── temporal_self_difference.py    (1320行) - 自己モデル差分認知
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -1625,6 +1652,7 @@ tests/
 ├── test_stm_emotion_coupling.py   (678行)
 ├── test_tendency_awareness.py     (644行)
 ├── test_self_model.py             (1164行)
+├── test_temporal_self_difference.py (909行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)
@@ -1633,5 +1661,5 @@ tests/
 
 ---
 
-*このドキュメントはCyrene AI VTuberシステムの完全な技術仕様書です。*
-*総コード行数: ~42,000行 / テスト数: 1,011*
+*このドキュメントはCyrene AI システムの完全な技術仕様書です。*
+*総コード行数: ~44,000行 / テスト数: 1,067*

@@ -484,6 +484,51 @@ from .tendency_awareness import (
     create_empty_awareness,
 )
 
+# Self-Model (自己状態統合モデル)
+from .self_model import (
+    # Abstract enums
+    EmotionalSpread,
+    EmotionalIntensity,
+    EmotionalHarmony,
+    BurdenLevel,
+    BurdenDistribution,
+    BurdenTrend,
+    HabitPresence,
+    HabitCharacter,
+    DirectionClarity,
+    DirectionConvergence,
+    ValueStability,
+    ValueClarity,
+    # Component views
+    EmotionalStateView,
+    ResponsibilityStateView,
+    TendencyStateView,
+    DirectionStateView,
+    ValueStateView,
+    # Unified view
+    SelfStateView,
+    SelfModelConfig,
+    SelfModelState,
+    SelfModelSystem,
+    # Observation functions
+    observe_emotional_state,
+    observe_responsibility_state,
+    observe_tendency_state,
+    observe_direction_state,
+    observe_value_state,
+    generate_integrated_description,
+    # Integration functions
+    generate_self_model_tags,
+    get_self_model_summary,
+    get_self_model_for_introspection,
+    # Persistence
+    save_self_model_state,
+    load_self_model_state,
+    # Convenience
+    create_empty_view as create_empty_self_view,
+    create_config as create_self_model_config,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -658,4 +703,19 @@ __all__ = [
     "observe_tendency", "observe_tendencies",
     "generate_awareness_tags", "get_awareness_summary", "get_awareness_for_introspection",
     "create_awareness_config", "create_empty_awareness",
+    # Self-Model (自己状態統合モデル)
+    "EmotionalSpread", "EmotionalIntensity", "EmotionalHarmony",
+    "BurdenLevel", "BurdenDistribution", "BurdenTrend",
+    "HabitPresence", "HabitCharacter",
+    "DirectionClarity", "DirectionConvergence",
+    "ValueStability", "ValueClarity",
+    "EmotionalStateView", "ResponsibilityStateView", "TendencyStateView",
+    "DirectionStateView", "ValueStateView",
+    "SelfStateView", "SelfModelConfig", "SelfModelState", "SelfModelSystem",
+    "observe_emotional_state", "observe_responsibility_state",
+    "observe_tendency_state", "observe_direction_state", "observe_value_state",
+    "generate_integrated_description",
+    "generate_self_model_tags", "get_self_model_summary", "get_self_model_for_introspection",
+    "save_self_model_state", "load_self_model_state",
+    "create_empty_self_view", "create_self_model_config",
 ]

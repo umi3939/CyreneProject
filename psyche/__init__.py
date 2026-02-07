@@ -622,6 +622,43 @@ from .self_image_integration import (
     verify_provisional_nature,
 )
 
+# Identity Coherence Awareness (自己同一性の揺らぎ認知)
+from .identity_coherence import (
+    # Abstract enums
+    CoherenceLevel,
+    ShiftSource,
+    OverlapIntensity,
+    CoherenceTrend,
+    # Structures
+    DetectedShift,
+    ShiftOverlap,
+    IdentityCoherenceState,
+    IdentityCoherenceConfig,
+    IdentityCoherenceSystem,
+    # Detection functions
+    detect_temporal_difference_shift,
+    detect_tendency_change_shift,
+    detect_continuity_strain_shift,
+    detect_value_instability_shift,
+    detect_self_image_flux_shift,
+    detect_emotional_turbulence_shift,
+    # Determination functions
+    determine_overlap_intensity,
+    determine_coherence_level,
+    determine_coherence_trend,
+    # Integration functions
+    generate_coherence_tags,
+    get_coherence_summary,
+    get_coherence_for_introspection,
+    # Convenience
+    create_config as create_coherence_config,
+    create_empty_state as create_empty_coherence_state,
+    # Verification (test support)
+    verify_no_decision_impact as verify_coherence_no_decision_impact,
+    verify_no_self_preservation,
+    verify_no_identity_definition,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -838,4 +875,16 @@ __all__ = [
     "generate_self_image_tags", "get_self_image_summary", "get_self_image_for_introspection",
     "create_self_image_config", "create_empty_image",
     "verify_image_no_decision_impact", "verify_provisional_nature",
+    # Identity Coherence Awareness (自己同一性の揺らぎ認知)
+    "CoherenceLevel", "ShiftSource", "OverlapIntensity", "CoherenceTrend",
+    "DetectedShift", "ShiftOverlap", "IdentityCoherenceState",
+    "IdentityCoherenceConfig", "IdentityCoherenceSystem",
+    "detect_temporal_difference_shift", "detect_tendency_change_shift",
+    "detect_continuity_strain_shift", "detect_value_instability_shift",
+    "detect_self_image_flux_shift", "detect_emotional_turbulence_shift",
+    "determine_overlap_intensity", "determine_coherence_level", "determine_coherence_trend",
+    "generate_coherence_tags", "get_coherence_summary", "get_coherence_for_introspection",
+    "create_coherence_config", "create_empty_coherence_state",
+    "verify_coherence_no_decision_impact", "verify_no_self_preservation",
+    "verify_no_identity_definition",
 ]

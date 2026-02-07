@@ -79,7 +79,8 @@
 | 2 | temporal_self_difference.py | 1,320 | 56 | 内省 | 自己モデル差分認知（時間変化認識） |
 | 3 | continuity_strain.py | 939 | 68 | 内省 | 自己連続性負荷（違和感認知） |
 | 4 | self_image_integration.py | 1,184 | 59 | 内省 | 自己像統合（暫定的自己像生成） |
-| 5 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 5 | identity_coherence.py | 1,110 | 76 | 内省 | 自己同一性の揺らぎ認知 |
+| 6 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -1222,6 +1223,103 @@ TendencyAwareness (傾向の自己認知):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### 4.7.3 自己観測チェーン
+
+```
+自己観測チェーンの処理フロー:
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  各種状態入力                                                   │
+│    │                                                            │
+│    ▼                                                            │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Layer 1] self_model.py                                │   │
+│  │   入力: EmotionVector, ResponsibilityState,            │   │
+│  │         RepeatedTendencySystem, VectorState,            │   │
+│  │         ValueOrientation                                │   │
+│  │   処理: 各状態を抽象Enumに変換（読み取り専用）          │   │
+│  │   出力: SelfStateView                                   │   │
+│  │     - emotional: EmotionalStateView                     │   │
+│  │     - responsibility: ResponsibilityStateView           │   │
+│  │     - tendency: TendencyStateView                       │   │
+│  │     - direction: DirectionStateView                     │   │
+│  │     - value: ValueStateView                             │   │
+│  └────────────────────────┬────────────────────────────────┘   │
+│                           │                                     │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Layer 2] temporal_self_difference.py                  │   │
+│  │   入力: 現在のSelfStateView + 過去のスナップショット    │   │
+│  │   処理: 時間経過による自己状態の変化を検出              │   │
+│  │   出力: SelfDifferenceSummary                           │   │
+│  │     - magnitude: DifferenceMagnitude (NONE〜SUBSTANTIAL)│   │
+│  │     - nature: ChangeNature (STABLE/SHIFTING/TRANSFORMED)│   │
+│  │     - component_differences: List[ComponentDifference]  │   │
+│  └────────────────────────┬────────────────────────────────┘   │
+│                           │                                     │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Layer 3] continuity_strain.py                         │   │
+│  │   入力: SelfDifferenceSummary の履歴                    │   │
+│  │   処理: 差分の持続性を観測し「違和感」を検出            │   │
+│  │   出力: StrainState                                     │   │
+│  │     - level: StrainLevel (AT_EASE〜ALIENATED)           │   │
+│  │     - persistence: StrainPersistence (NONE〜CHRONIC)    │   │
+│  │     - trend: StrainTrend (STABLE/INCREASING/DECREASING) │   │
+│  └────────────────────────┬────────────────────────────────┘   │
+│                           │                                     │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Layer 4] self_image_integration.py                    │   │
+│  │   入力: SelfStateView, SelfDifferenceSummary,          │   │
+│  │         StrainState, TendencyAwareness                  │   │
+│  │   処理: 各観測を統合し暫定的自己像を生成                │   │
+│  │   出力: ProvisionalSelfImage                            │   │
+│  │     - overall_impression: OverallImpression             │   │
+│  │     - stability_feeling: StabilityFeeling               │   │
+│  │     - continuity_feeling: ContinuityFeeling             │   │
+│  │     - emotional_tone: EmotionalTone                     │   │
+│  └────────────────────────┬────────────────────────────────┘   │
+│                           │                                     │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Layer 5] identity_coherence.py                        │   │
+│  │   入力: ProvisionalSelfImage, SelfDifferenceSummary,   │   │
+│  │         StrainState, TendencyAwareness, ValueOrientation│   │
+│  │   処理: 複数シフトの「重なり」から同一性の揺らぎを検出  │   │
+│  │   出力: IdentityCoherenceState                          │   │
+│  │     - level: CoherenceLevel                             │   │
+│  │       STABLE / SLIGHTLY_SHIFTING / UNSETTLED /          │   │
+│  │       DISCONNECTED                                      │   │
+│  │     - shift_overlap: ShiftOverlap                       │   │
+│  │       (6種のシフト源の重なり検出)                        │   │
+│  │     - trend: CoherenceTrend                             │   │
+│  │       STABLE / CONVERGING / DIVERGING / FLUCTUATING     │   │
+│  │                                                          │   │
+│  │   シフト検出源 (ShiftSource):                           │   │
+│  │     - TEMPORAL_DIFFERENCE: 時間差の持続                  │   │
+│  │     - TENDENCY_CHANGE: 傾向の変化                       │   │
+│  │     - CONTINUITY_STRAIN: 連続性負荷の持続               │   │
+│  │     - VALUE_INSTABILITY: 価値観の不安定                 │   │
+│  │     - SELF_IMAGE_FLUX: 自己像の変動                     │   │
+│  │     - EMOTIONAL_TURBULENCE: 感情的動揺                  │   │
+│  │                                                          │   │
+│  │   設計制約:                                              │   │
+│  │     - 単一シフトでは状態変化しない（重なりのみ）        │   │
+│  │     - 判断・行動への直接影響は禁止                      │   │
+│  │     - 自己防衛・自己修復機構を持たない                  │   │
+│  │     - 毎ターン再生成（キャッシュなし）                  │   │
+│  │     - SelfReferenceSystemへの接続のみ（内省用）         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  全レイヤー共通制約:                                            │
+│    - 観測のみ、判断への介入なし                                 │
+│    - 数値スコアではなく抽象Enum                                 │
+│    - 「正しい自己」を定義しない                                 │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ### 4.8 出力制御層
 
 #### 4.8.1 沈黙・トーン制御
@@ -1460,6 +1558,7 @@ self_model.py               -     -      -      -       -       ○        -    
 temporal_self_difference.py -     -      -      -       -       -        -        -        -      -     -      -
 continuity_strain.py        -     -      -      -       -       -        -        -        -      -     -      -
 self_image_integration.py   -     -      -      -       -       -        -        -        -      -     -      -
+identity_coherence.py       -     -      -      -       -       -        -        -        -      ○     -      -
 responsibility.py           -     -      -      -       -       -        -        -        -      -     -      -
 responsibility_dispersion.py-     -      -      -       -       -        -        -        -      -     ○      -
 context_sensitivity.py      -     -      -      -       -       -        -        ○        -      -     -      -
@@ -1513,6 +1612,13 @@ ProvisionalSelfImage (暫定的自己像):
   tendency_awareness.py ─────────┼→ self_image_integration.py → self_reference.py
   temporal_self_difference.py ───┤   (generates ProvisionalSelfImage)
   continuity_strain.py ──────────┘
+
+IdentityCoherence (自己同一性の揺らぎ認知):
+  self_image_integration.py ─────┐
+  temporal_self_difference.py ───┤
+  continuity_strain.py ──────────┼→ identity_coherence.py → self_reference.py
+  tendency_awareness.py ─────────┤   (generates IdentityCoherenceState)
+  value_orientation.py ──────────┘   (introspection only, NO decision impact)
 
 DecisionBias:
   decision_bias.py → context_sensitivity.py → stability_valve.py
@@ -1612,6 +1718,9 @@ psyche/
 ├── tendency_awareness.py          (651行)  - 傾向の自己認知
 ├── self_model.py                  (1601行) - 自己状態統合モデル
 ├── temporal_self_difference.py    (1320行) - 自己モデル差分認知
+├── continuity_strain.py          (939行)  - 自己連続性負荷
+├── self_image_integration.py     (1184行) - 自己像統合
+├── identity_coherence.py         (1110行) - 自己同一性の揺らぎ認知
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -1653,6 +1762,9 @@ tests/
 ├── test_tendency_awareness.py     (644行)
 ├── test_self_model.py             (1164行)
 ├── test_temporal_self_difference.py (909行)
+├── test_continuity_strain.py     (908行)
+├── test_self_image_integration.py (907行)
+├── test_identity_coherence.py    (994行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)
@@ -1662,4 +1774,4 @@ tests/
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~44,000行 / テスト数: 1,067*
+*総コード行数: ~48,000行 / テスト数: 1,270*

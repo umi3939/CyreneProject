@@ -1823,5 +1823,21 @@ tests/
 
 ---
 
+## 8. 今後の実装候補
+
+現在の構造から自然に要請される機能のアイデア（未設計・未実装）。
+
+| # | 候補名 | 概要 | 要請元 | 状態 |
+|---|--------|------|--------|------|
+| 1 | 自己物語 ↔ 自己観測チェーン統合 | self_narrativeの入力に自己観測チェーンの出力を接続する | self_narrative, self_model, temporal_self_difference, tendency_awareness | 実装中 |
+| 2 | エピソード記憶（自伝的記憶） | 「あのとき何が起き、どう感じたか」を個別の出来事として保持する構造。short_term_memoryは残留のみ、long_term_dynamicsは統計のみで、個別体験の蓄積がない | short_term_memory, self_narrative | 未着手 |
+| 3 | 内省の消費層 | introspection_trace, self_narrative, identity_coherenceの観測結果を「読んで自分について語る」層。内省は生成されるが消費先がない | introspection_trace, self_narrative, identity_coherence | 未着手 |
+| 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 未着手 |
+| 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 未着手 |
+| 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 未着手 |
+| 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 未着手 |
+
+---
+
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
 *総コード行数: ~50,600行 / テスト数: 1,368*

@@ -687,6 +687,7 @@ from .self_narrative import (
     determine_narrative_trend,
     generate_narrative_description,
     # Integration functions
+    observe_from_chain,
     generate_narrative_tags,
     get_narrative_summary,
     get_narrative_for_introspection,
@@ -939,6 +940,7 @@ __all__ = [
     "check_for_rewrites", "summarize_fragments",
     "compute_coherence", "determine_narrative_trend",
     "generate_narrative_description",
+    "observe_from_chain",
     "generate_narrative_tags", "get_narrative_summary",
     "get_narrative_for_introspection",
     "create_narrative_config", "create_empty_narrative_state",

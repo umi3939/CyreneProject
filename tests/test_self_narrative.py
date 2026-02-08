@@ -1119,6 +1119,229 @@ class TestConfiguration:
 
 
 # =============================================================================
+# Test: Self-Observation Chain Integration
+# =============================================================================
+
+class TestObserveFromChain:
+    """Test observe_from_chain with actual module types."""
+
+    def test_with_emotional_state_view(self):
+        """EmotionalStateView from self_model flows through correctly."""
+        from psyche.self_model import (
+            EmotionalStateView,
+            EmotionalSpread, EmotionalIntensity, EmotionalHarmony,
+        )
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        emotional = EmotionalStateView(
+            spread=EmotionalSpread.FOCUSED,
+            intensity=EmotionalIntensity.INTENSE,
+            harmony=EmotionalHarmony.HARMONIOUS,
+            active_emotion_count=1,
+            has_coexisting_pairs=False,
+            description="Strong focused emotion",
+        )
+        state = observe_from_chain(system, emotional_state=emotional)
+        assert state.has_fragments()
+        # Should create EVENT fragment for intense emotion
+        types = [f.fragment_type for f in state.fragments]
+        assert FragmentType.EVENT in types
+
+    def test_with_tendency_awareness(self):
+        """TendencyAwareness flows through correctly."""
+        from psyche.tendency_awareness import (
+            TendencyAwareness, TendencyAwarenessItem,
+            AwarenessType, StrengthLevel, DurationLevel, ConfidenceLevel,
+        )
+        from psyche.goal_candidates import CandidateCategory
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        awareness = TendencyAwareness(
+            has_awareness=True,
+            items=[
+                TendencyAwarenessItem(
+                    awareness_type=AwarenessType.STRONG_HABIT,
+                    category=CandidateCategory.EXPLORATION,
+                    strength_level=StrengthLevel.STRONG,
+                    duration_level=DurationLevel.ESTABLISHED,
+                    confidence_level=ConfidenceLevel.ESTABLISHED,
+                    description="A strong established habit",
+                ),
+            ],
+            dominant_category=CandidateCategory.EXPLORATION,
+            overall_strength=StrengthLevel.STRONG,
+        )
+        state = observe_from_chain(system, tendency_awareness=awareness)
+        assert state.has_fragments()
+        # Strong habit → CONTINUATION
+        types = [f.fragment_type for f in state.fragments]
+        assert FragmentType.CONTINUATION in types
+
+    def test_with_difference_summary(self):
+        """SelfDifferenceSummary flows through correctly."""
+        from psyche.temporal_self_difference import (
+            SelfDifferenceSummary, ComponentDifference,
+            DifferenceMagnitude, ChangeNature, ComponentChangeType,
+            TemporalSpan,
+        )
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        _unchanged = ComponentDifference("n/a", ComponentChangeType.UNCHANGED, "", "", "no change")
+        diff = SelfDifferenceSummary(
+            has_difference=True,
+            magnitude=DifferenceMagnitude.NOTICEABLE,
+            nature=ChangeNature.SHIFTING,
+            temporal_span=TemporalSpan.SHORT_TERM,
+            emotional_diff=ComponentDifference(
+                "emotional", ComponentChangeType.INTENSIFIED,
+                "low", "high", "Emotional intensity shifted",
+            ),
+            responsibility_diff=_unchanged,
+            tendency_diff=_unchanged,
+            direction_diff=_unchanged,
+            value_diff=_unchanged,
+            current_snapshot_id="snap1",
+            reference_snapshot_id="snap0",
+            comparison_timestamp=0.0,
+            integrated_description="Self-state is shifting moderately",
+        )
+        state = observe_from_chain(system, difference_summary=diff)
+        assert state.has_fragments()
+        # Shifting → CHANGE
+        types = [f.fragment_type for f in state.fragments]
+        assert FragmentType.CHANGE in types
+
+    def test_with_external_context_string(self):
+        """String context flows through correctly."""
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        state = observe_from_chain(
+            system, external_context="Playing a horror game"
+        )
+        assert state.has_fragments()
+        assert any(
+            "horror game" in f.description for f in state.fragments
+        )
+
+    def test_with_external_context_object(self):
+        """ExternalContext from context_sensitivity flows through."""
+        from psyche.context_sensitivity import create_heavy_context
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        ctx = create_heavy_context()
+        state = observe_from_chain(system, external_context=ctx)
+        assert state.has_fragments()
+        types = [f.fragment_type for f in state.fragments]
+        assert FragmentType.EVENT in types
+
+    def test_multiple_chain_inputs(self):
+        """Multiple inputs from different chain modules together."""
+        from psyche.self_model import (
+            EmotionalStateView,
+            EmotionalSpread, EmotionalIntensity, EmotionalHarmony,
+        )
+        from psyche.temporal_self_difference import (
+            SelfDifferenceSummary, ComponentDifference,
+            DifferenceMagnitude, ChangeNature, ComponentChangeType,
+            TemporalSpan,
+        )
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        emotional = EmotionalStateView(
+            spread=EmotionalSpread.MIXED,
+            intensity=EmotionalIntensity.MODERATE,
+            harmony=EmotionalHarmony.CONFLICTED,
+            active_emotion_count=2,
+            has_coexisting_pairs=True,
+            description="Mixed conflicted state",
+        )
+        _unchanged = ComponentDifference("n/a", ComponentChangeType.UNCHANGED, "", "", "no change")
+        diff = SelfDifferenceSummary(
+            has_difference=False,
+            magnitude=DifferenceMagnitude.NONE,
+            nature=ChangeNature.STABLE,
+            temporal_span=TemporalSpan.SHORT_TERM,
+            emotional_diff=_unchanged,
+            responsibility_diff=_unchanged,
+            tendency_diff=_unchanged,
+            direction_diff=_unchanged,
+            value_diff=_unchanged,
+            current_snapshot_id="snap1",
+            reference_snapshot_id="snap0",
+            comparison_timestamp=0.0,
+            integrated_description="No change",
+        )
+        state = observe_from_chain(
+            system,
+            emotional_state=emotional,
+            difference_summary=diff,
+        )
+        assert state.has_fragments()
+        # Should have fragments from both emotion and difference
+        sources = {f.source_type for f in state.fragments}
+        assert "emotion" in sources
+        assert "difference" in sources
+
+    def test_chain_decay_works(self):
+        """Decay works correctly across chain-based calls."""
+        from psyche.self_model import (
+            EmotionalStateView,
+            EmotionalSpread, EmotionalIntensity, EmotionalHarmony,
+        )
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        emotional = EmotionalStateView(
+            spread=EmotionalSpread.FOCUSED,
+            intensity=EmotionalIntensity.INTENSE,
+            harmony=EmotionalHarmony.HARMONIOUS,
+            active_emotion_count=1,
+            has_coexisting_pairs=False,
+            description="Intense",
+        )
+        state1 = observe_from_chain(system, emotional_state=emotional)
+        initial_vividness = state1.fragments[0].vividness
+
+        # Call again with no inputs → decay should apply
+        state2 = observe_from_chain(system)
+        decayed_vividness = state2.fragments[0].vividness
+        assert decayed_vividness < initial_vividness
+
+    def test_observe_from_chain_is_read_only(self):
+        """observe_from_chain does not modify its inputs."""
+        from psyche.self_model import (
+            EmotionalStateView,
+            EmotionalSpread, EmotionalIntensity, EmotionalHarmony,
+        )
+        from psyche.self_narrative import observe_from_chain
+
+        system = SelfNarrativeSystem()
+        emotional = EmotionalStateView(
+            spread=EmotionalSpread.FOCUSED,
+            intensity=EmotionalIntensity.INTENSE,
+            harmony=EmotionalHarmony.HARMONIOUS,
+            active_emotion_count=1,
+            has_coexisting_pairs=False,
+            description="Test",
+        )
+        # Capture original values
+        orig_intensity = emotional.intensity
+        orig_harmony = emotional.harmony
+
+        observe_from_chain(system, emotional_state=emotional)
+
+        # Input should be unchanged
+        assert emotional.intensity == orig_intensity
+        assert emotional.harmony == orig_harmony
+
+
+# =============================================================================
 # Test: Convenience Functions
 # =============================================================================
 

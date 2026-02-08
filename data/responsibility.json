@@ -2,13 +2,13 @@
   "test_user": {
     "total_weight": 0.0,
     "pending_decisions": 1,
-    "accumulated_harm": 0.16508284931544548,
-    "accumulated_confidence": 0.6524141801244604,
-    "last_updated": "2026-02-01T20:03:14",
+    "accumulated_harm": 0.10279565678890826,
+    "accumulated_confidence": 0.9013079753023304,
+    "last_updated": "2026-02-05T02:50:32",
     "recent_decisions": [
       {
-        "id": "dea0a3694a6d",
-        "timestamp": "2026-02-01T19:11:06",
+        "id": "fbbfc636531d",
+        "timestamp": "2026-02-05T02:27:48",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -19,8 +19,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "3b1ce74baff1",
-        "timestamp": "2026-02-01T19:11:06",
+        "id": "57a5eba8a39c",
+        "timestamp": "2026-02-05T02:27:48",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -31,8 +31,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "e56d13745506",
-        "timestamp": "2026-02-01T19:14:04",
+        "id": "720412a9054a",
+        "timestamp": "2026-02-05T02:29:12",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -43,8 +43,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "751ceb85ada8",
-        "timestamp": "2026-02-01T19:14:04",
+        "id": "193bdb90daab",
+        "timestamp": "2026-02-05T02:29:12",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -55,8 +55,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "51bcd86db585",
-        "timestamp": "2026-02-01T19:14:04",
+        "id": "519ba7e4d55b",
+        "timestamp": "2026-02-05T02:29:12",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -67,8 +67,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "bee096b65541",
-        "timestamp": "2026-02-01T19:14:05",
+        "id": "8967c088296a",
+        "timestamp": "2026-02-05T02:29:12",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -79,8 +79,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "9394762b6adf",
-        "timestamp": "2026-02-01T19:14:05",
+        "id": "32b69d91d8dc",
+        "timestamp": "2026-02-05T02:29:12",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -91,8 +91,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "a5c79d3d6132",
-        "timestamp": "2026-02-01T19:14:05",
+        "id": "5cd021a11d3f",
+        "timestamp": "2026-02-05T02:29:12",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -103,8 +103,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "9234484ca861",
-        "timestamp": "2026-02-01T19:49:51",
+        "id": "048fa5e16cdb",
+        "timestamp": "2026-02-05T02:49:26",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -115,8 +115,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "eb857e5d3465",
-        "timestamp": "2026-02-01T19:49:51",
+        "id": "2a78b9b00ddb",
+        "timestamp": "2026-02-05T02:49:27",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -127,8 +127,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "539528ee1939",
-        "timestamp": "2026-02-01T19:49:51",
+        "id": "2c485d9d3359",
+        "timestamp": "2026-02-05T02:49:27",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -139,8 +139,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "13e00a594a8f",
-        "timestamp": "2026-02-01T19:49:52",
+        "id": "1a52212f8e26",
+        "timestamp": "2026-02-05T02:49:27",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -151,8 +151,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d4e649be8ecb",
-        "timestamp": "2026-02-01T19:49:52",
+        "id": "fcdece390cf8",
+        "timestamp": "2026-02-05T02:49:27",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -163,8 +163,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "ff834afffd1d",
-        "timestamp": "2026-02-01T19:49:52",
+        "id": "f818682151f9",
+        "timestamp": "2026-02-05T02:49:27",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -175,8 +175,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "68402ab70bff",
-        "timestamp": "2026-02-01T20:03:14",
+        "id": "7965fb9fef55",
+        "timestamp": "2026-02-05T02:50:32",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -187,8 +187,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "0b81e531c899",
-        "timestamp": "2026-02-01T20:03:14",
+        "id": "167642009742",
+        "timestamp": "2026-02-05T02:50:32",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -199,8 +199,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "ada5fe7c70b1",
-        "timestamp": "2026-02-01T20:03:14",
+        "id": "841924db6dd5",
+        "timestamp": "2026-02-05T02:50:32",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -211,8 +211,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "3f01016d9124",
-        "timestamp": "2026-02-01T20:03:14",
+        "id": "096fdf1d0ab0",
+        "timestamp": "2026-02-05T02:50:32",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -223,8 +223,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "808f1d119618",
-        "timestamp": "2026-02-01T20:03:14",
+        "id": "33a46bebc3aa",
+        "timestamp": "2026-02-05T02:50:32",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -235,8 +235,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "c97132dd865f",
-        "timestamp": "2026-02-01T20:03:14",
+        "id": "af4d29d23dd6",
+        "timestamp": "2026-02-05T02:50:32",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",

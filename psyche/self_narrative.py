@@ -1386,6 +1386,41 @@ def create_empty_state() -> NarrativeState:
 
 
 # =============================================================================
+# Self-Observation Chain Integration
+# =============================================================================
+
+def observe_from_chain(
+    system: SelfNarrativeSystem,
+    emotional_state: Optional[Any] = None,
+    short_term_memory: Optional[Any] = None,
+    tendency_awareness: Optional[Any] = None,
+    difference_summary: Optional[Any] = None,
+    external_context: Optional[Any] = None,
+) -> NarrativeState:
+    """
+    Integrate self-observation chain outputs into the narrative system.
+
+    自己観測チェーンの出力を自己物語に接続するヘルパー。
+    各入力は読み取り専用で参照される。
+
+    Args:
+        system: SelfNarrativeSystem instance
+        emotional_state: EmotionalStateView from self_model
+        short_term_memory: ShortTermMemory (entries with valence)
+        tendency_awareness: TendencyAwareness from tendency_awareness
+        difference_summary: SelfDifferenceSummary from temporal_self_difference
+        external_context: ExternalContext from context_sensitivity, or str
+    """
+    return system.observe_and_generate(
+        emotion_summary=emotional_state,
+        memory_summary=short_term_memory,
+        tendency_awareness=tendency_awareness,
+        difference_summary=difference_summary,
+        context_description=external_context,
+    )
+
+
+# =============================================================================
 # Verification (Test Support)
 # =============================================================================
 

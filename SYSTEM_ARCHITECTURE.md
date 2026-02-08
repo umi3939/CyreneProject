@@ -1,8 +1,8 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-05
-総コード行数: ~48,000行
-総テスト数: 1,270テスト
+総コード行数: ~50,600行
+総テスト数: 1,368テスト
 
 ---
 
@@ -65,11 +65,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 44 | 24,463 | 心理システム本体 |
-| tests/ | 33 | 19,595 | 自動テストコード |
+| psyche/ | 45 | 25,954 | 心理システム本体 |
+| tests/ | 34 | 20,728 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,686 | コアシステム |
-| **合計** | **95** | **48,334** | |
+| **合計** | **97** | **50,958** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -79,8 +79,9 @@
 | 2 | temporal_self_difference.py | 1,320 | 56 | 内省 | 自己モデル差分認知（時間変化認識） |
 | 3 | continuity_strain.py | 939 | 68 | 内省 | 自己連続性負荷（違和感認知） |
 | 4 | self_image_integration.py | 1,184 | 59 | 内省 | 自己像統合（暫定的自己像生成） |
-| 5 | identity_coherence.py | 1,110 | 76 | 内省 | 自己同一性の揺らぎ認知 |
-| 6 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 5 | self_narrative.py | 1,491 | 98 | 内省 | 自己物語形成（非規範・観測型） |
+| 6 | identity_coherence.py | 1,110 | 76 | 内省 | 自己同一性の揺らぎ認知 |
+| 7 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -1310,6 +1311,42 @@ TendencyAwareness (傾向の自己認知):
 │  │     - 自己防衛・自己修復機構を持たない                  │   │
 │  │     - 毎ターン再生成（キャッシュなし）                  │   │
 │  │     - SelfReferenceSystemへの接続のみ（内省用）         │   │
+│  └────────────────────────┬────────────────────────────────┘   │
+│                           │                                     │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Layer 6] self_narrative.py                             │   │
+│  │   入力: 感情要約, 記憶要約, 傾向観測,                   │   │
+│  │         自己差分観測, 文脈記述（全て読み取り専用）       │   │
+│  │   処理: 事実断片を抽象単位へ圧縮し、                    │   │
+│  │         時系列の叙述断片へ再構成する                     │   │
+│  │   出力: NarrativeState                                  │   │
+│  │     - fragments: List[NarrativeFragment]                │   │
+│  │       FragmentType: EVENT / REACTION / CONTINUATION /   │   │
+│  │                     CHANGE / UNDETERMINED               │   │
+│  │     - links: List[FragmentLink]                         │   │
+│  │       LinkType: TEMPORAL / THEMATIC / CONTRAST /        │   │
+│  │                 CONTINUATION_OF                         │   │
+│  │     - coherence: CoherenceInfo                          │   │
+│  │       NarrativeCoherence: COHERENT / LOOSELY_CONNECTED /│   │
+│  │                           FRAGMENTED / UNDEFINED        │   │
+│  │     - trend: NarrativeTrend                             │   │
+│  │       ACCUMULATING / CONDENSING / STABLE /              │   │
+│  │       DISSOLVING / UNDEFINED                            │   │
+│  │                                                          │   │
+│  │   時間的性質:                                            │   │
+│  │     - 直近ほど鮮明、過去ほど要約化される持続構造        │   │
+│  │     - 参照されない断片は自然に減衰（vividness decay）   │   │
+│  │     - 後続観測で叙述を再編集可能                        │   │
+│  │                                                          │   │
+│  │   設計制約:                                              │   │
+│  │     - 人格定義・価値付与・信念固定・目標決定を行わない  │   │
+│  │     - 物語内容を正誤評価しない                          │   │
+│  │     - 物語を根拠に行動を強制しない                      │   │
+│  │     - 物語から目標を生成しない                          │   │
+│  │     - 単一の「本当の自己」ラベルを固定しない            │   │
+│  │     - 接続先は内省記録層と自己記述提示層に限定          │   │
+│  │     - 判断選択層、目的層、責任計算層には接続しない      │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  全レイヤー共通制約:                                            │
@@ -1559,6 +1596,7 @@ temporal_self_difference.py -     -      -      -       -       -        -      
 continuity_strain.py        -     -      -      -       -       -        -        -        -      -     -      -
 self_image_integration.py   -     -      -      -       -       -        -        -        -      -     -      -
 identity_coherence.py       -     -      -      -       -       -        -        -        -      ○     -      -
+self_narrative.py           -     -      -      -       -       -        -        -        -      -     -      -
 responsibility.py           -     -      -      -       -       -        -        -        -      -     -      -
 responsibility_dispersion.py-     -      -      -       -       -        -        -        -      -     ○      -
 context_sensitivity.py      -     -      -      -       -       -        -        ○        -      -     -      -
@@ -1619,6 +1657,16 @@ IdentityCoherence (自己同一性の揺らぎ認知):
   continuity_strain.py ──────────┼→ identity_coherence.py → self_reference.py
   tendency_awareness.py ─────────┤   (generates IdentityCoherenceState)
   value_orientation.py ──────────┘   (introspection only, NO decision impact)
+
+NarrativeState (自己物語形成):
+  感情要約 ──────────────────┐
+  記憶要約 ──────────────────┤
+  傾向観測 ──────────────────┼→ self_narrative.py → 内省記録層
+  自己差分観測 ──────────────┤   (generates NarrativeState)   → 自己記述提示層
+  文脈記述 ──────────────────┘   (observation only, NO decision impact)
+  入力は全て読み取り専用
+  接続先: 内省記録層・自己記述提示層に限定
+  非接続: 判断選択層・目的層・責任計算層・価値更新層
 
 DecisionBias:
   decision_bias.py → context_sensitivity.py → stability_valve.py
@@ -1721,6 +1769,7 @@ psyche/
 ├── continuity_strain.py          (939行)  - 自己連続性負荷
 ├── self_image_integration.py     (1184行) - 自己像統合
 ├── identity_coherence.py         (1110行) - 自己同一性の揺らぎ認知
+├── self_narrative.py             (1491行) - 自己物語形成（非規範・観測型）
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -1765,6 +1814,7 @@ tests/
 ├── test_continuity_strain.py     (908行)
 ├── test_self_image_integration.py (907行)
 ├── test_identity_coherence.py    (994行)
+├── test_self_narrative.py        (1133行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)
@@ -1774,4 +1824,4 @@ tests/
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~48,000行 / テスト数: 1,270*
+*総コード行数: ~50,600行 / テスト数: 1,368*

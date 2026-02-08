@@ -659,6 +659,47 @@ from .identity_coherence import (
     verify_no_identity_definition,
 )
 
+# Self-Narrative Formation (自己物語形成)
+from .self_narrative import (
+    # Abstract enums
+    FragmentType,
+    LinkType,
+    VividnessLevel,
+    NarrativeCoherence,
+    NarrativeTrend,
+    # Structures
+    NarrativeFragment,
+    FragmentLink,
+    CoherenceInfo,
+    NarrativeState,
+    SelfNarrativeConfig,
+    SelfNarrativeSystem,
+    # Classification functions
+    classify_emotion_observation,
+    classify_memory_observation,
+    classify_tendency_observation,
+    classify_difference_observation,
+    classify_context_observation,
+    # Processing functions
+    check_for_rewrites,
+    summarize_fragments,
+    compute_coherence,
+    determine_narrative_trend,
+    generate_narrative_description,
+    # Integration functions
+    generate_narrative_tags,
+    get_narrative_summary,
+    get_narrative_for_introspection,
+    # Convenience
+    create_config as create_narrative_config,
+    create_empty_state as create_empty_narrative_state,
+    # Verification (test support)
+    verify_no_decision_impact as verify_narrative_no_decision_impact,
+    verify_no_identity_definition as verify_narrative_no_identity_definition,
+    verify_no_goal_generation,
+    verify_read_only_principle,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -887,4 +928,20 @@ __all__ = [
     "create_coherence_config", "create_empty_coherence_state",
     "verify_coherence_no_decision_impact", "verify_no_self_preservation",
     "verify_no_identity_definition",
+    # Self-Narrative Formation (自己物語形成)
+    "FragmentType", "LinkType", "VividnessLevel",
+    "NarrativeCoherence", "NarrativeTrend",
+    "NarrativeFragment", "FragmentLink", "CoherenceInfo",
+    "NarrativeState", "SelfNarrativeConfig", "SelfNarrativeSystem",
+    "classify_emotion_observation", "classify_memory_observation",
+    "classify_tendency_observation", "classify_difference_observation",
+    "classify_context_observation",
+    "check_for_rewrites", "summarize_fragments",
+    "compute_coherence", "determine_narrative_trend",
+    "generate_narrative_description",
+    "generate_narrative_tags", "get_narrative_summary",
+    "get_narrative_for_introspection",
+    "create_narrative_config", "create_empty_narrative_state",
+    "verify_narrative_no_decision_impact", "verify_narrative_no_identity_definition",
+    "verify_no_goal_generation", "verify_read_only_principle",
 ]

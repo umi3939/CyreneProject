@@ -1,8 +1,8 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-05
-総コード行数: ~50,600行
-総テスト数: 1,368テスト
+総コード行数: ~56,600行
+総テスト数: 1,575テスト
 
 ---
 
@@ -65,11 +65,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 45 | 25,954 | 心理システム本体 |
-| tests/ | 34 | 20,728 | 自動テストコード |
+| psyche/ | 47 | 29,360 | 心理システム本体 |
+| tests/ | 36 | 23,000 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,686 | コアシステム |
-| **合計** | **97** | **50,958** | |
+| **合計** | **101** | **56,636** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -81,7 +81,9 @@
 | 4 | self_image_integration.py | 1,184 | 59 | 内省 | 自己像統合（暫定的自己像生成） |
 | 5 | self_narrative.py | 1,491 | 98 | 内省 | 自己物語形成（非規範・観測型） |
 | 6 | identity_coherence.py | 1,110 | 76 | 内省 | 自己同一性の揺らぎ認知 |
-| 7 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 7 | episodic_memory.py | 1,709 | 113 | 記憶 | エピソード記憶（自伝的記憶） |
+| 8 | introspection_consumption.py | 1,455 | 94 | 内省 | 内省の消費層（読み取り可能断片の循環） |
+| 9 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -93,7 +95,7 @@
 | 11 | value_orientation.py | 746 | 34 | 目的 | 長期価値観 |
 | 12 | stability_valve.py | 728 | 40 | 判断 | 極端回避バルブ |
 | 13 | silence_hesitation.py | 724 | 36 | 出力 | 沈黙・躊躇い表現 |
-| 14 | __init__.py | 764 | - | 基盤 | エクスポート定義 |
+| 14 | __init__.py | 1,063 | - | 基盤 | エクスポート定義 |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
 | 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
@@ -1668,6 +1670,30 @@ NarrativeState (自己物語形成):
   接続先: 内省記録層・自己記述提示層に限定
   非接続: 判断選択層・目的層・責任計算層・価値更新層
 
+EpisodicMemory (エピソード記憶 - 自伝的記憶):
+  短期記憶(STM) ───────────┐
+  感情状態要約 ─────────────┤
+  自己差分観測 ─────────────┼→ episodic_memory.py → 内省記録層
+  傾向認知 ─────────────────┤   (generates EpisodeStore)    → 長期記憶検索入口
+  自己同一性状態 ───────────┤   (observation only, NO decision impact)
+  自己物語状態 ─────────────┤
+  外部文脈 ─────────────────┘
+  出来事単位の経験を保持し、感情・自己観測を随伴情報として付与
+  重要度・参照頻度により自然減衰、圧縮を許容
+  解釈は固定しない（再要約・再関連付けを許容）
+  非接続: 判断選択層・目的生成・価値更新・責任評価
+
+IntrospectionConsumption (内省の消費層):
+  内省ログ要約 ─────────────┐
+  自己物語状態 ─────────────┤
+  自己同一性状態 ───────────┼→ introspection_consumption.py → 内省記録層
+  傾向認知 ─────────────────┤   (generates ConsumptionStore)            → 記憶参照入口
+  エピソード記憶 ───────────┘   (observation only, NO decision impact)
+  内省観測を「読み取り可能な断片」に再編成し叙述素材として循環
+  断片は中期的に残るが自然減衰を許容、参照で鮮度回復
+  断片の束ね方は固定しない（再要約・再リンクを許容）
+  非接続: 判断選択層・目的生成・価値更新・責任評価
+
 DecisionBias:
   decision_bias.py → context_sensitivity.py → stability_valve.py
                    → value_orientation.py → transient_goal.py
@@ -1733,7 +1759,7 @@ DecisionBias:
 
 ```
 psyche/
-├── __init__.py                    (661行)  - エクスポート定義
+├── __init__.py                    (1063行) - エクスポート定義
 ├── state.py                       (258行)  - 心理状態データ構造
 ├── pillars.py                     (76行)   - 4柱状態定義
 ├── fear.py                        (76行)   - 恐怖指数計算
@@ -1770,6 +1796,8 @@ psyche/
 ├── self_image_integration.py     (1184行) - 自己像統合
 ├── identity_coherence.py         (1110行) - 自己同一性の揺らぎ認知
 ├── self_narrative.py             (1491行) - 自己物語形成（非規範・観測型）
+├── episodic_memory.py           (1709行) - エピソード記憶（自伝的記憶）
+├── introspection_consumption.py (1455行) - 内省の消費層（読み取り可能断片の循環）
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -1815,6 +1843,8 @@ tests/
 ├── test_self_image_integration.py (907行)
 ├── test_identity_coherence.py    (994行)
 ├── test_self_narrative.py        (1133行)
+├── test_episodic_memory.py      (1249行)
+├── test_introspection_consumption.py (1023行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)
@@ -1829,9 +1859,9 @@ tests/
 
 | # | 候補名 | 概要 | 要請元 | 状態 |
 |---|--------|------|--------|------|
-| 1 | 自己物語 ↔ 自己観測チェーン統合 | self_narrativeの入力に自己観測チェーンの出力を接続する | self_narrative, self_model, temporal_self_difference, tendency_awareness | 実装中 |
-| 2 | エピソード記憶（自伝的記憶） | 「あのとき何が起き、どう感じたか」を個別の出来事として保持する構造。short_term_memoryは残留のみ、long_term_dynamicsは統計のみで、個別体験の蓄積がない | short_term_memory, self_narrative | 未着手 |
-| 3 | 内省の消費層 | introspection_trace, self_narrative, identity_coherenceの観測結果を「読んで自分について語る」層。内省は生成されるが消費先がない | introspection_trace, self_narrative, identity_coherence | 未着手 |
+| 1 | 自己物語 ↔ 自己観測チェーン統合 | self_narrativeの入力に自己観測チェーンの出力を接続する | self_narrative, self_model, temporal_self_difference, tendency_awareness | 完了 |
+| 2 | エピソード記憶（自伝的記憶） | 「あのとき何が起き、どう感じたか」を個別の出来事として保持する構造。short_term_memoryは残留のみ、long_term_dynamicsは統計のみで、個別体験の蓄積がない | short_term_memory, self_narrative | 完了 |
+| 3 | 内省の消費層 | introspection_trace, self_narrative, identity_coherenceの観測結果を「読んで自分について語る」層。内省は生成されるが消費先がない | introspection_trace, self_narrative, identity_coherence | 完了 |
 | 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 未着手 |
 | 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 未着手 |
 | 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 未着手 |
@@ -1840,4 +1870,4 @@ tests/
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~50,600行 / テスト数: 1,368*
+*総コード行数: ~56,600行 / テスト数: 1,575*

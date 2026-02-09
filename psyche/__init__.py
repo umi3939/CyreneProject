@@ -701,6 +701,91 @@ from .self_narrative import (
     verify_read_only_principle,
 )
 
+# Episodic Memory (エピソード記憶 - 自伝的記憶)
+from .episodic_memory import (
+    # Abstract enums
+    EpisodeType,
+    ImportanceLevel,
+    DecayState,
+    EpisodeLinkType,
+    SearchMode,
+    # Structures
+    EmotionalCompanion,
+    SelfObservationCompanion,
+    EpisodeLink,
+    EpisodeEntry,
+    EpisodeStore,
+    EpisodicMemoryConfig,
+    EpisodicMemorySystem,
+    # Helper functions
+    determine_decay_state,
+    classify_episode_type,
+    compute_importance,
+    compute_topic_overlap,
+    compute_emotional_similarity,
+    compute_temporal_proximity,
+    generate_episode_summary,
+    # Integration functions
+    record_from_chain as record_episode_from_chain,
+    generate_episodic_memory_tags,
+    get_episodic_memory_summary,
+    get_episodic_memory_for_introspection,
+    # Persistence
+    save_episodic_memory,
+    load_episodic_memory,
+    # Convenience
+    create_config as create_episodic_memory_config,
+    create_empty_store as create_empty_episode_store,
+    create_system as create_episodic_memory_system,
+    # Verification (test support)
+    verify_no_decision_impact as verify_episodic_no_decision_impact,
+    verify_no_goal_generation as verify_episodic_no_goal_generation,
+    verify_read_only_principle as verify_episodic_read_only_principle,
+    verify_no_value_modification,
+)
+
+# Introspection Consumption Layer (内省の消費層)
+from .introspection_consumption import (
+    # Abstract enums
+    FragmentSourceType,
+    BundleCoherence,
+    FragmentFreshness,
+    # Structures
+    IntrospectionFragment,
+    FragmentBundle,
+    ConsumptionRecord,
+    ConsumptionStore,
+    ConsumptionLayerConfig,
+    IntrospectionConsumptionSystem,
+    # Helper functions
+    determine_freshness,
+    extract_from_introspection,
+    extract_from_narrative,
+    extract_from_coherence,
+    extract_from_tendency,
+    extract_from_episodic,
+    compute_fragment_relevance,
+    determine_bundle_coherence,
+    generate_bundles,
+    # Integration functions
+    consume_from_chain as consume_introspection_from_chain,
+    generate_consumption_tags,
+    get_consumption_summary,
+    get_consumption_for_introspection,
+    # Persistence
+    save_consumption_state,
+    load_consumption_state,
+    # Convenience
+    create_config as create_consumption_config,
+    create_empty_store as create_empty_consumption_store,
+    create_system as create_consumption_system,
+    # Verification (test support)
+    verify_no_decision_impact as verify_consumption_no_decision_impact,
+    verify_no_goal_generation as verify_consumption_no_goal_generation,
+    verify_read_only_principle as verify_consumption_read_only_principle,
+    verify_no_value_modification as verify_consumption_no_value_modification,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -946,4 +1031,33 @@ __all__ = [
     "create_narrative_config", "create_empty_narrative_state",
     "verify_narrative_no_decision_impact", "verify_narrative_no_identity_definition",
     "verify_no_goal_generation", "verify_read_only_principle",
+    # Episodic Memory (エピソード記憶 - 自伝的記憶)
+    "EpisodeType", "ImportanceLevel", "DecayState", "EpisodeLinkType", "SearchMode",
+    "EmotionalCompanion", "SelfObservationCompanion", "EpisodeLink",
+    "EpisodeEntry", "EpisodeStore", "EpisodicMemoryConfig", "EpisodicMemorySystem",
+    "determine_decay_state", "classify_episode_type", "compute_importance",
+    "compute_topic_overlap", "compute_emotional_similarity", "compute_temporal_proximity",
+    "generate_episode_summary",
+    "record_episode_from_chain",
+    "generate_episodic_memory_tags", "get_episodic_memory_summary",
+    "get_episodic_memory_for_introspection",
+    "save_episodic_memory", "load_episodic_memory",
+    "create_episodic_memory_config", "create_empty_episode_store", "create_episodic_memory_system",
+    "verify_episodic_no_decision_impact", "verify_episodic_no_goal_generation",
+    "verify_episodic_read_only_principle", "verify_no_value_modification",
+    # Introspection Consumption Layer (内省の消費層)
+    "FragmentSourceType", "BundleCoherence", "FragmentFreshness",
+    "IntrospectionFragment", "FragmentBundle", "ConsumptionRecord",
+    "ConsumptionStore", "ConsumptionLayerConfig", "IntrospectionConsumptionSystem",
+    "determine_freshness",
+    "extract_from_introspection", "extract_from_narrative",
+    "extract_from_coherence", "extract_from_tendency", "extract_from_episodic",
+    "compute_fragment_relevance", "determine_bundle_coherence", "generate_bundles",
+    "consume_introspection_from_chain",
+    "generate_consumption_tags", "get_consumption_summary",
+    "get_consumption_for_introspection",
+    "save_consumption_state", "load_consumption_state",
+    "create_consumption_config", "create_empty_consumption_store", "create_consumption_system",
+    "verify_consumption_no_decision_impact", "verify_consumption_no_goal_generation",
+    "verify_consumption_read_only_principle", "verify_consumption_no_value_modification",
 ]

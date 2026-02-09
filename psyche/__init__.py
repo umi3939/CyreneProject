@@ -786,6 +786,48 @@ from .introspection_consumption import (
     verify_no_value_modification as verify_consumption_no_value_modification,
 )
 
+# Expectation Formation (予期・期待の形成)
+from .expectation_formation import (
+    # Abstract enums
+    ExpectationSourceType,
+    ExpectationBasis,
+    ExpectationStrength,
+    ExpectationFreshness,
+    # Structures
+    EvidenceLink,
+    ExpectationCandidate,
+    ExpectationStore,
+    ExpectationFormationConfig,
+    ExpectationFormationSystem,
+    # Helper functions
+    determine_freshness_level as determine_expectation_freshness_level,
+    determine_strength_level,
+    extract_from_tendency as extract_expectation_from_tendency,
+    extract_from_difference as extract_expectation_from_difference,
+    extract_from_narrative as extract_expectation_from_narrative,
+    compute_evidence_strength,
+    detect_competitions,
+    determine_expectation_basis,
+    generate_expectation_description,
+    # Integration functions
+    form_from_chain as form_expectations_from_chain,
+    generate_expectation_tags,
+    get_expectation_summary,
+    get_expectation_for_introspection,
+    # Persistence
+    save_expectation_state,
+    load_expectation_state,
+    # Convenience
+    create_config as create_expectation_config,
+    create_empty_store as create_empty_expectation_store,
+    create_system as create_expectation_system,
+    # Verification (test support)
+    verify_no_decision_impact as verify_expectation_no_decision_impact,
+    verify_no_goal_generation as verify_expectation_no_goal_generation,
+    verify_read_only_principle as verify_expectation_read_only_principle,
+    verify_no_value_modification as verify_expectation_no_value_modification,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1060,4 +1102,20 @@ __all__ = [
     "create_consumption_config", "create_empty_consumption_store", "create_consumption_system",
     "verify_consumption_no_decision_impact", "verify_consumption_no_goal_generation",
     "verify_consumption_read_only_principle", "verify_consumption_no_value_modification",
+    # Expectation Formation (予期・期待の形成)
+    "ExpectationSourceType", "ExpectationBasis", "ExpectationStrength", "ExpectationFreshness",
+    "EvidenceLink", "ExpectationCandidate", "ExpectationStore",
+    "ExpectationFormationConfig", "ExpectationFormationSystem",
+    "determine_expectation_freshness_level", "determine_strength_level",
+    "extract_expectation_from_tendency", "extract_expectation_from_difference",
+    "extract_expectation_from_narrative",
+    "compute_evidence_strength", "detect_competitions",
+    "determine_expectation_basis", "generate_expectation_description",
+    "form_expectations_from_chain",
+    "generate_expectation_tags", "get_expectation_summary",
+    "get_expectation_for_introspection",
+    "save_expectation_state", "load_expectation_state",
+    "create_expectation_config", "create_empty_expectation_store", "create_expectation_system",
+    "verify_expectation_no_decision_impact", "verify_expectation_no_goal_generation",
+    "verify_expectation_read_only_principle", "verify_expectation_no_value_modification",
 ]

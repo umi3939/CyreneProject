@@ -1,8 +1,8 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
-作成日: 2026-02-05
-総コード行数: ~56,600行
-総テスト数: 1,575テスト
+作成日: 2026-02-09
+総コード行数: ~59,200行
+総テスト数: 1,678テスト
 
 ---
 
@@ -65,11 +65,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 47 | 29,360 | 心理システム本体 |
-| tests/ | 36 | 23,000 | 自動テストコード |
+| psyche/ | 48 | 30,845 | 心理システム本体 |
+| tests/ | 37 | 24,075 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,686 | コアシステム |
-| **合計** | **101** | **56,636** | |
+| **合計** | **103** | **59,196** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -83,7 +83,8 @@
 | 6 | identity_coherence.py | 1,110 | 76 | 内省 | 自己同一性の揺らぎ認知 |
 | 7 | episodic_memory.py | 1,709 | 113 | 記憶 | エピソード記憶（自伝的記憶） |
 | 8 | introspection_consumption.py | 1,455 | 94 | 内省 | 内省の消費層（読み取り可能断片の循環） |
-| 9 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 9 | expectation_formation.py | 1,485 | 103 | 内省 | 予期・期待の形成（未来方向の連続性投射） |
+| 10 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -1683,6 +1684,15 @@ EpisodicMemory (エピソード記憶 - 自伝的記憶):
   解釈は固定しない（再要約・再関連付けを許容）
   非接続: 判断選択層・目的生成・価値更新・責任評価
 
+ExpectationFormation (予期・期待の形成):
+  反復傾向バイアス ───────────┐
+  自己差分サマリ ─────────────┼→ expectation_formation.py → 内省記録層
+  自己物語状態 ───────────────┘   (generates ExpectationStore)            → 記憶参照入口
+  過去の反復・差分・物語から「次に起きうる展開の仮の見通し」を弱く生成
+  予期は短〜中期で自然減衰、参照で鮮度回復、修正・撤回が可能
+  予期同士の競合を許容する（正解化・評価化しない）
+  非接続: 判断選択層・目的生成・価値更新・責任評価
+
 IntrospectionConsumption (内省の消費層):
   内省ログ要約 ─────────────┐
   自己物語状態 ─────────────┤
@@ -1798,6 +1808,7 @@ psyche/
 ├── self_narrative.py             (1491行) - 自己物語形成（非規範・観測型）
 ├── episodic_memory.py           (1709行) - エピソード記憶（自伝的記憶）
 ├── introspection_consumption.py (1455行) - 内省の消費層（読み取り可能断片の循環）
+├── expectation_formation.py    (1485行) - 予期・期待の形成（未来方向の連続性投射）
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -1845,6 +1856,7 @@ tests/
 ├── test_self_narrative.py        (1133行)
 ├── test_episodic_memory.py      (1249行)
 ├── test_introspection_consumption.py (1023行)
+├── test_expectation_formation.py (1075行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)
@@ -1862,7 +1874,7 @@ tests/
 | 1 | 自己物語 ↔ 自己観測チェーン統合 | self_narrativeの入力に自己観測チェーンの出力を接続する | self_narrative, self_model, temporal_self_difference, tendency_awareness | 完了 |
 | 2 | エピソード記憶（自伝的記憶） | 「あのとき何が起き、どう感じたか」を個別の出来事として保持する構造。short_term_memoryは残留のみ、long_term_dynamicsは統計のみで、個別体験の蓄積がない | short_term_memory, self_narrative | 完了 |
 | 3 | 内省の消費層 | introspection_trace, self_narrative, identity_coherenceの観測結果を「読んで自分について語る」層。内省は生成されるが消費先がない | introspection_trace, self_narrative, identity_coherence | 完了 |
-| 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 未着手 |
+| 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 完了 |
 | 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 未着手 |
 | 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 未着手 |
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 未着手 |
@@ -1870,4 +1882,4 @@ tests/
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~56,600行 / テスト数: 1,575*
+*総コード行数: ~59,200行 / テスト数: 1,678*

@@ -828,6 +828,51 @@ from .expectation_formation import (
     verify_no_value_modification as verify_expectation_no_value_modification,
 )
 
+# Other Agent Model (他者モデル)
+from .other_agent_model import (
+    # Abstract enums
+    ObservationSourceType,
+    InferenceBasis,
+    HypothesisStrength,
+    HypothesisFreshness,
+    # Structures
+    ObservationLink,
+    OtherStateHypothesis,
+    SelfOtherBoundary,
+    OtherModelStore,
+    OtherAgentModelConfig,
+    OtherAgentModelSystem,
+    # Helper functions
+    determine_freshness_level as determine_hypothesis_freshness_level,
+    determine_strength_level as determine_hypothesis_strength_level,
+    extract_from_external_context,
+    extract_from_reaction_log,
+    extract_from_self_contrast,
+    compute_observation_strength,
+    detect_hypothesis_competitions,
+    determine_inference_basis,
+    generate_hypothesis_description,
+    compute_self_other_boundary,
+    # Integration functions
+    observe_from_chain as observe_other_from_chain,
+    generate_other_model_tags,
+    get_other_model_summary,
+    get_other_model_for_introspection,
+    # Persistence
+    save_other_model_state,
+    load_other_model_state,
+    # Convenience
+    create_config as create_other_model_config,
+    create_empty_store as create_empty_other_model_store,
+    create_system as create_other_model_system,
+    # Verification (test support)
+    verify_no_decision_impact as verify_other_model_no_decision_impact,
+    verify_no_goal_generation as verify_other_model_no_goal_generation,
+    verify_read_only_principle as verify_other_model_read_only_principle,
+    verify_no_value_modification as verify_other_model_no_value_modification,
+    verify_no_intent_assertion,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1118,4 +1163,21 @@ __all__ = [
     "create_expectation_config", "create_empty_expectation_store", "create_expectation_system",
     "verify_expectation_no_decision_impact", "verify_expectation_no_goal_generation",
     "verify_expectation_read_only_principle", "verify_expectation_no_value_modification",
+    # Other Agent Model (他者モデル)
+    "ObservationSourceType", "InferenceBasis", "HypothesisStrength", "HypothesisFreshness",
+    "ObservationLink", "OtherStateHypothesis", "SelfOtherBoundary",
+    "OtherModelStore", "OtherAgentModelConfig", "OtherAgentModelSystem",
+    "determine_hypothesis_freshness_level", "determine_hypothesis_strength_level",
+    "extract_from_external_context", "extract_from_reaction_log", "extract_from_self_contrast",
+    "compute_observation_strength", "detect_hypothesis_competitions",
+    "determine_inference_basis", "generate_hypothesis_description",
+    "compute_self_other_boundary",
+    "observe_other_from_chain",
+    "generate_other_model_tags", "get_other_model_summary",
+    "get_other_model_for_introspection",
+    "save_other_model_state", "load_other_model_state",
+    "create_other_model_config", "create_empty_other_model_store", "create_other_model_system",
+    "verify_other_model_no_decision_impact", "verify_other_model_no_goal_generation",
+    "verify_other_model_read_only_principle", "verify_other_model_no_value_modification",
+    "verify_no_intent_assertion",
 ]

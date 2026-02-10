@@ -1,8 +1,8 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-総コード行数: ~59,200行
-総テスト数: 1,678テスト
+総コード行数: ~62,000行
+総テスト数: 1,808テスト
 
 ---
 
@@ -65,11 +65,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 48 | 30,845 | 心理システム本体 |
-| tests/ | 37 | 24,075 | 自動テストコード |
+| psyche/ | 49 | 32,448 | 心理システム本体 |
+| tests/ | 38 | 25,280 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,686 | コアシステム |
-| **合計** | **103** | **59,196** | |
+| **合計** | **105** | **62,004** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -84,7 +84,8 @@
 | 7 | episodic_memory.py | 1,709 | 113 | 記憶 | エピソード記憶（自伝的記憶） |
 | 8 | introspection_consumption.py | 1,455 | 94 | 内省 | 内省の消費層（読み取り可能断片の循環） |
 | 9 | expectation_formation.py | 1,485 | 103 | 内省 | 予期・期待の形成（未来方向の連続性投射） |
-| 10 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 10 | other_agent_model.py | 1,603 | 112 | 内省 | 他者モデル（他者状態の仮説的推測） |
+| 11 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -96,7 +97,7 @@
 | 11 | value_orientation.py | 746 | 34 | 目的 | 長期価値観 |
 | 12 | stability_valve.py | 728 | 40 | 判断 | 極端回避バルブ |
 | 13 | silence_hesitation.py | 724 | 36 | 出力 | 沈黙・躊躇い表現 |
-| 14 | __init__.py | 1,063 | - | 基盤 | エクスポート定義 |
+| 14 | __init__.py | 1,183 | - | 基盤 | エクスポート定義 |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
 | 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
@@ -1693,6 +1694,16 @@ ExpectationFormation (予期・期待の形成):
   予期同士の競合を許容する（正解化・評価化しない）
   非接続: 判断選択層・目的生成・価値更新・責任評価
 
+OtherAgentModel (他者モデル):
+  外部文脈（ExternalContext） ──────┐
+  反応ログ（STM/ReactionLog） ─────┼→ other_agent_model.py → 内省記録層
+  自己状態（対比参照のみ） ────────┘   (generates OtherModelStore)            → 記憶参照補助
+  「相手がどう感じているか」の推測を仮説として弱く保持
+  仮説は短〜中期で自然減衰、参照で鮮度回復、修正・撤回が可能
+  競合する仮説を許容する（他者の意図・価値・信念を断定しない）
+  自己/他者の境界を弱く構造化（SelfOtherBoundary）
+  非接続: 判断選択層・目的生成・価値更新・責任評価
+
 IntrospectionConsumption (内省の消費層):
   内省ログ要約 ─────────────┐
   自己物語状態 ─────────────┤
@@ -1809,6 +1820,7 @@ psyche/
 ├── episodic_memory.py           (1709行) - エピソード記憶（自伝的記憶）
 ├── introspection_consumption.py (1455行) - 内省の消費層（読み取り可能断片の循環）
 ├── expectation_formation.py    (1485行) - 予期・期待の形成（未来方向の連続性投射）
+├── other_agent_model.py        (1603行) - 他者モデル（他者状態の仮説的推測）
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -1857,6 +1869,7 @@ tests/
 ├── test_episodic_memory.py      (1249行)
 ├── test_introspection_consumption.py (1023行)
 ├── test_expectation_formation.py (1075行)
+├── test_other_agent_model.py    (1205行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)

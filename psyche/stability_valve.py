@@ -485,6 +485,36 @@ class StabilityValve:
         """Clear decision history."""
         self._decision_history.clear()
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize valve state to dict."""
+        return {
+            "decision_history": list(self._decision_history),
+            "activation_level": self._activation_level,
+            "consecutive_extreme": self._consecutive_extreme,
+            "last_indicators": self._last_indicators.to_dict() if self._last_indicators else None,
+            "last_bias": self._last_bias.to_dict() if self._last_bias else None,
+            "observation_count": self._observation_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], config: Optional[StabilityValveConfig] = None) -> "StabilityValve":
+        """Restore valve state from dict."""
+        valve = cls(config=config)
+        valve._decision_history = deque(
+            data.get("decision_history", []),
+            maxlen=valve.config.decision_history_size,
+        )
+        valve._activation_level = data.get("activation_level", 0.0)
+        valve._consecutive_extreme = data.get("consecutive_extreme", 0)
+        ind_data = data.get("last_indicators")
+        if ind_data:
+            valve._last_indicators = ExtremityIndicators.from_dict(ind_data)
+        bias_data = data.get("last_bias")
+        if bias_data:
+            valve._last_bias = StabilityBias.from_dict(bias_data)
+        valve._observation_count = data.get("observation_count", 0)
+        return valve
+
 
 # ── Bias Application ────────────────────────────────────────────────
 

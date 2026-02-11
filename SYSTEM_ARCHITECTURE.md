@@ -3235,7 +3235,7 @@ tests/
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 完了 |
 | 8 | 他者モデル入力供給 | other_agent_modelのexternal_context/reaction_logが常にNoneだった問題を解消。STM・dynamics・psyche状態から入力を生成しorchestrator経由で供給 | other_agent_model, short_term_memory, orchestrator | 完了 |
 | 9 | orchestrator未接続入力の配線 | Phase 19/20/33でexternal_context=None固定、Phase 21でmemories=None固定。input_supplyのContextSnapshotおよびbrain.pyのrecalled_memoriesを渡す配線が必要 | orchestrator, self_narrative, episodic_memory, emotional_memory_binding, context_sensitivity | 完了 |
-| 10 | save/load未対応モジュールの永続化 | repeated_tendency, proto_goal_vector, goal_candidates, transient_goal, scoped_goal, stability_valveが再起動でリセットされる。orchestratorのsave/loadに追加が必要 | orchestrator | 未実装 |
+| 10 | save/load未対応モジュールの永続化 | repeated_tendency, proto_goal_vector, goal_candidates, transient_goal, stability_valveをorchestratorのsave/loadに追加。scoped_goalは設計上エフェメラルのため対象外。snapshot v4→v5 (25フィールド) | orchestrator, stability_valve | 完了 |
 
 ### 8.1 未接続入力の配線 (#9) — 完了
 
@@ -3250,20 +3250,21 @@ orchestrator.py 内で切断されていた4箇所を接続済み:
 
 brain.py側: recall_with_mood後に orchestrator.set_recalled_memories(memories) を呼び出す。
 
-### 8.2 save/load未対応モジュールの詳細 (#10)
+### 8.2 save/load永続化対応 (#10) — 完了
 
-以下のモジュールはtick更新で状態を蓄積するが、save/loadに含まれていないため再起動で消失する:
+snapshot v5 (25フィールド) で以下5モジュールの永続化を追加:
 
-| モジュール | 消失する情報 | 影響 |
-|-----------|-------------|------|
-| repeated_tendency | 習慣パターンの蓄積 | 行動傾向の学習がリセットされる |
-| proto_goal_vector | 方向ベクトル | 目的方向性が消える |
-| goal_candidates | 目標候補リスト | 生成された候補が消える |
-| transient_goal | 一時的目標の選択状態 | 現在の目標が消える |
-| scoped_goal | スコープ目標のコミット状態 | 行動スコープが消える |
-| stability_valve | 極端偏り観測履歴 | 安定化バイアスの学習が消える |
+| モジュール | snapshotキー | 状態クラス | 対応内容 |
+|-----------|-------------|-----------|----------|
+| repeated_tendency | tendency_state | RepeatedTendencyState | to_dict/from_dict 既存 → save/load追加 |
+| proto_goal_vector | vector_state | VectorState | to_dict/from_dict 既存 → save/load追加 |
+| goal_candidates | candidate_state | CandidateState | to_dict/from_dict 既存 → save/load追加 |
+| transient_goal | transient_goal_state | TransientGoalState | to_dict/from_dict 既存 → save/load追加 |
+| stability_valve | stability_valve | StabilityValve | to_dict/from_dict 新規追加 → save/load追加 |
+
+**対象外**: scoped_goal — 設計上エフェメラル（メモリ内のみ、永続化しない）
 
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~73,472行 / テスト数: 2,116*
+*総コード行数: ~73,939行 / テスト数: 2,116*

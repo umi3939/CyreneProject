@@ -138,7 +138,7 @@ from .value_orientation import (
 )
 
 # Repeated tendency
-from .repeated_tendency import RepeatedTendencySystem
+from .repeated_tendency import RepeatedTendencySystem, RepeatedTendencyState
 from .repeated_tendency import create_system as create_tendency_system
 
 # Tendency awareness
@@ -260,6 +260,7 @@ from .other_model_input_supply import (
 # Proto-goal vector
 from .proto_goal_vector import (
     VectorGenerator,
+    VectorState,
     ProtoGoalVector,
     get_vector_summary,
 )
@@ -267,6 +268,7 @@ from .proto_goal_vector import (
 # Goal candidates
 from .goal_candidates import (
     CandidateGenerator,
+    CandidateState,
     GoalCandidate,
     get_candidate_summary,
 )
@@ -274,6 +276,7 @@ from .goal_candidates import (
 # Transient goal
 from .transient_goal import (
     TransientGoalManager,
+    TransientGoalState,
     get_transient_goal_summary,
 )
 
@@ -1272,7 +1275,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 4,
+            "version": 5,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1295,6 +1298,12 @@ class PsycheOrchestrator:
             "last_motives": self._last_motives.to_dict() if self._last_motives else {},
             "last_other_model": self._last_other_model.to_dict() if self._last_other_model else {},
             "input_supply": self._input_supply.to_dict() if self._input_supply else {},
+            # Version 5 fields
+            "tendency_state": self._tendency_sys.state.to_dict(),
+            "vector_state": self._vector_gen.state.to_dict(),
+            "candidate_state": self._candidate_gen.state.to_dict(),
+            "transient_goal_state": self._transient_goal_mgr.state.to_dict(),
+            "stability_valve": self._stability_valve.to_dict(),
         }
 
         save_path.write_text(
@@ -1365,6 +1374,18 @@ class PsycheOrchestrator:
                 self._last_other_model = OtherModelStore.from_dict(data["last_other_model"])
             if data.get("input_supply"):
                 self._input_supply = InputSupplyState.from_dict(data["input_supply"])
+
+            # Version 5+ fields
+            if data.get("tendency_state"):
+                self._tendency_sys._state = RepeatedTendencyState.from_dict(data["tendency_state"])
+            if data.get("vector_state"):
+                self._vector_gen._state = VectorState.from_dict(data["vector_state"])
+            if data.get("candidate_state"):
+                self._candidate_gen._state = CandidateState.from_dict(data["candidate_state"])
+            if data.get("transient_goal_state"):
+                self._transient_goal_mgr._state = TransientGoalState.from_dict(data["transient_goal_state"])
+            if data.get("stability_valve"):
+                self._stability_valve = StabilityValve.from_dict(data["stability_valve"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

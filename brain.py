@@ -291,6 +291,7 @@ class CyreneBrain:
             memories = await recall_with_mood(
                 recall_percept, self._orchestrator.psyche, self._memory, top_k=3
             )
+            self._orchestrator.set_recalled_memories(memories)
 
             # Phase 5: Policy
             policy = self._orchestrator.select_policy_dict(
@@ -400,6 +401,7 @@ class CyreneBrain:
             memories = await recall_with_mood(
                 recall_percept, self._orchestrator.psyche, self._memory, top_k=3
             )
+            self._orchestrator.set_recalled_memories(memories)
 
             # === Phase 5: select policy ===
             policy = self._orchestrator.select_policy_dict(

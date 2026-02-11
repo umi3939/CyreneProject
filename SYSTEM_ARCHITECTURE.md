@@ -3234,6 +3234,34 @@ tests/
 | 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 完了 |
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 完了 |
 | 8 | 他者モデル入力供給 | other_agent_modelのexternal_context/reaction_logが常にNoneだった問題を解消。STM・dynamics・psyche状態から入力を生成しorchestrator経由で供給 | other_agent_model, short_term_memory, orchestrator | 完了 |
+| 9 | orchestrator未接続入力の配線 | Phase 19/20/33でexternal_context=None固定、Phase 21でmemories=None固定。input_supplyのContextSnapshotおよびbrain.pyのrecalled_memoriesを渡す配線が必要 | orchestrator, self_narrative, episodic_memory, emotional_memory_binding, context_sensitivity | 完了 |
+| 10 | save/load未対応モジュールの永続化 | repeated_tendency, proto_goal_vector, goal_candidates, transient_goal, scoped_goal, stability_valveが再起動でリセットされる。orchestratorのsave/loadに追加が必要 | orchestrator | 未実装 |
+
+### 8.1 未接続入力の配線 (#9) — 完了
+
+orchestrator.py 内で切断されていた4箇所を接続済み:
+
+| Phase | モジュール | 引数 | 接続先 |
+|-------|-----------|------|--------|
+| 19 | self_narrative | external_context | supply_context(self._input_supply) — 文脈由来のナラティブ断片が生成される |
+| 20 | episodic_memory | external_context | supply_context(self._input_supply) — エピソード記録に外部文脈が反映される |
+| 21 | emotional_memory_binding | memories | self._last_recalled_memories — brain.pyのrecall_with_mood結果を受け取る |
+| 33 | context_sensitivity | context | supply_context(self._input_supply) → ExternalContext変換 — 実際の空気読みが機能する |
+
+brain.py側: recall_with_mood後に orchestrator.set_recalled_memories(memories) を呼び出す。
+
+### 8.2 save/load未対応モジュールの詳細 (#10)
+
+以下のモジュールはtick更新で状態を蓄積するが、save/loadに含まれていないため再起動で消失する:
+
+| モジュール | 消失する情報 | 影響 |
+|-----------|-------------|------|
+| repeated_tendency | 習慣パターンの蓄積 | 行動傾向の学習がリセットされる |
+| proto_goal_vector | 方向ベクトル | 目的方向性が消える |
+| goal_candidates | 目標候補リスト | 生成された候補が消える |
+| transient_goal | 一時的目標の選択状態 | 現在の目標が消える |
+| scoped_goal | スコープ目標のコミット状態 | 行動スコープが消える |
+| stability_valve | 極端偏り観測履歴 | 安定化バイアスの学習が消える |
 
 ---
 

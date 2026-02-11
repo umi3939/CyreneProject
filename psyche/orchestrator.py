@@ -450,6 +450,9 @@ class PsycheOrchestrator:
         self._input_supply = create_input_supply()
         self._last_percept: Optional[Percept] = None
 
+        # ── Recalled memories (brain.py から供給) ──
+        self._last_recalled_memories: Optional[list[dict]] = None
+
         # ── Proto-goal vector ──
         self._vector_gen = VectorGenerator()
 
@@ -500,6 +503,13 @@ class PsycheOrchestrator:
     @property
     def fear_level(self) -> float:
         return self._psyche.fear_level
+
+    def set_recalled_memories(self, memories: Optional[list[dict]]) -> None:
+        """brain.py から recall_with_mood の結果を受け取る。
+
+        次回の Phase 21 (emotional_memory_binding) で使用される。
+        """
+        self._last_recalled_memories = memories
 
     # ── Phase 1-7: Every-tick update ──────────────────────────────
 
@@ -767,19 +777,21 @@ class PsycheOrchestrator:
 
         # Phase 19: self_narrative — 自己ナラティブ断片追加
         try:
+            ctx_for_narrative = supply_context(self._input_supply)
             self._last_narrative = observe_narrative_from_chain(
                 system=self._narrative_sys,
                 emotional_state=self._psyche.emotions,
                 short_term_memory=self._loop_state.memory if self._loop_state else None,
                 tendency_awareness=self._tendency_awareness,
                 difference_summary=self._last_diff_summary,
-                external_context=None,
+                external_context=ctx_for_narrative,
             )
         except Exception as e:
             logger.debug("Self-narrative skipped: %s", e)
 
         # Phase 20: episodic_memory — エピソード記録
         try:
+            ctx_for_episode = supply_context(self._input_supply)
             self._last_episodes = record_episode_from_chain(
                 system=self._episodic_sys,
                 emotional_state=self._psyche.emotions,
@@ -788,7 +800,7 @@ class PsycheOrchestrator:
                 difference_summary=self._last_diff_summary,
                 coherence_state=self._last_coherence,
                 narrative_state=self._last_narrative,
-                external_context=None,
+                external_context=ctx_for_episode,
             )
         except Exception as e:
             logger.debug("Episodic memory skipped: %s", e)
@@ -800,7 +812,7 @@ class PsycheOrchestrator:
                 stm=self._loop_state.memory if self._loop_state else None,
                 emotion=self._psyche.emotions,
                 mood=self._psyche.mood,
-                memories=None,
+                memories=self._last_recalled_memories,
                 episodes=self._last_episodes,
             )
         except Exception as e:
@@ -1102,8 +1114,15 @@ class PsycheOrchestrator:
             config=self._tone_config,
         )
 
-        # Phase 33: context_sensitivity — 空気読みバイアス
-        ext_ctx = create_neutral_context()
+        # Phase 33: context_sensitivity — 空気読みバイアス (input_supply経由)
+        ctx_snapshot = supply_context(self._input_supply)
+        ext_ctx = ExternalContext(
+            pace=ctx_snapshot.pace,
+            weight=ctx_snapshot.weight,
+            density=ctx_snapshot.density,
+            continuity=ctx_snapshot.continuity,
+            responsiveness=ctx_snapshot.responsiveness,
+        )
         sensitivity_bias = compute_sensitivity_bias(
             context=ext_ctx,
             config=self._ctx_sensitivity_config,

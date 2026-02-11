@@ -168,7 +168,10 @@ class CyreneBrain:
             importance = int(data.get("importance", 3))
 
             if summary:
-                await self._memory.add_memory(summary, keywords, importance)
+                self._memory.maybe_save(
+                    summary, "", {},
+                    importance=importance,
+                )
                 logger.info(f"Memory saved: {summary}")
 
                 # Notify orchestrator of memory save

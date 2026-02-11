@@ -973,6 +973,14 @@ class PsycheOrchestrator:
             diff_summary = get_difference_summary(self._last_diff_summary)
             if diff_summary:
                 self_lines.append(f"変化: {diff_summary}")
+        if self._last_strain is not None:
+            strain_summary = get_strain_summary(self._last_strain)
+            if strain_summary:
+                self_lines.append(f"連続性緊張: {strain_summary}")
+        if self._last_narrative is not None:
+            narr_summary = get_narrative_summary(self._last_narrative)
+            if narr_summary:
+                self_lines.append(f"自己語り: {narr_summary}")
         if len(self_lines) > 1:
             sections.append("\n".join(self_lines))
 
@@ -997,6 +1005,27 @@ class PsycheOrchestrator:
                 motive_lines.append(f"期待: {exp_summary}")
         if len(motive_lines) > 1:
             sections.append("\n".join(motive_lines))
+
+        # ── 【記憶・内省】 ──
+        memory_lines = ["【記憶・内省】"]
+        if self._last_episodes is not None:
+            ep_summary = get_episodic_memory_summary(self._last_episodes)
+            if ep_summary:
+                memory_lines.append(f"エピソード記憶: {ep_summary}")
+        if self._last_bindings is not None:
+            bind_summary = get_binding_summary(self._last_bindings)
+            if bind_summary:
+                memory_lines.append(f"感情結合: {bind_summary}")
+        if self._last_consumption is not None:
+            cons_summary = get_consumption_summary(self._last_consumption)
+            if cons_summary:
+                memory_lines.append(f"内省消費: {cons_summary}")
+        if self._last_other_model is not None:
+            other_summary = get_other_model_summary(self._last_other_model)
+            if other_summary:
+                memory_lines.append(f"他者モデル: {other_summary}")
+        if len(memory_lines) > 1:
+            sections.append("\n".join(memory_lines))
 
         # Footer
         sections.append(
@@ -1192,11 +1221,28 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 3,
+            "version": 4,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
             "dynamics": self._dynamics.to_dict() if self._dynamics else {},
+            "amplitude": self._amplitude_state.to_dict() if self._amplitude_state else {},
+            "value_orientation": self._value_orientation.to_dict() if self._value_orientation else {},
+            "self_ref_state": self._self_ref_state.to_dict() if self._self_ref_state else {},
+            "last_self_view": self._last_self_view.to_dict() if self._last_self_view else {},
+            "tendency_awareness": self._tendency_awareness.to_dict() if self._tendency_awareness else {},
+            "last_diff_summary": self._last_diff_summary.to_dict() if self._last_diff_summary else {},
+            "last_strain": self._last_strain.to_dict() if self._last_strain else {},
+            "last_self_image": self._last_self_image.to_dict() if self._last_self_image else {},
+            "last_coherence": self._last_coherence.to_dict() if self._last_coherence else {},
+            "last_narrative": self._last_narrative.to_dict() if self._last_narrative else {},
+            "last_episodes": self._last_episodes.to_dict() if self._last_episodes else {},
+            "last_bindings": self._last_bindings.to_dict() if self._last_bindings else {},
+            "last_trace": self._last_trace.to_dict() if self._last_trace else {},
+            "last_consumption": self._last_consumption.to_dict() if self._last_consumption else {},
+            "last_expectations": self._last_expectations.to_dict() if self._last_expectations else {},
+            "last_motives": self._last_motives.to_dict() if self._last_motives else {},
+            "last_other_model": self._last_other_model.to_dict() if self._last_other_model else {},
         }
 
         save_path.write_text(
@@ -1229,7 +1275,45 @@ class PsycheOrchestrator:
                 self._dynamics = DynamicsState.from_dict(data["dynamics"])
             if "tick_count" in data:
                 self._tick_count = data["tick_count"]
-            logger.info("Psyche state loaded from %s (tick=%d)", load_path, self._tick_count)
+
+            # Version 4+ fields
+            if data.get("amplitude"):
+                self._amplitude_state = AmplitudeState.from_dict(data["amplitude"])
+            if data.get("value_orientation"):
+                self._value_orientation = ValueOrientation.from_dict(data["value_orientation"])
+            if data.get("self_ref_state"):
+                self._self_ref_state = SelfReferenceState.from_dict(data["self_ref_state"])
+            if data.get("last_self_view"):
+                self._last_self_view = SelfStateView.from_dict(data["last_self_view"])
+            if data.get("tendency_awareness"):
+                self._tendency_awareness = TendencyAwareness.from_dict(data["tendency_awareness"])
+            if data.get("last_diff_summary"):
+                self._last_diff_summary = SelfDifferenceSummary.from_dict(data["last_diff_summary"])
+            if data.get("last_strain"):
+                self._last_strain = StrainState.from_dict(data["last_strain"])
+            if data.get("last_self_image"):
+                self._last_self_image = ProvisionalSelfImage.from_dict(data["last_self_image"])
+            if data.get("last_coherence"):
+                self._last_coherence = IdentityCoherenceState.from_dict(data["last_coherence"])
+            if data.get("last_narrative"):
+                self._last_narrative = NarrativeState.from_dict(data["last_narrative"])
+            if data.get("last_episodes"):
+                self._last_episodes = EpisodeStore.from_dict(data["last_episodes"])
+            if data.get("last_bindings"):
+                self._last_bindings = BindingStore.from_dict(data["last_bindings"])
+            if data.get("last_trace"):
+                self._last_trace = TraceLog.from_dict(data["last_trace"])
+            if data.get("last_consumption"):
+                self._last_consumption = ConsumptionStore.from_dict(data["last_consumption"])
+            if data.get("last_expectations"):
+                self._last_expectations = ExpectationStore.from_dict(data["last_expectations"])
+            if data.get("last_motives"):
+                self._last_motives = MotiveStore.from_dict(data["last_motives"])
+            if data.get("last_other_model"):
+                self._last_other_model = OtherModelStore.from_dict(data["last_other_model"])
+
+            logger.info("Psyche state loaded from %s (v%d, tick=%d)",
+                        load_path, data.get("version", 0), self._tick_count)
             return True
         except Exception as e:
             logger.error("Failed to load snapshot: %s", e)

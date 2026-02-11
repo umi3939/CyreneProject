@@ -2,7 +2,7 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-11
-総コード行数: ~72,750行
+総コード行数: ~72,834行
 総テスト数: 2,086テスト
 
 ---
@@ -128,7 +128,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 1,236 | 40 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 38システム, save/load, select_policy_dict含む） |
+| 41 | orchestrator.py | 1,320 | 40 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 38システム, save/load v4(20項目永続化), enrichment(4セクション), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -516,6 +516,21 @@ brain.py との接続 (2-call構造):
   main.py shutdown         → brain.save_state() + orchestrator.save()
   summarize_and_save()     → orchestrator.on_memory_saved(summary, keywords, count)
   _build_prompt()          → 旧フロー用に保持（summarize_and_save等で使用）
+
+get_prompt_enrichment() 出力セクション (4セクション):
+  【心理状態（内面）】 → 感情, ムード, ドライブ, 恐怖, 支配的感情
+  【自己認識】         → 自己像, 一貫性, 傾向, 変化, 連続性緊張, 自己語り
+  【動機・目標】       → 動機, 目標候補, 期待
+  【記憶・内省】       → エピソード記憶, 感情結合, 内省消費, 他者モデル
+
+save()/load() 永続化対象 (v4, 20項目):
+  core: psyche, loop_state, dynamics, tick_count
+  v4追加: amplitude, value_orientation, self_ref_state, last_self_view,
+          tendency_awareness, last_diff_summary, last_strain, last_self_image,
+          last_coherence, last_narrative, last_episodes, last_bindings,
+          last_trace, last_consumption, last_expectations, last_motives,
+          last_other_model
+  v3スナップショットとの後方互換性あり
 ```
 
 ### 4.1 状態管理層
@@ -3160,4 +3175,4 @@ tests/
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~72,750行 / テスト数: 2,086*
+*総コード行数: ~72,834行 / テスト数: 2,086*

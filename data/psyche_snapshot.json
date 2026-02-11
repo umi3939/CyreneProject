@@ -1,0 +1,96 @@
+{
+  "version": 3,
+  "tick_count": 3,
+  "psyche": {
+    "emotions": {
+      "joy": 1.0,
+      "anger": 0.0,
+      "sorrow": 0.04955625,
+      "fear": 0.0991125,
+      "surprise": 0.0,
+      "love": 0.09484562499999999,
+      "fun": 0.09484562499999999
+    },
+    "drives": {
+      "social": 0.4099999999999999,
+      "curiosity": 0.53,
+      "expression": 0.5764005190999999
+    },
+    "mood": {
+      "valence": 0.06994683333333333,
+      "arousal": 0.42266975
+    },
+    "fear_index": 0.26,
+    "loss_aversion": 0.3,
+    "last_updated": "2026-01-01T00:00:00"
+  },
+  "loop_state": {
+    "memory": {
+      "entries": [
+        {
+          "source_text": "test screen",
+          "topics": [],
+          "emotion_label": "happy",
+          "intent": "expression",
+          "raw_intensity": 0.7,
+          "valence": 0.7,
+          "timestamp": 1770799136.8693173,
+          "residue_weight": 1.0,
+          "processed": true
+        },
+        {
+          "source_text": "test screen",
+          "topics": [],
+          "emotion_label": "happy",
+          "intent": "expression",
+          "raw_intensity": 0.7,
+          "valence": 0.7,
+          "timestamp": 1770799136.8713167,
+          "residue_weight": 1.0,
+          "processed": true
+        },
+        {
+          "source_text": "test screen",
+          "topics": [],
+          "emotion_label": "happy",
+          "intent": "expression",
+          "raw_intensity": 0.7,
+          "valence": 0.7,
+          "timestamp": 1770799136.872315,
+          "residue_weight": 1.0,
+          "processed": true
+        }
+      ],
+      "max_entries": 10,
+      "last_update_time": 1770799136.872315,
+      "current_context_topics": [],
+      "context_continuity_score": 0.0,
+      "scale_factors": {
+        "residue_influence": 1.0,
+        "decay_base": 1.0,
+        "min_residue_weight": 0.001
+      }
+    },
+    "config": {
+      "continuity_threshold": 0.0,
+      "residue_scale": 1.0,
+      "decay_rate": 1.0,
+      "min_residue_weight": 0.001,
+      "max_accumulation_entries": 10
+    },
+    "updated_this_turn": false,
+    "last_loop_time": 1770799136.872315
+  },
+  "dynamics": {
+    "phase": "peak",
+    "phase_entered_at": 1770799136.8713167,
+    "phase_turn_count": 2,
+    "peak_emotion": "joy",
+    "peak_intensity": 1.0,
+    "accumulated_intensity": 1.0,
+    "intensity_history": [
+      1.0
+    ],
+    "max_history_length": 10
+  }
+}

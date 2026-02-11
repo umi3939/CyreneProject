@@ -1,0 +1,39 @@
+BRAIN IMPORTS (from brain.py):
+- reaction
+- memory_link
+- fear
+- state
+- pillars
+- attachment_manager (imported as module)
+- identity_manager (imported as module)
+- continuity_manager (imported as module)
+- projection_manager (imported as module)
+
+LEVEL 1 IMPORTS:
+reaction.py imports: fear, responsibility, state, emotion_amplitude
+memory_link.py imports: state, attachment_manager (dynamic)
+fear.py imports: pillars, state
+state.py imports: pillars
+pillars.py imports: (none)
+attachment_manager.py imports: pillars
+identity_manager.py imports: pillars
+continuity_manager.py imports: pillars
+projection_manager.py imports: pillars
+emotion_amplitude.py imports: (need to check)
+responsibility.py imports: (need to check)
+short_term_loop.py imports: short_term_memory, state
+
+ALL MODULES:
+__init__, attachment_manager, context_sensitivity, continuity_manager, 
+continuity_strain, decision_bias, dynamics, emotion_amplitude, 
+emotional_memory_binding, episodic_memory, expectation_formation, 
+expression, fear, goal_candidates, identity_coherence, identity_manager, 
+intrinsic_motivation, introspection_consumption, introspection_trace, 
+long_term_dynamics, memory_link, multi_emotion, other_agent_model, 
+perception, persistence, pillars, projection_manager, proto_goal_vector, 
+reaction, reaction_with_stm, repeated_tendency, responsibility, 
+responsibility_dispersion, responsibility_manager, scoped_goal, 
+self_image_integration, self_model, self_narrative, self_reference, 
+short_term_loop, short_term_memory, silence_hesitation, snapshot, 
+stability_valve, state, stm_emotion_coupling, temporal_self_difference, 
+tendency_awareness, thought, tone, transient_goal, value_orientation

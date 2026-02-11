@@ -918,6 +918,51 @@ from .emotional_memory_binding import (
     verify_no_emotion_evaluation,
 )
 
+# Intrinsic Motivation (自発的内的動機)
+from .intrinsic_motivation import (
+    # Abstract enums
+    MotiveSourceType,
+    MotiveAffinity,
+    MotiveStrength,
+    MotiveFreshness,
+    # Structures
+    MotiveImpulse,
+    MotiveLink,
+    MotiveEntry,
+    MotiveStore,
+    IntrinsicMotivationConfig,
+    IntrinsicMotivationSystem,
+    # Helper functions
+    determine_freshness_level as determine_motive_freshness_level,
+    determine_strength_level as determine_motive_strength_level,
+    generate_motive_key,
+    extract_from_emotion_state as extract_motive_from_emotion_state,
+    extract_from_tendencies as extract_motive_from_tendencies,
+    extract_from_goal_vectors as extract_motive_from_goal_vectors,
+    extract_from_goal_candidates as extract_motive_from_goal_candidates,
+    compute_motive_strength,
+    detect_motive_coexistence,
+    compute_motive_overlay,
+    # Integration functions
+    sense_from_chain as sense_motives_from_chain,
+    generate_motive_tags,
+    get_motive_summary,
+    get_motive_for_introspection,
+    # Persistence
+    save_motive_state,
+    load_motive_state,
+    # Convenience
+    create_config as create_motive_config,
+    create_empty_store as create_empty_motive_store,
+    create_system as create_motive_system,
+    # Verification (test support)
+    verify_no_decision_impact as verify_motive_no_decision_impact,
+    verify_no_goal_generation as verify_motive_no_goal_generation,
+    verify_read_only_principle as verify_motive_read_only_principle,
+    verify_no_value_modification as verify_motive_no_value_modification,
+    verify_no_motivation_prescription,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1243,4 +1288,22 @@ __all__ = [
     "verify_binding_no_decision_impact", "verify_binding_no_goal_generation",
     "verify_binding_read_only_principle", "verify_binding_no_value_modification",
     "verify_no_emotion_evaluation",
+    # Intrinsic Motivation (自発的内的動機)
+    "MotiveSourceType", "MotiveAffinity", "MotiveStrength", "MotiveFreshness",
+    "MotiveImpulse", "MotiveLink", "MotiveEntry",
+    "MotiveStore", "IntrinsicMotivationConfig", "IntrinsicMotivationSystem",
+    "determine_motive_freshness_level", "determine_motive_strength_level",
+    "generate_motive_key",
+    "extract_motive_from_emotion_state", "extract_motive_from_tendencies",
+    "extract_motive_from_goal_vectors", "extract_motive_from_goal_candidates",
+    "compute_motive_strength", "detect_motive_coexistence",
+    "compute_motive_overlay",
+    "sense_motives_from_chain",
+    "generate_motive_tags", "get_motive_summary",
+    "get_motive_for_introspection",
+    "save_motive_state", "load_motive_state",
+    "create_motive_config", "create_empty_motive_store", "create_motive_system",
+    "verify_motive_no_decision_impact", "verify_motive_no_goal_generation",
+    "verify_motive_read_only_principle", "verify_motive_no_value_modification",
+    "verify_no_motivation_prescription",
 ]

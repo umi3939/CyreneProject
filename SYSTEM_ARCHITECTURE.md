@@ -1,8 +1,8 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-総コード行数: ~64,900行
-総テスト数: 1,922テスト
+総コード行数: ~67,800行
+総テスト数: 2,035テスト
 
 ---
 
@@ -86,7 +86,8 @@
 | 9 | expectation_formation.py | 1,485 | 103 | 内省 | 予期・期待の形成（未来方向の連続性投射） |
 | 10 | other_agent_model.py | 1,603 | 112 | 内省 | 他者モデル（他者状態の仮説的推測） |
 | 11 | emotional_memory_binding.py | 1,708 | 114 | 記憶 | 感情記憶の紐づけ（中長期感情痕跡） |
-| 12 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 12 | intrinsic_motivation.py | 1,752 | 113 | 動機 | 自発的内的動機（感情・傾向由来の内的推進力） |
+| 13 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -2139,6 +2140,246 @@ TendencyAwareness (傾向の自己認知):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### 4.7.5 自発的内的動機
+
+```
+自発的内的動機 完全実装仕様 (intrinsic_motivation.py: 1,752行 / 113テスト):
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  思想:                                                          │
+│    目的系は候補生成と選択の仕組みはあるが、「なぜそれをしたいか」│
+│    の動機源がない。自発的内的動機は、感情や傾向から湧き上がる    │
+│    内的な推進力を弱く形成する。動機は価値や信念を固定しない。    │
+│    行動の決定ではなく、内側で生じる「向き」の痕跡として          │
+│    自己形成の前段条件を整える。                                  │
+│                                                                 │
+│  ID生成: uuid.uuid4().hex[:12] (12文字の一意識別子)             │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  Enum定義 (4種)                                                  │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  MotiveSourceType (動機の入力源分類):                            │
+│    EMOTION        = "emotion"         感情状態由来              │
+│    TENDENCY       = "tendency"        反復傾向由来              │
+│    GOAL_VECTOR    = "goal_vector"     方向ベクトル由来          │
+│    GOAL_CANDIDATE = "goal_candidate"  目的候補由来              │
+│    MIXED          = "mixed"           複数ソース混合            │
+│                                                                 │
+│  MotiveAffinity (動機衝動の根拠・性質):                         │
+│    EMOTIONAL_SURGE = "emotional_surge"  感情的高揚              │
+│    HABITUAL        = "habitual"         習慣的                  │
+│    DIRECTIONAL     = "directional"      方向的                  │
+│    ASPIRATIONAL    = "aspirational"     志向的                  │
+│    COMPOSITE       = "composite"        複合                    │
+│    UNDEFINED       = "undefined"        未確定                  │
+│                                                                 │
+│  MotiveStrength (動機の強度):                                   │
+│    STRONG    = "strong"     strength >= 0.7                      │
+│    MODERATE  = "moderate"   strength >= 0.4                      │
+│    WEAK      = "weak"       strength >= 0.2                      │
+│    FAINT     = "faint"      strength >= 0.05                     │
+│    UNDEFINED = "undefined"  strength < 0.05                      │
+│                                                                 │
+│  MotiveFreshness (動機の新鮮度):                                │
+│    FRESH  = "fresh"    freshness >= 0.8                          │
+│    RECENT = "recent"   freshness >= 0.6                          │
+│    AGING  = "aging"    freshness >= 0.4                          │
+│    STALE  = "stale"    freshness >= 0.15                         │
+│    FADED  = "faded"    freshness < 0.15                          │
+│                                                                 │
+│  レベル判定関数 (pure):                                         │
+│    determine_freshness_level(freshness: float)                  │
+│      → MotiveFreshness                                          │
+│    determine_strength_level(strength: float)                    │
+│      → MotiveStrength                                           │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  Core Dataclasses (全て frozen=True)                             │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ MotiveImpulse (動機衝動 — 動機に付帯する1単位の衝動)   │   │
+│  │                                                          │   │
+│  │  Fields:                                                 │   │
+│  │    impulse_id: str               一意識別子              │   │
+│  │    label: str                    emotion_joy, etc.       │   │
+│  │    intensity: float              0.0〜1.0                │   │
+│  │    valence: float                -1.0〜1.0               │   │
+│  │    freshness: float              0.0〜1.0                │   │
+│  │    reference_count: int          参照回数                │   │
+│  │    affinity: MotiveAffinity      衝動の性質              │   │
+│  │    timestamp: str                生成時刻                │   │
+│  │    source_description: str       ソース記述              │   │
+│  │                                                          │   │
+│  │  メソッド:                                               │   │
+│  │    get_freshness_level() → MotiveFreshness               │   │
+│  │    with_freshness(f) → MotiveImpulse                     │   │
+│  │    with_intensity(i) → MotiveImpulse                     │   │
+│  │    with_reference() → MotiveImpulse                      │   │
+│  │    reattach(affinity) → MotiveImpulse                    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ MotiveLink (根拠リンク)                                  │   │
+│  │                                                          │   │
+│  │  Fields:                                                 │   │
+│  │    link_id: str                  一意識別子              │   │
+│  │    motive_id: str                紐付く動機ID            │   │
+│  │    source_type: MotiveSourceType 入力源                  │   │
+│  │    source_description: str       ソース記述              │   │
+│  │    contribution: float           寄与度 (0.0〜1.0)       │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ MotiveEntry (動機エントリ — コア構造)                    │   │
+│  │                                                          │   │
+│  │  Fields:                                                 │   │
+│  │    motive_id: str                一意識別子              │   │
+│  │    motive_key: str               hashされた動機識別子    │   │
+│  │    motive_summary: str           動機内容の要約          │   │
+│  │    impulses: tuple[MotiveImpulse, ...]  複数衝動を並立   │   │
+│  │    motive_links: tuple[str, ...] MotiveLink ID群         │   │
+│  │    freshness: float              0.0〜1.0                │   │
+│  │    reference_count: int          参照回数                │   │
+│  │    creation_timestamp: str                               │   │
+│  │    last_reference_timestamp: str                         │   │
+│  │    revision_count: int           修正回数                │   │
+│  │    undetermined_aspects: tuple[str, ...]                 │   │
+│  │      生成時固定: ("motive_approximate",                  │   │
+│  │                   "impulse_provisional")                  │   │
+│  │                                                          │   │
+│  │  変異メソッド:                                           │   │
+│  │    with_freshness, with_reference, with_impulses,        │   │
+│  │    revise_summary, with_added_impulse                    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ MotiveStore (不変スナップショット)                       │   │
+│  │                                                          │   │
+│  │  Fields:                                                 │   │
+│  │    entries: tuple[MotiveEntry, ...]                       │   │
+│  │    motive_links: tuple[MotiveLink, ...]                  │   │
+│  │    total_entries_created: int                             │   │
+│  │    total_impulses_created: int                            │   │
+│  │    total_revisions: int                                   │   │
+│  │    total_expirations: int                                 │   │
+│  │    average_freshness: float                               │   │
+│  │    average_impulse_count: float                           │   │
+│  │    active_entry_count: int                                │   │
+│  │    timestamp: str                                         │   │
+│  │    description: str                                       │   │
+│  │                                                          │   │
+│  │  フィルタメソッド:                                       │   │
+│  │    has_entries() → bool                                   │   │
+│  │    get_active_entries(stale_threshold=0.15)               │   │
+│  │    get_entries_for_key(motive_key) → tuple                │   │
+│  │  シリアライゼーション: to_dict() / from_dict()           │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ IntrinsicMotivationConfig (設定 - 判断に影響しない)      │   │
+│  │                                                          │   │
+│  │    max_entries: int = 150                                 │   │
+│  │    max_impulses_per_entry: int = 7                        │   │
+│  │    base_decay_rate: float = 0.025                         │   │
+│  │    impulse_decay_rate: float = 0.02                       │   │
+│  │    freshness_boost_on_reference: float = 0.10             │   │
+│  │    impulse_boost_on_reference: float = 0.06               │   │
+│  │    stale_threshold: float = 0.15                          │   │
+│  │    min_freshness_for_retention: float = 0.05              │   │
+│  │    max_motive_links: int = 10                             │   │
+│  │    min_intensity_for_motive: float = 0.1                  │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  抽出関数 (Pure, Duck Typing, None安全, dict/object両対応)       │
+│  戻り値: list[(motive_key, label, intensity, valence,            │
+│               source_description, source_type)]                  │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  extract_from_emotion_state(emotion, mood)                      │
+│    EmotionVector: joy, anger, sorrow, fear, surprise, love, fun │
+│    Mood: valence, arousal                                       │
+│    各感情 >= 0.15 → label = f"emotion_{field_name}"             │
+│    motive_key = "__emotion_motive__"                             │
+│                                                                 │
+│  extract_from_tendencies(tendencies_state)                      │
+│    .tendencies[], .pattern.category.value, .strength            │
+│    strength >= 0.02 → intensity = min(1.0, strength * 5.0)     │
+│    motive_key = generate_motive_key(category_value)             │
+│                                                                 │
+│  extract_from_goal_vectors(vector_state)                        │
+│    .vectors[], .vector_id, .direction(dict), .magnitude         │
+│    magnitude >= 0.1 → dominant direction key                    │
+│    motive_key = generate_motive_key(vector_id)                  │
+│                                                                 │
+│  extract_from_goal_candidates(candidate_state)                  │
+│    .candidates[], .candidate_id, .category, .intensity          │
+│    intensity >= 0.1                                              │
+│    motive_key = generate_motive_key(candidate_id)               │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  計算関数 (Pure)                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  compute_motive_strength(impulses) → float                      │
+│    加重集約: weight = 1.0 / (1.0 + i * 0.2)                    │
+│                                                                 │
+│  detect_motive_coexistence(entries) → list[(label_a, label_b)]  │
+│    同一エントリ内の衝動ペア検出                                 │
+│                                                                 │
+│  compute_motive_overlay(entry) → dict[str, float]               │
+│    目的候補参照時の動機同伴                                     │
+│    effective_intensity = impulse.intensity * impulse.freshness   │
+│    同ラベルはmax統合                                            │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  IntrinsicMotivationSystem                                       │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  主要メソッド:                                                   │
+│    sense_motives(emotion, mood, tendencies, vectors, candidates) │
+│      → MotiveStore                                               │
+│    decay_motives() → MotiveStore                                 │
+│    reference_motive(motive_key) → None                           │
+│    get_motive_overlay(motive_key) → dict[str, float]             │
+│    revise_motive(motive_key, new_summary) → None                 │
+│    get_active_motives(max_count=20) → list                       │
+│    get_store() / get_last_store()                                │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  統合・検証・永続化                                              │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  統合関数:                                                       │
+│    sense_from_chain(system, emotion, mood, tendencies,           │
+│                     vectors, candidates) → MotiveStore           │
+│    generate_motive_tags(store, scale) → list[dict]               │
+│      INTRINSIC_MOTIVE_COUNT(0.06), _FRESHNESS(0.05),            │
+│      _RICHNESS(0.07), _DOMINANT(0.08), _INTEGRATED(0.08)        │
+│    get_motive_summary(store) → str                               │
+│    get_motive_for_introspection(store) → dict                    │
+│                                                                 │
+│  検証関数 (5):                                                   │
+│    verify_no_decision_impact                                     │
+│    verify_no_goal_generation                                     │
+│    verify_read_only_principle                                    │
+│    verify_no_value_modification                                  │
+│    verify_no_motivation_prescription (固有)                      │
+│                                                                 │
+│  永続化: save_motive_state / load_motive_state                   │
+│  便利関数: create_config, create_empty_store, create_system      │
+│                                                                 │
+│  エクスポート総数: 36シンボル                                    │
+│    Enum: 4, Dataclass: 5, System: 1, Helper: 7,                 │
+│    Integration: 4, Persistence: 2, Convenience: 3,              │
+│    Verification: 5, LevelFunc: 2, Extraction: 4,                │
+│    Computation: 3                                                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ### 4.8 出力制御層
 
 #### 4.8.1 沈黙・トーン制御
@@ -2381,6 +2622,7 @@ identity_coherence.py       -     -      -      -       -       -        -      
 self_narrative.py           -     -      -      -       -       -        -        -        -      -     -      -
 other_agent_model.py       -     -      -      -       -       -        -        -        -      -     -      -
 emotional_memory_binding.py-     -      -      -       -       -        -        -        -      -     -      -
+intrinsic_motivation.py    -     -      -      -       -       -        -        -        -      ○     -      -
 responsibility.py           -     -      -      -       -       -        -        -        -      -     -      -
 responsibility_dispersion.py-     -      -      -       -       -        -        -        -      -     ○      -
 context_sensitivity.py      -     -      -      -       -       -        -        ○        -      -     -      -
@@ -2603,6 +2845,73 @@ EmotionalMemoryBinding (感情記憶の紐づけ):
   __init__.py エイリアス: 12シンボル名変更(衝突回避)
   非接続: 判断選択層・目的生成・価値更新・責任評価・外部出力直接生成
 
+IntrinsicMotivation (自発的内的動機):
+  感情状態（EmotionVector） ────┐
+  気分（Mood） ─────────────────┤
+  反復傾向（Tendencies） ───────┼→ intrinsic_motivation.py → 内省記録層
+  方向ベクトル（Vectors） ──────┤   (generates MotiveStore)          → 目的候補層(弱い付随)
+  目的候補（Candidates） ───────┘   (observation only, NO decision impact)
+  感情や傾向から湧き上がる内的な推進力を弱く形成
+  入力4系統 (全て Optional[Any] + duck typing, dict/object両対応):
+    [Source 1: EmotionState + Mood]
+      duck typing: joy, anger, sorrow, fear, surprise, love, fun (>= 0.15)
+      motive_key = "__emotion_motive__" (特殊センチネル)
+      label = f"emotion_{field_name}"
+    [Source 2: Tendencies]
+      duck typing: .tendencies[], .pattern.category.value, .strength
+      strength >= 0.02 → intensity = min(1.0, strength * 5.0)
+    [Source 3: GoalVectors]
+      duck typing: .vectors[], .vector_id, .direction(dict), .magnitude
+      magnitude >= 0.1 → dominant direction key
+    [Source 4: GoalCandidates]
+      duck typing: .candidates[], .candidate_id, .category, .intensity
+      intensity >= 0.1
+  処理フロー:
+    Extract(4関数) → motive_keyでグループ化
+      → 既存entry → _merge_impulses（同ラベルはmax intensity, 異ラベルは追加）
+      → 新規entry → impulses生成(max 7, freshness=1.0, affinity=source由来)
+      → MotiveLink生成(contribution=max(0.1, 1.0-idx*0.15), max10件)
+      → Decay適用(entry: ref_modifier=max(0.5, 1.0-ref*0.05))
+                  (impulse: impulse_ref_mod=max(0.5, 1.0-ref*0.08))
+      → 全impulse消滅 AND freshness < min(0.05) → 除去
+      → 容量制限(weakest by (freshness, impulse_count) tuple, max=150)
+      → Snapshot(_build_store)
+  核心機能:
+    get_motive_overlay(motive_key): 目的候補参照時に動機が「同伴」
+      effective_intensity = impulse.intensity * impulse.freshness
+      同ラベルは max で統合
+      reference_motive も呼び出し（再参照で強化）
+  内部構造:
+    MotiveImpulse: frozen, 変異メソッド4種(with_freshness/intensity/reference, reattach)
+      label: emotion_joy, tendency_approach, vector_explore, etc.
+      affinity: EMOTIONAL_SURGE/HABITUAL/DIRECTIONAL/ASPIRATIONAL/COMPOSITE/UNDEFINED
+    MotiveLink: 根拠リンク(contribution 0.0〜1.0)
+    MotiveEntry: frozen, 変異メソッド5種(with_freshness/reference/impulses/
+      revise_summary/with_added_impulse)
+      motive_key: MD5ハッシュ動機識別子
+    MotiveStore: frozen snapshot, avg round4桁
+      フィルタ: get_active_entries(>stale), get_entries_for_key(key)
+      シリアライゼーション: to_dict/from_dict (JSON roundtrip)
+  ライフサイクル:
+    生成時 freshness=1.0 → base_decay_rate=0.025 * ref_modifier/ターン で減衰
+    impulse: impulse_decay_rate=0.02 * impulse_ref_mod/ターン
+    参照時 entry freshness+0.10, impulse freshness+0.06, reference_count+1
+    修正可能（revise_summary → revision_count+1）
+    stale_threshold(0.15), min_freshness(0.05): 全impulse消滅+freshness<min で自然消滅
+  容量: max_entries=150, max_impulses_per_entry=7, max_motive_links=10
+  タグ出力 (weight * scale):
+    INTRINSIC_MOTIVE_COUNT(0.06), _FRESHNESS(0.05), _RICHNESS(0.07),
+    _DOMINANT(0.08), _INTEGRATED(0.08)
+    空/None時: COUNT(0.03)のみ
+  Summary: header + 9フィールド + Top5(freshness降順) + Integrated
+  Introspection dict: impulse_distribution, dominant_impulse,
+    strongest_motive_summary[:120], 統計値
+  固有検証: verify_no_motivation_prescription（動機処方メソッド禁止）
+    + verify_no_decision_impact, _no_goal_generation,
+      _read_only_principle, _no_value_modification
+  __init__.py エイリアス: 10シンボル名変更(衝突回避)
+  非接続: 判断選択層・価値更新層・責任評価層・外部出力直接生成層
+
 IntrospectionConsumption (内省の消費層):
   内省ログ要約 ─────────────┐
   自己物語状態 ─────────────┤
@@ -2721,6 +3030,7 @@ psyche/
 ├── expectation_formation.py    (1485行) - 予期・期待の形成（未来方向の連続性投射）
 ├── other_agent_model.py        (1603行) - 他者モデル（他者状態の仮説的推測）
 ├── emotional_memory_binding.py (1708行) - 感情記憶の紐づけ（中長期感情痕跡）
+├── intrinsic_motivation.py    (1752行) - 自発的内的動機（感情・傾向由来の内的推進力）
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -2771,6 +3081,7 @@ tests/
 ├── test_expectation_formation.py (1075行)
 ├── test_other_agent_model.py    (1205行)
 ├── test_emotional_memory_binding.py (1142行)
+├── test_intrinsic_motivation.py (1157行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)
@@ -2791,9 +3102,9 @@ tests/
 | 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 完了 |
 | 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 完了 |
 | 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 完了 |
-| 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 未着手 |
+| 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 完了 |
 
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~64,900行 / テスト数: 1,922*
+*総コード行数: ~67,800行 / テスト数: 2,035*

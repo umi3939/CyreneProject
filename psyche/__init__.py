@@ -963,6 +963,20 @@ from .intrinsic_motivation import (
     verify_no_motivation_prescription,
 )
 
+# Other Model Input Supply (他者モデル入力供給)
+from .other_model_input_supply import (
+    SupplyEntry,
+    ContextSnapshot,
+    ReactionBufferEntry,
+    InputSupplyState,
+    create_input_supply,
+    update_from_percept as update_input_supply,
+    decay_buffer,
+    supply_context,
+    supply_reaction_log,
+    get_input_supply_summary,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1309,6 +1323,11 @@ __all__ = [
     "verify_motive_no_decision_impact", "verify_motive_no_goal_generation",
     "verify_motive_read_only_principle", "verify_motive_no_value_modification",
     "verify_no_motivation_prescription",
+    # Other Model Input Supply (他者モデル入力供給)
+    "SupplyEntry", "ContextSnapshot", "ReactionBufferEntry", "InputSupplyState",
+    "create_input_supply", "update_input_supply",
+    "decay_buffer", "supply_context", "supply_reaction_log",
+    "get_input_supply_summary",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

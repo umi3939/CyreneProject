@@ -246,6 +246,17 @@ from .other_agent_model import (
     get_other_model_summary,
 )
 
+# Other model input supply
+from .other_model_input_supply import (
+    InputSupplyState,
+    create_input_supply,
+    update_from_percept as update_input_supply,
+    decay_buffer,
+    supply_context,
+    supply_reaction_log,
+    get_input_supply_summary,
+)
+
 # Proto-goal vector
 from .proto_goal_vector import (
     VectorGenerator,
@@ -435,6 +446,10 @@ class PsycheOrchestrator:
         self._other_model_sys = OtherAgentModelSystem()
         self._last_other_model: Optional[OtherModelStore] = None
 
+        # ── Other model input supply ──
+        self._input_supply = create_input_supply()
+        self._last_percept: Optional[Percept] = None
+
         # ── Proto-goal vector ──
         self._vector_gen = VectorGenerator()
 
@@ -495,6 +510,9 @@ class PsycheOrchestrator:
         user_id: str,
     ) -> None:
         """毎ティック実行するフェーズ (Phase 1-7)."""
+
+        # Preserve percept for 5-tick phase input supply
+        self._last_percept = percept
 
         # Phase 1: react_with_stm — 感情更新 + STM残留
         resp_influence = self._responsibility_mgr.get_influence(user_id)
@@ -829,12 +847,26 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Expectation formation skipped: %s", e)
 
-        # Phase 25: other_agent_model — 他者モデル仮説更新
+        # Phase 25: other_agent_model — 他者モデル仮説更新 (入力供給経由)
         try:
+            # 入力供給更新: percept / STM / dynamics / psyche から計算
+            self._input_supply = update_input_supply(
+                state=self._input_supply,
+                percept=self._last_percept,
+                stm=self._loop_state.memory if self._loop_state else None,
+                dynamics=self._dynamics,
+                psyche=self._psyche,
+            )
+            self._input_supply = decay_buffer(self._input_supply, time.time())
+
+            # 供給: context snapshot + reaction log
+            ctx = supply_context(self._input_supply)
+            rlog = supply_reaction_log(self._input_supply)
+
             self._last_other_model = observe_other_from_chain(
                 system=self._other_model_sys,
-                external_context=None,
-                reaction_log=None,
+                external_context=ctx,
+                reaction_log=rlog,
                 self_state=self._last_self_view,
             )
         except Exception as e:
@@ -1243,6 +1275,7 @@ class PsycheOrchestrator:
             "last_expectations": self._last_expectations.to_dict() if self._last_expectations else {},
             "last_motives": self._last_motives.to_dict() if self._last_motives else {},
             "last_other_model": self._last_other_model.to_dict() if self._last_other_model else {},
+            "input_supply": self._input_supply.to_dict() if self._input_supply else {},
         }
 
         save_path.write_text(
@@ -1311,6 +1344,8 @@ class PsycheOrchestrator:
                 self._last_motives = MotiveStore.from_dict(data["last_motives"])
             if data.get("last_other_model"):
                 self._last_other_model = OtherModelStore.from_dict(data["last_other_model"])
+            if data.get("input_supply"):
+                self._input_supply = InputSupplyState.from_dict(data["input_supply"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

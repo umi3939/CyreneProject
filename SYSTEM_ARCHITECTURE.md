@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-11
-総コード行数: ~72,834行
-総テスト数: 2,086テスト
+総コード行数: ~73,472行
+総テスト数: 2,116テスト
 
 ---
 
@@ -66,11 +66,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 51 | 35,356 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 40 | 26,922 | 自動テストコード |
+| psyche/ | 52 | 35,664 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 41 | 27,252 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,586 | コアシステム |
-| **合計** | **109** | **66,454** | |
+| **合計** | **111** | **67,092** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -86,6 +86,7 @@
 | 8 | introspection_consumption.py | 1,455 | 94 | 内省 | 内省の消費層（読み取り可能断片の循環） |
 | 9 | expectation_formation.py | 1,485 | 103 | 内省 | 予期・期待の形成（未来方向の連続性投射） |
 | 10 | other_agent_model.py | 1,603 | 112 | 内省 | 他者モデル（他者状態の仮説的推測） |
+| 10a | other_model_input_supply.py | 308 | 30 | 内省 | 他者モデル入力供給（external_context / reaction_log 生成） |
 | 11 | emotional_memory_binding.py | 1,708 | 114 | 記憶 | 感情記憶の紐づけ（中長期感情痕跡） |
 | 12 | intrinsic_motivation.py | 1,752 | 113 | 動機 | 自発的内的動機（感情・傾向由来の内的推進力） |
 | 13 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
@@ -2214,6 +2215,60 @@ TendencyAwareness (傾向の自己認知):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### 4.7.4a 他者モデル入力供給
+
+```
+他者モデル入力供給 実装仕様 (other_model_input_supply.py: 308行 / 30テスト):
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  思想:                                                          │
+│    other_agent_modelのexternal_contextとreaction_logが常にNone  │
+│    で渡されており仮説が一切生成されない問題を解消する。         │
+│    入力供給は「観測情報の受け渡し」を成立させるためだけに設ける。│
+│    他者状態の断定・出力方針の固定・評価軸の導入をしない。       │
+│                                                                 │
+│  データ構造:                                                    │
+│    ContextSnapshot   - ExternalContext duck typing 互換          │
+│      pace, weight, density, continuity, responsiveness          │
+│      timestamp, missing_reason                                  │
+│    ReactionBufferEntry - STM StimulusEntry 互換                 │
+│      source_text, intent, emotion_label, valence                │
+│      timestamp, supplied                                        │
+│    InputSupplyState  - 全体状態                                 │
+│      context_snapshot, reaction_buffer, supply_cursor            │
+│      last_supply_time, decay_rate, max_buffer_size              │
+│                                                                 │
+│  関数:                                                          │
+│    create_input_supply      - 初期状態生成                      │
+│    update_from_percept      - 周期更新 (STM/dynamics/psyche)    │
+│    decay_buffer             - 古い要素の自然減衰                │
+│    supply_context           - ContextSnapshot 供給              │
+│    supply_reaction_log      - STM互換反応ログ供給               │
+│    get_input_supply_summary - サマリ文字列生成                   │
+│                                                                 │
+│  context計算式:                                                 │
+│    pace = len(stm.entries) / stm.max_entries                    │
+│    weight = (abs(mood.valence) + arousal) / 2                   │
+│    density = len(percept.topics) / 5.0                          │
+│    continuity = stm.context_continuity_score                    │
+│    responsiveness = 直近エントリの経過時間から段階算出           │
+│                                                                 │
+│  設計制約:                                                      │
+│    供給口は一箇所に統一                                         │
+│    供給単位に時刻・由来・欠損タグ必須                           │
+│    循環参照防止: supply_cursor による進行管理                    │
+│    観測欠損時は中立値 + missing_reason="unobserved"             │
+│    減衰と競合保持を常時有効                                     │
+│                                                                 │
+│  orchestrator配線:                                              │
+│    _run_every_tick: self._last_percept = percept                │
+│    _run_every_5_ticks Phase 25:                                 │
+│      update_input_supply → decay_buffer → supply → observe      │
+│    save/load: input_supply フィールド追加                        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 #### 4.7.5 自発的内的動機
 
 ```
@@ -2784,9 +2839,14 @@ ExpectationFormation (予期・期待の形成):
   予期同士の競合を許容する（正解化・評価化しない）
   非接続: 判断選択層・目的生成・価値更新・責任評価
 
+OtherModelInputSupply (他者モデル入力供給):
+  other_model_input_supply.py が STM・dynamics・psyche状態から計算し
+  ContextSnapshot (ExternalContext互換) と ReactionLogProxy (STM互換) を生成
+  供給単位に時刻・由来・欠損タグを必須化 / 循環参照防止 / 減衰と競合保持を常時有効
+
 OtherAgentModel (他者モデル):
-  外部文脈（ExternalContext） ──────┐
-  反応ログ（STM/ReactionLog） ─────┼→ other_agent_model.py → 内省記録層
+  外部文脈（ContextSnapshot） ─────┐
+  反応ログ（ReactionLogProxy） ────┼→ other_agent_model.py → 内省記録層
   自己状態（対比参照のみ） ────────┘   (generates OtherModelStore)    → 記憶参照補助
   「相手がどう感じているか」の推測を仮説として弱く保持
   入力3系統 (全て Optional[Any] + duck typing, dict/object両対応):
@@ -3097,6 +3157,7 @@ psyche/
 ├── introspection_consumption.py (1455行) - 内省の消費層（読み取り可能断片の循環）
 ├── expectation_formation.py    (1485行) - 予期・期待の形成（未来方向の連続性投射）
 ├── other_agent_model.py        (1603行) - 他者モデル（他者状態の仮説的推測）
+├── other_model_input_supply.py  (308行) - 他者モデル入力供給（external_context / reaction_log 生成）
 ├── emotional_memory_binding.py (1708行) - 感情記憶の紐づけ（中長期感情痕跡）
 ├── intrinsic_motivation.py    (1752行) - 自発的内的動機（感情・傾向由来の内的推進力）
 ├── responsibility.py              (480行)  - 責任記録・評価
@@ -3148,6 +3209,7 @@ tests/
 ├── test_introspection_consumption.py (1023行)
 ├── test_expectation_formation.py (1075行)
 ├── test_other_agent_model.py    (1205行)
+├── test_other_model_input_supply.py (330行)
 ├── test_emotional_memory_binding.py (1142行)
 ├── test_intrinsic_motivation.py (1157行)
 ├── test_tone.py                   (592行)
@@ -3171,8 +3233,9 @@ tests/
 | 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 完了 |
 | 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 完了 |
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 完了 |
+| 8 | 他者モデル入力供給 | other_agent_modelのexternal_context/reaction_logが常にNoneだった問題を解消。STM・dynamics・psyche状態から入力を生成しorchestrator経由で供給 | other_agent_model, short_term_memory, orchestrator | 完了 |
 
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~72,834行 / テスト数: 2,086*
+*総コード行数: ~73,472行 / テスト数: 2,116*

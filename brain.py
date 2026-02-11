@@ -19,7 +19,7 @@ from google.genai import types
 from PIL import Image
 from dotenv import load_dotenv
 
-from memory_manager import MemoryManager
+from src.memory_manager import MemoryManager
 from psyche.orchestrator import PsycheOrchestrator
 from psyche.state import Percept
 from psyche.memory_link import recall_with_mood

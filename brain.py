@@ -1,7 +1,7 @@
 """
 brain.py - Thinking engine for Cyrene
 
-Uses Google Gemini 2.5 Flash for screen analysis and
+Uses Google Gemini 3 Flash Preview for screen analysis and
 response generation with the Cyrene persona from identity.md.
 """
 
@@ -38,7 +38,7 @@ _TAG_VALENCE: dict[str, float] = {
 
 class CyreneBrain:
     """
-    AI thinking engine using Gemini 2.5 Flash.
+    AI thinking engine using Gemini 3 Flash Preview.
     Generates responses based on screen content using the persona from identity.md.
     """
 
@@ -60,7 +60,7 @@ class CyreneBrain:
 
         # Initialize Gemini client
         self._client = genai.Client(api_key=api_key)
-        self._model_name = "gemini-2.5-flash"
+        self._model_name = "gemini-3-flash-preview"
         logger.info("Gemini client initialized")
 
         # Load persona from identity.md
@@ -71,17 +71,17 @@ class CyreneBrain:
         self._config = types.GenerateContentConfig(
             system_instruction=self._persona,
             temperature=1.2,  # High creativity for entertaining reactions
-            max_output_tokens=1024,  # Thinking + output tokens combined
+            max_output_tokens=4096,  # Thinking + output tokens combined
         )
 
         # Summary generation config (separate from chat config)
         self._summary_config = types.GenerateContentConfig(
             temperature=0.5,
-            max_output_tokens=512,
+            max_output_tokens=2048,
         )
 
         # Long-term memory (with embedding support)
-        self._memory = MemoryManager(embed_fn=self._embed_text)
+        self._memory = MemoryManager()
         self._turn_count = 0
 
         # Self-managed conversation log (replaces SDK-internal _curated_history)

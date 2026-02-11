@@ -52,7 +52,7 @@
 | 画面キャプチャ | dxcam | GPU直接アクセス高速キャプチャ |
 | 物体検出 | YOLOv8n | リアルタイムオブジェクト認識 |
 | 文字認識 | EasyOCR | 日本語+英語テキスト抽出 |
-| 思考生成 | Gemini 2.5 Flash | マルチモーダルAI推論 |
+| 思考生成 | Gemini 3 Flash Preview | マルチモーダルAI推論 |
 | 心理処理 | Python (自作) | 感情・判断・記憶システム |
 | 音声合成 | Style-Bert-VITS2 | 高品質日本語TTS |
 | アバター | Warudo | 3D VTuberレンダリング |

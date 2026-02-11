@@ -88,7 +88,7 @@ _FORBIDDEN_PATTERNS: list[re.Pattern[str]] = [
 
 # ── Configuration ──────────────────────────────────────────────
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3-flash-preview"
 DEFAULT_TIMEOUT = 30.0
 MAX_RETRIES = 3
 RETRY_DELAY = 1.0

@@ -1364,7 +1364,7 @@ TendencyAwareness (傾向の自己認知):
 #### 4.7.4 他者モデル
 
 ```
-他者モデルの処理フロー:
+他者モデル 完全実装仕様 (other_agent_model.py: 1,603行 / 112テスト):
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                 │
 │  思想:                                                          │
@@ -1374,179 +1374,766 @@ TendencyAwareness (傾向の自己認知):
 │    他者モデルは自己像を固定せず、外部に対する                    │
 │    「推測の窓口」を用意するだけである。                          │
 │                                                                 │
-│  入力ソース (3系統)                                             │
-│    │                                                            │
-│    ├── [Source 1] ExternalContext (外部文脈)                     │
-│    │     context_sensitivity.py から受け取る外部文脈情報         │
-│    │     Duck typing: pace, weight, density, continuity,        │
-│    │                  responsiveness                             │
-│    │     → responsiveness高 → "Other party appears engaged"     │
-│    │     → responsiveness低 → "Other party appears disengaged"  │
-│    │     → weight高 → "Interaction atmosphere feels heavy"      │
-│    │     → 中間値 → "Other party state appears neutral"         │
-│    │                                                            │
-│    ├── [Source 2] ReactionLog (反応ログ)                        │
-│    │     short_term_memory.py の StimulusEntry 群               │
-│    │     Duck typing: entries[], source_text, intent,           │
-│    │                  emotion_label, valence                     │
-│    │     → intent="question" → "Other expressed questioning"    │
-│    │     → valence正 → "Other party tone appears positive"      │
-│    │     → valence負 → "Other party tone appears negative"      │
-│    │                                                            │
-│    └── [Source 3] SelfState (自己状態 - 対比参照のみ)           │
-│          自己の感情状態（intensity, description）               │
-│          他者信号との差分を計算 → 対比仮説を生成                │
-│          → divergence >= 0.4 → "Contrast detected"             │
+│  ID生成: uuid.uuid4().hex[:12] (12文字の一意識別子)             │
 │                                                                 │
-│    ▼                                                            │
+│  ═══════════════════════════════════════════════════════════════ │
+│  Enum定義 (4種)                                                  │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  ObservationSourceType (他者観測の入力源分類):                   │
+│    EXTERNAL_CONTEXT = "external_context"  外部文脈由来          │
+│    REACTION_LOG     = "reaction_log"      反応ログ由来          │
+│    SELF_CONTRAST    = "self_contrast"     自己対比由来          │
+│    MIXED            = "mixed"             複数ソース混合        │
+│                                                                 │
+│  InferenceBasis (推論根拠の種類):                                │
+│    BEHAVIORAL = "behavioral"   行動的根拠                       │
+│    CONTEXTUAL = "contextual"   文脈的根拠                       │
+│    CONTRAST   = "contrast"     対比的根拠                       │
+│    COMBINED   = "combined"     複合的な根拠                     │
+│    UNDEFINED  = "undefined"    未確定                            │
+│                                                                 │
+│  HypothesisStrength (仮説の安定度 - 評価ではなく記述):          │
+│    STRONG    = "strong"     strength >= 0.7                      │
+│    MODERATE  = "moderate"   strength >= 0.4                      │
+│    WEAK      = "weak"       strength >= 0.2                      │
+│    FAINT     = "faint"      strength >= 0.05                     │
+│    UNDEFINED = "undefined"  strength < 0.05                      │
+│                                                                 │
+│  HypothesisFreshness (仮説の新鮮度):                            │
+│    FRESH  = "fresh"    freshness >= 0.8                          │
+│    RECENT = "recent"   freshness >= 0.6                          │
+│    AGING  = "aging"    freshness >= 0.4                          │
+│    STALE  = "stale"    freshness >= 0.15                         │
+│    FADED  = "faded"    freshness < 0.15                          │
+│                                                                 │
+│  レベル判定関数 (pure):                                         │
+│    determine_freshness_level(freshness: float)                  │
+│      → HypothesisFreshness                                      │
+│    determine_strength_level(strength: float)                    │
+│      → HypothesisStrength                                       │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  Core Dataclasses (全て frozen=True)                             │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Extract Phase (3つの抽出関数 - Pure, Duck Typing)       │   │
+│  │ ObservationLink (観測と仮説の弱い接続)                  │   │
 │  │                                                          │   │
-│  │  extract_from_external_context(context)                  │   │
-│  │    → list[(description, basis_hint, strength, evidence)] │   │
+│  │  Fields:                                                 │   │
+│  │    link_id: str                  一意識別子              │   │
+│  │    hypothesis_id: str            紐付く仮説ID            │   │
+│  │    source_type: ObservationSourceType  入力源            │   │
+│  │    source_description: str       観測内容の記述          │   │
+│  │    contribution: float           寄与度 (0.0〜1.0)       │   │
 │  │                                                          │   │
-│  │  extract_from_reaction_log(log)                          │   │
-│  │    → list[(description, basis_hint, strength, evidence)] │   │
-│  │                                                          │   │
-│  │  extract_from_self_contrast(self_state, other_signals)   │   │
-│  │    → list[(description, basis_hint, strength, evidence)] │   │
-│  │                                                          │   │
-│  │  全てNone安全、dict/object両対応                         │   │
-│  └────────────────────────┬────────────────────────────────┘   │
-│                           │                                     │
-│                           ▼                                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Hypothesis Generation Phase                              │   │
-│  │                                                          │   │
-│  │  抽出結果 → OtherStateHypothesis (frozen dataclass)     │   │
-│  │    - hypothesis_id: 一意識別子                           │   │
-│  │    - source_type: ObservationSourceType                  │   │
-│  │      EXTERNAL_CONTEXT / REACTION_LOG /                   │   │
-│  │      SELF_CONTRAST / MIXED                               │   │
-│  │    - basis: InferenceBasis                               │   │
-│  │      BEHAVIORAL / CONTEXTUAL / CONTRAST /                │   │
-│  │      COMBINED / UNDEFINED                                │   │
-│  │    - description: 推測内容（断定しない表現）             │   │
-│  │    - freshness: 0.0〜1.0 (生成時1.0、自然減衰)          │   │
-│  │    - strength: 0.0〜1.0 (根拠の安定度)                   │   │
-│  │    - reference_count: 参照回数                           │   │
-│  │    - evidence_ids: ObservationLink群への参照             │   │
-│  │    - competing_ids: 競合仮説IDのリスト                   │   │
-│  │    - revision_count: 修正回数                            │   │
-│  │    - undetermined_aspects: ("intent_uncertain",          │   │
-│  │                             "state_approximate")         │   │
-│  │                                                          │   │
-│  │  変異メソッド (全て新オブジェクトを返す):                │   │
-│  │    with_freshness(), with_strength(), with_reference(),  │   │
-│  │    revise(), with_competing()                            │   │
-│  └────────────────────────┬────────────────────────────────┘   │
-│                           │                                     │
-│                           ▼                                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Competition Detection Phase                              │   │
-│  │                                                          │   │
-│  │  detect_hypothesis_competitions(hypotheses)              │   │
-│  │    - 同source_type + 異basis → 競合候補                 │   │
-│  │    - 異basis + description語彙重複(Jaccard>=0.4) → 競合  │   │
-│  │    - 競合は許容される（排除しない）                      │   │
-│  │    - 仮説同士にcompeting_idsが相互リンクされる           │   │
-│  └────────────────────────┬────────────────────────────────┘   │
-│                           │                                     │
-│                           ▼                                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Boundary Computation Phase                               │   │
-│  │                                                          │   │
-│  │  compute_self_other_boundary(self_desc, other_hyps)      │   │
-│  │    → SelfOtherBoundary (frozen dataclass)               │   │
-│  │      - self_description: 自己側の状態記述               │   │
-│  │      - other_description: 他者仮説群の統合記述          │   │
-│  │      - divergence: 0.0〜1.0 (語彙非重複率)              │   │
-│  │      - boundary_aspects: 差異の側面リスト               │   │
-│  │                                                          │   │
-│  │  自己と他者の区別を「弱い差分情報」として構造化          │   │
-│  │  固定的な境界線ではなく、観測のたびに再計算される        │   │
-│  └────────────────────────┬────────────────────────────────┘   │
-│                           │                                     │
-│                           ▼                                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Decay & Capacity Phase                                   │   │
-│  │                                                          │   │
-│  │  freshness減衰:                                          │   │
-│  │    new_freshness = freshness - base_decay_rate(0.05)     │   │
-│  │                    × ref_modifier(参照多→減衰遅)         │   │
-│  │  strength減衰:                                           │   │
-│  │    new_strength = strength - strength_decay_rate(0.03)   │   │
-│  │                                                          │   │
-│  │  除去条件:                                               │   │
-│  │    freshness <= stale_threshold(0.15)                    │   │
-│  │    AND strength <= min_strength_for_retention(0.05)      │   │
-│  │                                                          │   │
-│  │  容量制限: max_hypotheses=60                             │   │
-│  │    超過時は最も弱い仮説から除去                          │   │
-│  │                                                          │   │
-│  │  参照ブースト:                                           │   │
-│  │    reference_hypothesis(id) →                            │   │
-│  │    reference_count+1, freshness+0.10                     │   │
-│  └────────────────────────┬────────────────────────────────┘   │
-│                           │                                     │
-│                           ▼                                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Output: OtherModelStore (frozen snapshot)                │   │
-│  │                                                          │   │
-│  │  - hypotheses: tuple[OtherStateHypothesis, ...]         │   │
-│  │  - observation_links: tuple[ObservationLink, ...]       │   │
-│  │  - boundaries: tuple[SelfOtherBoundary, ...]            │   │
-│  │  - total_hypotheses_created: int                         │   │
-│  │  - total_revisions: int                                  │   │
-│  │  - total_expirations: int                                │   │
-│  │  - average_freshness / average_strength: float           │   │
-│  │  - active_hypothesis_count: int                          │   │
-│  │  - competing_pair_count: int                             │   │
-│  │  - boundary_count: int                                   │   │
-│  │                                                          │   │
-│  │  フィルタ:                                               │   │
-│  │    get_active_hypotheses(stale_threshold=0.15)           │   │
-│  │    get_strong_hypotheses() (strength > 0.5)              │   │
-│  │                                                          │   │
-│  │  シリアライゼーション: to_dict() / from_dict()          │   │
+│  │  生成時の寄与度計算:                                     │   │
+│  │    contribution = max(0.1, 1.0 - idx * 0.15)             │   │
+│  │    idx=0: 1.0, idx=1: 0.85, idx=2: 0.70, ...            │   │
+│  │    最大リンク数: max_evidence_per_hypothesis (default=8) │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  統合関数 (introspection integration):                          │
-│    observe_from_chain(system, ctx, log, self_state)             │
-│      → observe_other() のラッパー                               │
-│    generate_other_model_tags(store, scale)                      │
-│      → OTHER_MODEL_COUNT, _STRENGTH, _FRESHNESS,               │
-│        _COMPETITION, _BOUNDARY, _INTEGRATED                     │
-│    get_other_model_summary(store) → human-readable string       │
-│    get_other_model_for_introspection(store) → dict              │
-│      - source_distribution, basis_distribution                  │
-│      - strongest_hypothesis_description                         │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ OtherStateHypothesis (他者の状態仮説 - コア構造)        │   │
+│  │                                                          │   │
+│  │  Fields:                                                 │   │
+│  │    hypothesis_id: str             一意識別子             │   │
+│  │    source_type: ObservationSourceType  入力源            │   │
+│  │    basis: InferenceBasis          推論根拠               │   │
+│  │    description: str               推測内容（断定しない） │   │
+│  │    timestamp: str                 生成時刻               │   │
+│  │    freshness: float               0.0〜1.0 (生成時1.0)   │   │
+│  │    strength: float                0.0〜1.0 (根拠安定度)  │   │
+│  │    reference_count: int           参照回数               │   │
+│  │    evidence_ids: tuple[str, ...]  ObservationLink群ID    │   │
+│  │    competing_ids: tuple[str, ...] 競合仮説IDリスト       │   │
+│  │    revision_count: int            修正回数               │   │
+│  │    undetermined_aspects:          未確定側面             │   │
+│  │      tuple[str, ...]             生成時固定:             │   │
+│  │      ("intent_uncertain", "state_approximate")           │   │
+│  │                                                          │   │
+│  │  メソッド:                                               │   │
+│  │    get_freshness_level()                                 │   │
+│  │      → determine_freshness_level(self.freshness)         │   │
+│  │    get_strength_level()                                  │   │
+│  │      → determine_strength_level(self.strength)           │   │
+│  │                                                          │   │
+│  │  変異メソッド (全て新インスタンスを返す, frozen):        │   │
+│  │    with_freshness(new_freshness)                         │   │
+│  │      → freshness = max(0.0, min(1.0, new_freshness))    │   │
+│  │    with_strength(new_strength)                           │   │
+│  │      → strength = max(0.0, min(1.0, new_strength))      │   │
+│  │    with_reference()                                      │   │
+│  │      → reference_count + 1                               │   │
+│  │    revise(new_description)                               │   │
+│  │      → description更新, revision_count + 1               │   │
+│  │    with_competing(competing_id)                          │   │
+│  │      → competing_ids に追加（重複チェックあり）          │   │
+│  │      → 既に含む場合は self をそのまま返す                │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  設計制約:                                                      │
-│    - 他者の意図・価値・信念を断定しない                         │
-│    - 正誤や善悪の評価を付与しない                               │
-│    - 目的や行動の最適化に結び付けない                           │
-│    - 自己像や人格の方向性を固定しない                           │
-│    - 候補は仮説として保持し固定しない                           │
-│    - 競合する候補を許容する                                     │
-│    - 判断選択層・目的生成・価値更新・責任評価に接続しない       │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ SelfOtherBoundary (自己/他者の境界指標)                 │   │
+│  │                                                          │   │
+│  │  Fields:                                                 │   │
+│  │    boundary_id: str                一意識別子            │   │
+│  │    self_description: str           自己側の状態記述      │   │
+│  │    other_description: str          他者仮説群の統合記述  │   │
+│  │      → 最大200文字 ([:200]で切り詰め)                    │   │
+│  │    divergence: float               0.0〜1.0 (乖離度)     │   │
+│  │      → round(min(1.0, max(0.0, divergence)), 4)          │   │
+│  │    boundary_aspects: tuple[str, ...] 差異の側面          │   │
+│  │      → 最大5要素 ([:5]で切り詰め)                        │   │
+│  │    timestamp: str                                        │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  検証関数 (テスト支援):                                         │
-│    verify_no_decision_impact(store)                             │
-│    verify_no_goal_generation(system)                            │
-│    verify_read_only_principle(system)                           │
-│    verify_no_value_modification(system)                         │
-│    verify_no_intent_assertion(system) ← 他者モデル固有          │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ OtherModelStore (不変スナップショット)                   │   │
+│  │                                                          │   │
+│  │  Fields:                                                 │   │
+│  │    hypotheses: tuple[OtherStateHypothesis, ...]          │   │
+│  │    observation_links: tuple[ObservationLink, ...]        │   │
+│  │    boundaries: tuple[SelfOtherBoundary, ...]             │   │
+│  │    total_hypotheses_created: int                          │   │
+│  │    total_revisions: int                                   │   │
+│  │    total_expirations: int                                 │   │
+│  │    average_freshness: float  (round 4桁)                 │   │
+│  │    average_strength: float   (round 4桁)                 │   │
+│  │    active_hypothesis_count: int                           │   │
+│  │    competing_pair_count: int                              │   │
+│  │    boundary_count: int                                    │   │
+│  │    timestamp: str                                         │   │
+│  │    description: str  (_generate_store_description)        │   │
+│  │                                                          │   │
+│  │  フィルタメソッド:                                       │   │
+│  │    has_hypotheses() → bool                               │   │
+│  │      len(hypotheses) > 0                                 │   │
+│  │    get_active_hypotheses(stale_threshold=0.15) → tuple   │   │
+│  │      freshness > stale_threshold のもののみ              │   │
+│  │    get_strong_hypotheses() → tuple                       │   │
+│  │      strength > 0.5 のもののみ                           │   │
+│  │                                                          │   │
+│  │  シリアライゼーション:                                   │   │
+│  │    to_dict() → dict                                      │   │
+│  │      hypotheses → _hypothesis_to_dict() で変換           │   │
+│  │      observation_links → 各フィールドをdict化            │   │
+│  │      boundaries → 各フィールドをdict化                   │   │
+│  │        boundary_aspects: list化                          │   │
+│  │    from_dict(data) → OtherModelStore                     │   │
+│  │      デフォルト値: hypothesis_id必須,                     │   │
+│  │        source_type="mixed", basis="undefined",           │   │
+│  │        description="", freshness=0.0, strength=0.0,      │   │
+│  │        reference_count=0, revision_count=0               │   │
+│  │      ObservationLink: link_id必須,                       │   │
+│  │        source_type="mixed", contribution=0.0             │   │
+│  │      SelfOtherBoundary: boundary_id必須,                 │   │
+│  │        divergence=0.0                                    │   │
+│  │      スカラー統計: 全てデフォルト0 or 0.0 or ""          │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  設定 (OtherAgentModelConfig):                                  │
-│    max_hypotheses: 60 (自己より少なめ)                          │
-│    base_decay_rate: 0.05 (他者推測は不安定→やや速い減衰)       │
-│    strength_decay_rate: 0.03                                    │
-│    freshness_boost_on_reference: 0.10                           │
-│    stale_threshold: 0.15                                        │
-│    min_strength_for_retention: 0.05                             │
-│    max_evidence_per_hypothesis: 8                               │
-│    max_boundaries: 10                                           │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ OtherAgentModelConfig (設定 - 判断に影響しない)          │   │
+│  │                                                          │   │
+│  │    max_hypotheses: int = 60                               │   │
+│  │      (自己モデルより少なめ。他者推測は不安定)            │   │
+│  │    base_decay_rate: float = 0.05                          │   │
+│  │      (他者推測はやや速い減衰)                            │   │
+│  │    strength_decay_rate: float = 0.03                      │   │
+│  │    freshness_boost_on_reference: float = 0.10             │   │
+│  │    stale_threshold: float = 0.15                          │   │
+│  │    min_strength_for_retention: float = 0.05               │   │
+│  │    max_evidence_per_hypothesis: int = 8                   │   │
+│  │    max_boundaries: int = 10                               │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  抽出関数 (Pure, Duck Typing, None安全, dict/object両対応)       │
+│  戻り値: list[(description, basis_hint, strength_hint,          │
+│                evidence_source_descriptions)]                    │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ extract_from_external_context(context: Optional[Any])   │   │
+│  │                                                          │   │
+│  │  Duck typing attrs: pace, weight, density, continuity,  │   │
+│  │                     responsiveness                       │   │
+│  │  判定: hasattr(context, "responsiveness") and            │   │
+│  │        hasattr(context, "weight")                        │   │
+│  │  デフォルト値: 全て0.5                                   │   │
+│  │                                                          │   │
+│  │  抽出ルール (閾値 → 仮説 → basis → strength計算):       │   │
+│  │                                                          │   │
+│  │  ① responsiveness >= 0.7:                                │   │
+│  │     "Other party appears engaged and responsive"         │   │
+│  │     basis = "behavioral"                                 │   │
+│  │     strength = min(1.0, responsiveness * 0.6)            │   │
+│  │     evidence: ["Responsiveness: {:.2f}"]                 │   │
+│  │                                                          │   │
+│  │  ② responsiveness <= 0.3:                                │   │
+│  │     "Other party appears disengaged or distant"          │   │
+│  │     basis = "behavioral"                                 │   │
+│  │     strength = min(1.0, (1.0 - responsiveness) * 0.5)    │   │
+│  │     evidence: ["Responsiveness: {:.2f}"]                 │   │
+│  │                                                          │   │
+│  │  ③ weight >= 0.7:                                        │   │
+│  │     "Interaction atmosphere feels heavy or tense"        │   │
+│  │     basis = "contextual"                                 │   │
+│  │     strength = min(1.0, weight * 0.5)                    │   │
+│  │     evidence: ["Weight: {:.2f}"]                         │   │
+│  │                                                          │   │
+│  │  ④ pace >= 0.7:                                          │   │
+│  │     "Interaction pace suggests energetic exchange"        │   │
+│  │     basis = "contextual"                                 │   │
+│  │     strength = min(1.0, pace * 0.4)                      │   │
+│  │     evidence: ["Pace: {:.2f}"]                           │   │
+│  │                                                          │   │
+│  │  ⑤ 上記全て不成立 AND                                    │   │
+│  │     0.3 < responsiveness < 0.7 AND                       │   │
+│  │     0.3 < weight < 0.7:                                  │   │
+│  │     "Other party state appears neutral or ambiguous"     │   │
+│  │     basis = "contextual"                                 │   │
+│  │     strength = 0.15 (固定)                               │   │
+│  │     evidence: ["Responsiveness: {:.2f}, Weight: {:.2f}"] │   │
+│  │                                                          │   │
+│  │  dict入力: 同じ閾値ルール (①②③のみ, ④⑤なし)            │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ extract_from_reaction_log(log: Optional[Any])           │   │
+│  │                                                          │   │
+│  │  Duck typing attrs: entries[], source_text, intent,     │   │
+│  │                     emotion_label, valence               │   │
+│  │  判定: hasattr(log, "entries")                           │   │
+│  │  処理上限: entries[:5] (直近5エントリのみ)               │   │
+│  │                                                          │   │
+│  │  抽出ルール:                                             │   │
+│  │                                                          │   │
+│  │  ① intent == "question":                                 │   │
+│  │     "Other expressed questioning intent"                 │   │
+│  │     basis = "behavioral"                                 │   │
+│  │     strength = 0.4 (固定)                                │   │
+│  │     evidence: ["Intent: question"]                       │   │
+│  │     + source_text あれば ["Source: {[:60]}"] 追加        │   │
+│  │                                                          │   │
+│  │  ② valence > 0.3:                                        │   │
+│  │     "Other party tone appears positive"                  │   │
+│  │     basis = "behavioral"                                 │   │
+│  │     strength = min(1.0, valence * 0.5)                   │   │
+│  │     evidence: ["Valence: {:.2f}"]                        │   │
+│  │     + emotion_label あれば ["Emotion: {label}"] 追加     │   │
+│  │                                                          │   │
+│  │  ③ valence < -0.3:                                       │   │
+│  │     "Other party tone appears negative"                  │   │
+│  │     basis = "behavioral"                                 │   │
+│  │     strength = min(1.0, abs(valence) * 0.5)              │   │
+│  │     evidence: ["Valence: {:.2f}"]                        │   │
+│  │     + emotion_label あれば ["Emotion: {label}"] 追加     │   │
+│  │                                                          │   │
+│  │  dict入力: 同じルール (source_text省略)                  │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ extract_from_self_contrast(                             │   │
+│  │   self_state: Optional[Any],                            │   │
+│  │   other_signals: Optional[Any])                         │   │
+│  │                                                          │   │
+│  │  self_state duck typing: intensity, description         │   │
+│  │  other_signals duck typing: responsiveness, weight      │   │
+│  │  両方None → 空リスト                                     │   │
+│  │  デフォルト値: intensity=0.5, responsiveness=0.5,        │   │
+│  │               weight=0.5                                 │   │
+│  │                                                          │   │
+│  │  抽出ルール:                                             │   │
+│  │                                                          │   │
+│  │  ① divergence = abs(self_intensity - responsiveness)     │   │
+│  │     divergence >= 0.4:                                   │   │
+│  │     "Contrast detected between self-state               │   │
+│  │      (intensity={:.2f}) and other signals                │   │
+│  │      (responsiveness={:.2f})"                            │   │
+│  │     basis = "contrast"                                   │   │
+│  │     strength = min(1.0, divergence * 0.7)                │   │
+│  │     evidence: [                                          │   │
+│  │       "Self intensity: {:.2f}",                          │   │
+│  │       "Other responsiveness: {:.2f}",                    │   │
+│  │       "Divergence: {:.2f}"                               │   │
+│  │     ]                                                    │   │
+│  │                                                          │   │
+│  │  ② weight_div = abs(self_intensity - other_weight)       │   │
+│  │     weight_div >= 0.5:                                   │   │
+│  │     "Self-other weight divergence:                       │   │
+│  │      self intensity={:.2f}, other weight={:.2f}"         │   │
+│  │     basis = "contrast"                                   │   │
+│  │     strength = min(1.0, weight_div * 0.6)                │   │
+│  │     evidence: [                                          │   │
+│  │       "Self intensity: {:.2f}",                          │   │
+│  │       "Other weight: {:.2f}"                             │   │
+│  │     ]                                                    │   │
+│  │                                                          │   │
+│  │  dict入力: 同じルール                                    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  計算関数 (Pure)                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ compute_observation_strength(links: list[ObservationLink])│  │
+│  │ → float                                                  │   │
+│  │                                                          │   │
+│  │  加重集約 (単純平均ではない):                            │   │
+│  │    weight = 1.0 / (1.0 + i * 0.2)                       │   │
+│  │    i=0: w=1.0, i=1: w=0.833, i=2: w=0.714, ...         │   │
+│  │    weighted_sum += link.contribution * weight             │   │
+│  │    total_weight += weight                                 │   │
+│  │    result = min(1.0, weighted_sum / total_weight)        │   │
+│  │  空リスト → 0.0                                          │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ detect_hypothesis_competitions(                         │   │
+│  │   hypotheses: list[OtherStateHypothesis])               │   │
+│  │ → list[tuple[str, str]]                                  │   │
+│  │                                                          │   │
+│  │  2段階の競合検出:                                        │   │
+│  │                                                          │   │
+│  │  Tier 1: 同source_type + 異basis                        │   │
+│  │    description語彙のJaccard類似度 >= 0.2 → 競合          │   │
+│  │    (同じ入力源から異なる解釈 = 弱い競合)                 │   │
+│  │                                                          │   │
+│  │  Tier 2: 異basis (source_type不問)                       │   │
+│  │    description語彙のJaccard類似度 >= 0.4 → 競合          │   │
+│  │    (異なる根拠で類似記述 = 強い競合)                     │   │
+│  │                                                          │   │
+│  │  Jaccard計算:                                            │   │
+│  │    words_a = set(a.description.lower().split())          │   │
+│  │    words_b = set(b.description.lower().split())          │   │
+│  │    jaccard = |words_a ∩ words_b| / |words_a ∪ words_b|  │   │
+│  │                                                          │   │
+│  │  ペアは重複排除 (seen set)、i < j のみ走査              │   │
+│  │  競合は排除しない（許容する設計原則）                    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ determine_inference_basis(                              │   │
+│  │   source_types: list[ObservationSourceType])            │   │
+│  │ → InferenceBasis                                         │   │
+│  │                                                          │   │
+│  │  空リスト → UNDEFINED                                    │   │
+│  │  unique > 1 → COMBINED                                   │   │
+│  │  マッピング:                                             │   │
+│  │    EXTERNAL_CONTEXT → CONTEXTUAL                         │   │
+│  │    REACTION_LOG     → BEHAVIORAL                         │   │
+│  │    SELF_CONTRAST    → CONTRAST                           │   │
+│  │    MIXED            → COMBINED                           │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ generate_hypothesis_description(                        │   │
+│  │   basis: InferenceBasis,                                │   │
+│  │   source_descriptions: list[str])                       │   │
+│  │ → str                                                    │   │
+│  │                                                          │   │
+│  │  プレフィックス:                                         │   │
+│  │    BEHAVIORAL → "Based on observed behavior"             │   │
+│  │    CONTEXTUAL → "Based on contextual signals"            │   │
+│  │    CONTRAST   → "Based on self-other contrast"           │   │
+│  │    COMBINED   → "Based on multiple sources"              │   │
+│  │    UNDEFINED  → "Weak hypothesis"                        │   │
+│  │  本文: "; ".join(d[:80] for d in descs[:3])             │   │
+│  │  形式: "{prefix}: {combined_descriptions}"              │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ compute_self_other_boundary(                            │   │
+│  │   self_description: str,                                │   │
+│  │   other_hypotheses: list[OtherStateHypothesis])         │   │
+│  │ → SelfOtherBoundary                                      │   │
+│  │                                                          │   │
+│  │  仮説なし → divergence=0.0, aspects=(), 空境界          │   │
+│  │    self_description: "No self-state description          │   │
+│  │                       available" (空時)                   │   │
+│  │    other_description: "No other-state hypotheses         │   │
+│  │                        available"                        │   │
+│  │                                                          │   │
+│  │  仮説あり:                                               │   │
+│  │    other統合: h.description[:80] for h in hyps[:5]       │   │
+│  │    → "; ".join() → [:200]                                │   │
+│  │                                                          │   │
+│  │    乖離度計算 (語彙Jaccard反転):                         │   │
+│  │      self_words = set(self_desc.lower().split())         │   │
+│  │      other_words = 全仮説の語彙集合の和                  │   │
+│  │      overlap = |self ∩ other| / |self ∪ other|           │   │
+│  │      divergence = 1.0 - overlap                          │   │
+│  │      union が空 → divergence = 0.5                       │   │
+│  │                                                          │   │
+│  │    境界側面 (boundary_aspects):                          │   │
+│  │      各仮説の basis.value → "inference_{basis}" 形式     │   │
+│  │      仮説が2件以上 → "multiple_hypotheses" 追加          │   │
+│  │      最大5要素                                           │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  OtherAgentModelSystem (メインシステムクラス)                    │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  内部状態:                                                      │
+│    _config: OtherAgentModelConfig                               │
+│    _hypotheses: list[OtherStateHypothesis]   仮説リスト         │
+│    _observation_links: list[ObservationLink] 観測リンク          │
+│    _boundaries: list[SelfOtherBoundary]     境界リスト          │
+│    _total_created: int = 0                  生成総数             │
+│    _total_revisions: int = 0                修正総数             │
+│    _total_expirations: int = 0              失効総数             │
+│    _last_store: Optional[OtherModelStore] = None                │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ observe_other(                                          │   │
+│  │   external_context=None, reaction_log=None,             │   │
+│  │   self_state=None) → OtherModelStore                    │   │
+│  │                                                          │   │
+│  │  メイン処理フロー:                                       │   │
+│  │                                                          │   │
+│  │  Step 1: 3系統の抽出                                     │   │
+│  │    extract_from_external_context(external_context)       │   │
+│  │    extract_from_reaction_log(reaction_log)               │   │
+│  │    extract_from_self_contrast(self_state, external_ctx)  │   │
+│  │    ※ self_contrast の other_signals に external_context  │   │
+│  │      を使用（他者信号の代替として）                      │   │
+│  │                                                          │   │
+│  │  Step 2: 仮説生成                                        │   │
+│  │    各抽出結果 → OtherStateHypothesis 生成                │   │
+│  │    basis_hint → InferenceBasis マッピング:               │   │
+│  │      "behavioral" → BEHAVIORAL                           │   │
+│  │      "contextual" → CONTEXTUAL                           │   │
+│  │      "contrast"   → CONTRAST                             │   │
+│  │      "combined"   → COMBINED                             │   │
+│  │      その他       → UNDEFINED                            │   │
+│  │    _generate_observation_links() で根拠リンク生成        │   │
+│  │    freshness = 1.0 (初期値固定)                          │   │
+│  │    strength = max(0.0, min(1.0, strength_hint))          │   │
+│  │    undetermined_aspects = ("intent_uncertain",           │   │
+│  │                            "state_approximate")          │   │
+│  │                                                          │   │
+│  │  Step 3: 競合検出                                        │   │
+│  │    detect_hypothesis_competitions(全仮説)                │   │
+│  │    → 競合ペア双方に with_competing() で相互リンク       │   │
+│  │                                                          │   │
+│  │  Step 4: 境界計算                                        │   │
+│  │    self_state → description 取得 (duck/dict)             │   │
+│  │    compute_self_other_boundary(self_desc, 全仮説)        │   │
+│  │    → _boundaries に追加                                  │   │
+│  │    容量超過時: pop(0) で FIFO 削除                       │   │
+│  │      (max_boundaries=10)                                 │   │
+│  │                                                          │   │
+│  │  Step 5: 減衰適用                                        │   │
+│  │    _apply_decay()                                        │   │
+│  │                                                          │   │
+│  │  Step 6: 容量制限                                        │   │
+│  │    _enforce_capacity()                                   │   │
+│  │                                                          │   │
+│  │  Step 7: スナップショット生成                            │   │
+│  │    _build_store(current_time) → OtherModelStore          │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ decay_hypotheses() → OtherModelStore                    │   │
+│  │   _apply_decay() を呼び出し → _build_store()             │   │
+│  │                                                          │   │
+│  │ reference_hypothesis(hypothesis_id: str) → None         │   │
+│  │   仮説検索 → with_reference() + with_freshness(          │   │
+│  │     freshness + freshness_boost_on_reference)            │   │
+│  │   reference_count +1, freshness +0.10                    │   │
+│  │                                                          │   │
+│  │ revise_hypothesis(hypothesis_id: str,                   │   │
+│  │                   new_description: str) → None          │   │
+│  │   仮説検索 → revise(new_description)                    │   │
+│  │   revision_count +1, _total_revisions +1                │   │
+│  │                                                          │   │
+│  │ get_active_hypotheses(max_count=10)                     │   │
+│  │   → list[OtherStateHypothesis]                          │   │
+│  │   freshness > stale_threshold のみ                       │   │
+│  │   strength降順ソート、上位max_count件                    │   │
+│  │                                                          │   │
+│  │ get_store() → OtherModelStore                           │   │
+│  │   _build_store(現在時刻)                                 │   │
+│  │                                                          │   │
+│  │ get_last_store() → Optional[OtherModelStore]            │   │
+│  │   最後のスナップショット                                 │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ 内部メソッド                                             │   │
+│  │                                                          │   │
+│  │ _apply_decay():                                         │   │
+│  │   各仮説に対して:                                        │   │
+│  │     ref_modifier = max(0.5, 1.0 - ref_count * 0.1)      │   │
+│  │       ref=0: 1.0, ref=1: 0.9, ref=2: 0.8, ...          │   │
+│  │       ref=5+: 0.5 (下限)                                │   │
+│  │     freshness_decay = base_decay_rate * ref_modifier     │   │
+│  │       参照が多い仮説は減衰が遅い                        │   │
+│  │     new_freshness = freshness - freshness_decay           │   │
+│  │     new_strength = strength - strength_decay_rate         │   │
+│  │                                                          │   │
+│  │   除去条件:                                              │   │
+│  │     new_freshness <= stale_threshold(0.15) AND           │   │
+│  │     new_strength <= min_strength_for_retention(0.05)     │   │
+│  │     → _total_expirations +1                              │   │
+│  │     → 関連 observation_links も除去                      │   │
+│  │                                                          │   │
+│  │ _enforce_capacity():                                    │   │
+│  │   while len > max_hypotheses:                            │   │
+│  │     weakest = min by (strength, freshness) tuple         │   │
+│  │     → 除去 + 関連links除去 + _total_expirations +1      │   │
+│  │                                                          │   │
+│  │ _generate_observation_links(hyp_id, source_type, descs):│   │
+│  │   各descに対して:                                        │   │
+│  │     contribution = max(0.1, 1.0 - idx * 0.15)           │   │
+│  │   最大 max_evidence_per_hypothesis(8) 件                 │   │
+│  │                                                          │   │
+│  │ _build_store(current_time):                             │   │
+│  │   active = [h for h if freshness > stale_threshold]      │   │
+│  │   avg_freshness = sum/len (空→0.0) → round 4桁          │   │
+│  │   avg_strength = sum/len (空→0.0) → round 4桁           │   │
+│  │   competition_pairs = detect_hypothesis_competitions()   │   │
+│  │     ※ _build_store のたびに再検出                       │   │
+│  │   description = _generate_store_description()            │   │
+│  │   → OtherModelStore 生成 → _last_store に保存            │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ _generate_store_description():                          │   │
+│  │                                                          │   │
+│  │  total == 0: "No other-state hypotheses formed yet."     │   │
+│  │                                                          │   │
+│  │  生成フォーマット ("; " 区切り + "."):                    │   │
+│  │    "{active} active hypotheses out of {total} total"     │   │
+│  │                                                          │   │
+│  │    強度ラベル:                                           │   │
+│  │      avg_strength >= 0.5 → "generally strong hypotheses" │   │
+│  │      avg_strength >= 0.2 → "moderate strength hypotheses"│   │
+│  │      else               → "mostly weak hypotheses"       │   │
+│  │                                                          │   │
+│  │    competing > 0:  "{n} competing pairs"                 │   │
+│  │    expirations > 0: "{n} expired"                        │   │
+│  │    boundaries > 0:  "{n} boundaries"                     │   │
+│  │    常に: "avg freshness: {:.2f}"                         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  統合関数 (introspection integration)                            │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ observe_from_chain(system, external_context=None,       │   │
+│  │   reaction_log=None, self_state=None)                   │   │
+│  │ → OtherModelStore                                        │   │
+│  │                                                          │   │
+│  │ system.observe_other() への委譲ラッパー                  │   │
+│  │ 各入力は読み取り専用で参照される                         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ generate_other_model_tags(store=None, scale=1.0)        │   │
+│  │ → list[dict]                                             │   │
+│  │                                                          │   │
+│  │ MUST NOT influence decisions (内省/認知のみ)             │   │
+│  │                                                          │   │
+│  │ 空/None → 1タグのみ:                                     │   │
+│  │   category: "OTHER_MODEL_COUNT"                          │   │
+│  │   label: "no_hypotheses"                                 │   │
+│  │   weight: 0.03 * scale                                   │   │
+│  │                                                          │   │
+│  │ 仮説あり → 6カテゴリのタグ生成:                          │   │
+│  │                                                          │   │
+│  │ ① OTHER_MODEL_COUNT     weight: 0.06 * scale            │   │
+│  │    label: "hypotheses_{active_count}"                    │   │
+│  │    desc: "holds {n} active hypotheses"                   │   │
+│  │                                                          │   │
+│  │ ② OTHER_MODEL_STRENGTH  weight: 0.07 * scale            │   │
+│  │    label: "strength_{level}"                             │   │
+│  │    desc: "Average: {avg:.2f}, max: {max:.2f}"            │   │
+│  │    max_strength = max(h.strength for h in hypotheses)    │   │
+│  │                                                          │   │
+│  │ ③ OTHER_MODEL_FRESHNESS weight: 0.05 * scale            │   │
+│  │    label: "freshness_{level}"                            │   │
+│  │    desc: "Average: {avg:.2f}"                            │   │
+│  │                                                          │   │
+│  │ ④ OTHER_MODEL_COMPETITION weight: 0.06 * scale          │   │
+│  │    (competing_pair_count > 0 のときのみ生成)             │   │
+│  │    label: "competing_{n}"                                │   │
+│  │                                                          │   │
+│  │ ⑤ OTHER_MODEL_BOUNDARY  weight: 0.05 * scale            │   │
+│  │    (boundary_count > 0 のときのみ生成)                   │   │
+│  │    label: "boundaries_{n}"                               │   │
+│  │                                                          │   │
+│  │ ⑥ OTHER_MODEL_INTEGRATED weight: 0.08 * scale           │   │
+│  │    (description 非空のときのみ生成)                      │   │
+│  │    label: "other_model_awareness"                        │   │
+│  │    desc: store.description そのまま                      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ get_other_model_summary(store=None) → str               │   │
+│  │                                                          │   │
+│  │ None/空 → "=== Other Agent Model State ===\n             │   │
+│  │            No hypotheses formed yet."                    │   │
+│  │                                                          │   │
+│  │ 生成フォーマット:                                        │   │
+│  │   "=== Other Agent Model State ==="                      │   │
+│  │   "Total hypotheses: {len}"                              │   │
+│  │   "Active hypotheses: {active_count}"                    │   │
+│  │   "Total created: {total_created}"                       │   │
+│  │   "Total revisions: {total_revisions}"                   │   │
+│  │   "Total expirations: {total_expirations}"               │   │
+│  │   "Average freshness: {:.2f}"                            │   │
+│  │   "Average strength: {:.2f}"                             │   │
+│  │   "Competing pairs: {n}"                                 │   │
+│  │   "Boundaries: {n}"                                      │   │
+│  │   ""                                                     │   │
+│  │   "Top hypotheses:" (strength降順ソート、上位5件)        │   │
+│  │   "  [{source_type}:{basis}] {desc[:80]}"                │   │
+│  │   "    (strength: {level}, freshness: {level})"          │   │
+│  │   ""                                                     │   │
+│  │   "Integrated: {description}"                            │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ get_other_model_for_introspection(store=None) → dict    │   │
+│  │                                                          │   │
+│  │ MUST NOT be used as input to decision-making             │   │
+│  │                                                          │   │
+│  │ None → 全フィールド空/ゼロの dict                        │   │
+│  │                                                          │   │
+│  │ 返却 dict 構造:                                          │   │
+│  │   {                                                      │   │
+│  │     "has_hypotheses": bool,                              │   │
+│  │     "total_hypotheses": int,                             │   │
+│  │     "active_count": int,                                 │   │
+│  │     "average_strength": float,                           │   │
+│  │     "average_freshness": float,                          │   │
+│  │     "source_distribution": {                             │   │
+│  │       "external_context": int,                           │   │
+│  │       "reaction_log": int,                               │   │
+│  │       "self_contrast": int                               │   │
+│  │     },                                                   │   │
+│  │     "basis_distribution": {                              │   │
+│  │       "behavioral": int,                                 │   │
+│  │       "contextual": int,                                 │   │
+│  │       "contrast": int                                    │   │
+│  │     },                                                   │   │
+│  │     "competing_pair_count": int,                         │   │
+│  │     "boundary_count": int,                               │   │
+│  │     "strongest_hypothesis_description":                  │   │
+│  │       str (max(strength).description[:120]),             │   │
+│  │     "timestamp": str                                     │   │
+│  │   }                                                      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  検証関数 (テスト支援 - メタ検証)                                │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ verify_no_decision_impact(store) → bool                 │   │
+│  │   store の public属性を走査し、意思決定に直接            │   │
+│  │   影響する属性がないことを確認                            │   │
+│  │   許容属性: timestamp, str型, Enum型, tuple型,           │   │
+│  │   統計スカラー(total_*, average_*, active_*,             │   │
+│  │              competing_*, boundary_count)                 │   │
+│  │                                                          │   │
+│  │ verify_no_goal_generation(system) → bool                │   │
+│  │   forbidden patterns:                                    │   │
+│  │     generate_goal, create_goal, set_goal,                │   │
+│  │     force, fix, repair, restore, correct,                │   │
+│  │     prescribe, enforce                                   │   │
+│  │                                                          │   │
+│  │ verify_read_only_principle(system) → bool               │   │
+│  │   forbidden patterns:                                    │   │
+│  │     update_emotion, update_memory, update_tendency,      │   │
+│  │     update_value, update_decision, update_responsibility,│   │
+│  │     set_emotion, set_memory, set_tendency,               │   │
+│  │     modify_bias, apply_to_decision                       │   │
+│  │                                                          │   │
+│  │ verify_no_value_modification(system) → bool             │   │
+│  │   forbidden patterns:                                    │   │
+│  │     update_value, set_value, modify_value,               │   │
+│  │     update_belief, set_belief, modify_belief,            │   │
+│  │     define_identity, set_identity, fix_identity,         │   │
+│  │     evaluate_morality, judge_action                      │   │
+│  │                                                          │   │
+│  │ verify_no_intent_assertion(system) → bool               │   │
+│  │   ← 他者モデル固有の検証                                │   │
+│  │   forbidden patterns:                                    │   │
+│  │     assert_intent, determine_intent, confirm_intent,     │   │
+│  │     judge_intent, classify_intent,                       │   │
+│  │     assert_belief, determine_belief,                     │   │
+│  │     assert_value, determine_value                        │   │
+│  │                                                          │   │
+│  │  検証方法: dir(system/store) の public メソッド名を       │   │
+│  │  小文字化し、forbidden pattern を部分一致チェック        │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  永続化・ユーティリティ                                          │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  create_config(**kwargs) → OtherAgentModelConfig                │
+│  create_empty_store() → OtherModelStore (全フィールド空/ゼロ)   │
+│  create_system(config=None) → OtherAgentModelSystem             │
+│                                                                 │
+│  save_other_model_state(store, filepath):                       │
+│    store.to_dict() → json.dump(ensure_ascii=False, indent=2)    │
+│  load_other_model_state(filepath) → OtherModelStore:            │
+│    json.load() → OtherModelStore.from_dict()                    │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  設計制約 (design doc 準拠)                                      │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  - 他者の意図・価値・信念を断定しない                            │
+│  - 正誤や善悪の評価を付与しない                                  │
+│  - 目的や行動の最適化に結び付けない                              │
+│  - 自己像や人格の方向性を固定しない                              │
+│  - 候補は仮説として保持し固定しない                              │
+│  - 競合する候補を許容する                                        │
+│  - 後から訂正・撤回を許す (revise, 減衰による自然消滅)           │
+│  - 判断選択層・目的生成・価値更新・責任評価に接続しない          │
+│  - 外部出力の直接生成層に接続しない                              │
+│  - 接続先: 内省記録層への参照素材、記憶参照の補助文脈            │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  __init__.py エクスポート (エイリアス一覧)                       │
+│  ═══════════════════════════════════════════════════════════════ │
+│                                                                 │
+│  名前衝突回避のため以下をエイリアス化:                           │
+│    determine_freshness_level                                    │
+│      → determine_hypothesis_freshness_level                     │
+│    determine_strength_level                                     │
+│      → determine_hypothesis_strength_level                      │
+│    observe_from_chain                                           │
+│      → observe_other_from_chain                                 │
+│    create_config                                                │
+│      → create_other_model_config                                │
+│    create_empty_store                                           │
+│      → create_empty_other_model_store                           │
+│    create_system                                                │
+│      → create_other_model_system                                │
+│    verify_no_decision_impact                                    │
+│      → verify_other_model_no_decision_impact                    │
+│    verify_no_goal_generation                                    │
+│      → verify_other_model_no_goal_generation                    │
+│    verify_read_only_principle                                   │
+│      → verify_other_model_read_only_principle                   │
+│    verify_no_value_modification                                 │
+│      → verify_other_model_no_value_modification                 │
+│    verify_no_intent_assertion                                   │
+│      → (エイリアスなし: 他者モデル固有のため衝突しない)         │
+│                                                                 │
+│  エクスポート総数: 38シンボル                                    │
+│    Enum: 4, Dataclass: 5, System: 1, Helper: 8,                 │
+│    Integration: 4, Persistence: 2, Convenience: 3,              │
+│    Verification: 5, LevelFunc: 2, Extraction: 3,                │
+│    Computation: 1                                               │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -1890,27 +2477,61 @@ OtherAgentModel (他者モデル):
   反応ログ（STM/ReactionLog） ─────┼→ other_agent_model.py → 内省記録層
   自己状態（対比参照のみ） ────────┘   (generates OtherModelStore)    → 記憶参照補助
   「相手がどう感じているか」の推測を仮説として弱く保持
-  入力3系統:
-    [ExternalContext] → responsiveness/weight/pace → 行動的/文脈的仮説
-    [ReactionLog]     → intent/valence/emotion    → 行動的仮説
-    [SelfState対比]   → intensity差分             → 対比仮説
+  入力3系統 (全て Optional[Any] + duck typing, dict/object両対応):
+    [Source 1: ExternalContext]
+      duck typing: pace, weight, density, continuity, responsiveness
+      → responsiveness >= 0.7: "engaged" (behavioral, strength=resp*0.6)
+      → responsiveness <= 0.3: "disengaged" (behavioral, strength=(1-resp)*0.5)
+      → weight >= 0.7: "heavy atmosphere" (contextual, strength=weight*0.5)
+      → pace >= 0.7: "energetic exchange" (contextual, strength=pace*0.4)
+      → 0.3 < resp < 0.7 AND 0.3 < weight < 0.7: "neutral" (strength=0.15)
+    [Source 2: ReactionLog]
+      duck typing: entries[], source_text, intent, emotion_label, valence
+      処理上限: entries[:5]
+      → intent=="question": "questioning intent" (behavioral, strength=0.4)
+      → valence > 0.3: "positive tone" (behavioral, strength=valence*0.5)
+      → valence < -0.3: "negative tone" (behavioral, strength=|valence|*0.5)
+    [Source 3: SelfState + ExternalContext対比]
+      self duck typing: intensity, description
+      other duck typing: responsiveness, weight
+      → |intensity - responsiveness| >= 0.4: contrast (strength=divergence*0.7)
+      → |intensity - weight| >= 0.5: weight divergence (strength=weight_div*0.6)
   処理フロー:
-    Extract(3関数) → Hypothesis生成 → 競合検出(Jaccard)
-                   → Boundary計算 → Decay適用 → Snapshot
+    Extract(3関数) → Hypothesis生成(freshness=1.0, undetermined固定)
+      → ObservationLink生成(contribution=max(0.1, 1.0-idx*0.15), max8件)
+      → 競合検出(Jaccard: 同source異basis>=0.2, 異basis>=0.4)
+      → Boundary計算(語彙Jaccard反転→divergence, aspects=inference_{basis})
+      → Decay適用(ref_modifier=max(0.5, 1.0-ref*0.1))
+      → 容量制限(weakest by (strength,freshness) tuple)
+      → Snapshot(_build_store: 毎回競合再検出)
   内部構造:
-    OtherStateHypothesis: 仮説（basis=BEHAVIORAL/CONTEXTUAL/CONTRAST）
-    ObservationLink: 観測と仮説の弱い接続（contribution 0.0〜1.0）
-    SelfOtherBoundary: 自己/他者の乖離度（divergence 0.0〜1.0）
+    OtherStateHypothesis: frozen, 変異メソッド5種(with_freshness/strength/
+      reference/competing, revise), basis=BEHAVIORAL/CONTEXTUAL/CONTRAST
+    ObservationLink: 観測と仮説の弱い接続(contribution 0.0〜1.0)
+    SelfOtherBoundary: 自己/他者の乖離度(divergence 0.0〜1.0)
+      max_boundaries=10, 超過時FIFO(pop(0))
+    OtherModelStore: frozen snapshot, avg round4桁
+      フィルタ: get_active(>stale), get_strong(>0.5)
+      シリアライゼーション: to_dict/from_dict (JSON roundtrip)
   ライフサイクル:
-    生成時 freshness=1.0 → base_decay_rate=0.05/ターン で減衰
+    生成時 freshness=1.0 → base_decay_rate=0.05 * ref_modifier/ターン で減衰
+    strength: -0.03/ターン
     参照時 freshness+0.10ブースト, reference_count+1
-    修正可能（revise）, 競合許容（competing_ids相互リンク）
+    修正可能（revise → revision_count+1）, 競合許容（competing_ids相互リンク）
     stale_threshold(0.15) AND min_strength(0.05) 以下で自然消滅
-  容量: max_hypotheses=60, max_boundaries=10
-  タグ出力: OTHER_MODEL_COUNT / _STRENGTH / _FRESHNESS /
-            _COMPETITION / _BOUNDARY / _INTEGRATED
+  容量: max_hypotheses=60, max_boundaries=10, max_evidence=8
+  タグ出力 (weight * scale):
+    OTHER_MODEL_COUNT(0.06), _STRENGTH(0.07), _FRESHNESS(0.05),
+    _COMPETITION(0.06), _BOUNDARY(0.05), _INTEGRATED(0.08)
+    空/None時: COUNT(0.03)のみ
+  Summary: header + 10フィールド + Top5(strength降順) + Integrated
+  Introspection dict: source_distribution, basis_distribution,
+    strongest_hypothesis_description[:120], 統計値
   固有検証: verify_no_intent_assertion（意図断定メソッド禁止）
-  非接続: 判断選択層・目的生成・価値更新・責任評価
+    + verify_no_decision_impact, _no_goal_generation,
+      _read_only_principle, _no_value_modification
+  __init__.py エイリアス: 10シンボル名変更(衝突回避)
+  非接続: 判断選択層・目的生成・価値更新・責任評価・外部出力直接生成
 
 IntrospectionConsumption (内省の消費層):
   内省ログ要約 ─────────────┐
@@ -1988,7 +2609,7 @@ DecisionBias:
 
 ```
 psyche/
-├── __init__.py                    (1063行) - エクスポート定義
+├── __init__.py                    (1183行) - エクスポート定義
 ├── state.py                       (258行)  - 心理状態データ構造
 ├── pillars.py                     (76行)   - 4柱状態定義
 ├── fear.py                        (76行)   - 恐怖指数計算
@@ -2096,7 +2717,7 @@ tests/
 | 2 | エピソード記憶（自伝的記憶） | 「あのとき何が起き、どう感じたか」を個別の出来事として保持する構造。short_term_memoryは残留のみ、long_term_dynamicsは統計のみで、個別体験の蓄積がない | short_term_memory, self_narrative | 完了 |
 | 3 | 内省の消費層 | introspection_trace, self_narrative, identity_coherenceの観測結果を「読んで自分について語る」層。内省は生成されるが消費先がない | introspection_trace, self_narrative, identity_coherence | 完了 |
 | 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 完了 |
-| 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 未着手 |
+| 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 完了 |
 | 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 未着手 |
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 未着手 |
 

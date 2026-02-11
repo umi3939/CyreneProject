@@ -873,6 +873,51 @@ from .other_agent_model import (
     verify_no_intent_assertion,
 )
 
+# Emotional Memory Binding (感情記憶の紐づけ)
+from .emotional_memory_binding import (
+    # Abstract enums
+    BindingSourceType,
+    TraceAffinity,
+    TraceStrength,
+    TraceFreshness,
+    # Structures
+    EmotionalTrace,
+    BindingLink,
+    MemoryBinding,
+    BindingStore,
+    EmotionalMemoryBindingConfig,
+    EmotionalMemoryBindingSystem,
+    # Helper functions
+    determine_freshness_level as determine_binding_freshness_level,
+    determine_strength_level as determine_binding_strength_level,
+    generate_memory_key,
+    extract_from_stm as extract_binding_from_stm,
+    extract_from_emotion_state as extract_binding_from_emotion_state,
+    extract_from_recalled_memories as extract_binding_from_recalled_memories,
+    extract_from_episodes as extract_binding_from_episodes,
+    compute_binding_strength,
+    detect_trace_coexistence,
+    compute_emotional_accompaniment,
+    # Integration functions
+    bind_from_chain,
+    generate_binding_tags,
+    get_binding_summary,
+    get_binding_for_introspection,
+    # Persistence
+    save_binding_state,
+    load_binding_state,
+    # Convenience
+    create_config as create_binding_config,
+    create_empty_store as create_empty_binding_store,
+    create_system as create_binding_system,
+    # Verification (test support)
+    verify_no_decision_impact as verify_binding_no_decision_impact,
+    verify_no_goal_generation as verify_binding_no_goal_generation,
+    verify_read_only_principle as verify_binding_read_only_principle,
+    verify_no_value_modification as verify_binding_no_value_modification,
+    verify_no_emotion_evaluation,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1180,4 +1225,22 @@ __all__ = [
     "verify_other_model_no_decision_impact", "verify_other_model_no_goal_generation",
     "verify_other_model_read_only_principle", "verify_other_model_no_value_modification",
     "verify_no_intent_assertion",
+    # Emotional Memory Binding (感情記憶の紐づけ)
+    "BindingSourceType", "TraceAffinity", "TraceStrength", "TraceFreshness",
+    "EmotionalTrace", "BindingLink", "MemoryBinding",
+    "BindingStore", "EmotionalMemoryBindingConfig", "EmotionalMemoryBindingSystem",
+    "determine_binding_freshness_level", "determine_binding_strength_level",
+    "generate_memory_key",
+    "extract_binding_from_stm", "extract_binding_from_emotion_state",
+    "extract_binding_from_recalled_memories", "extract_binding_from_episodes",
+    "compute_binding_strength", "detect_trace_coexistence",
+    "compute_emotional_accompaniment",
+    "bind_from_chain",
+    "generate_binding_tags", "get_binding_summary",
+    "get_binding_for_introspection",
+    "save_binding_state", "load_binding_state",
+    "create_binding_config", "create_empty_binding_store", "create_binding_system",
+    "verify_binding_no_decision_impact", "verify_binding_no_goal_generation",
+    "verify_binding_read_only_principle", "verify_binding_no_value_modification",
+    "verify_no_emotion_evaluation",
 ]

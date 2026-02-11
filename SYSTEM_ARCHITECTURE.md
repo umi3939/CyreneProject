@@ -1,8 +1,8 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-総コード行数: ~62,000行
-総テスト数: 1,808テスト
+総コード行数: ~64,900行
+総テスト数: 1,922テスト
 
 ---
 
@@ -65,11 +65,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 49 | 32,448 | 心理システム本体 |
-| tests/ | 38 | 25,280 | 自動テストコード |
+| psyche/ | 50 | 34,156 | 心理システム本体 |
+| tests/ | 39 | 26,422 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,686 | コアシステム |
-| **合計** | **105** | **62,004** | |
+| **合計** | **107** | **64,854** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -85,7 +85,8 @@
 | 8 | introspection_consumption.py | 1,455 | 94 | 内省 | 内省の消費層（読み取り可能断片の循環） |
 | 9 | expectation_formation.py | 1,485 | 103 | 内省 | 予期・期待の形成（未来方向の連続性投射） |
 | 10 | other_agent_model.py | 1,603 | 112 | 内省 | 他者モデル（他者状態の仮説的推測） |
-| 11 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 11 | emotional_memory_binding.py | 1,708 | 114 | 記憶 | 感情記憶の紐づけ（中長期感情痕跡） |
+| 12 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -97,7 +98,7 @@
 | 11 | value_orientation.py | 746 | 34 | 目的 | 長期価値観 |
 | 12 | stability_valve.py | 728 | 40 | 判断 | 極端回避バルブ |
 | 13 | silence_hesitation.py | 724 | 36 | 出力 | 沈黙・躊躇い表現 |
-| 14 | __init__.py | 1,183 | - | 基盤 | エクスポート定義 |
+| 14 | __init__.py | 1,246 | - | 基盤 | エクスポート定義 |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
 | 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
@@ -2379,6 +2380,7 @@ self_image_integration.py   -     -      -      -       -       -        -      
 identity_coherence.py       -     -      -      -       -       -        -        -        -      ○     -      -
 self_narrative.py           -     -      -      -       -       -        -        -        -      -     -      -
 other_agent_model.py       -     -      -      -       -       -        -        -        -      -     -      -
+emotional_memory_binding.py-     -      -      -       -       -        -        -        -      -     -      -
 responsibility.py           -     -      -      -       -       -        -        -        -      -     -      -
 responsibility_dispersion.py-     -      -      -       -       -        -        -        -      -     ○      -
 context_sensitivity.py      -     -      -      -       -       -        -        ○        -      -     -      -
@@ -2533,6 +2535,74 @@ OtherAgentModel (他者モデル):
   __init__.py エイリアス: 10シンボル名変更(衝突回避)
   非接続: 判断選択層・目的生成・価値更新・責任評価・外部出力直接生成
 
+EmotionalMemoryBinding (感情記憶の紐づけ):
+  短期記憶（STM） ─────────────┐
+  感情状態（EmotionVector） ────┤
+  長期記憶参照結果 ─────────────┼→ emotional_memory_binding.py → 記憶参照層
+  エピソード記憶 ───────────────┘   (generates BindingStore)        → 内省記録層
+  特定の記憶に感情が「染み付く」中長期の結びつきを管理
+  入力4系統 (全て Optional[Any] + duck typing, dict/object両対応):
+    [Source 1: STM]
+      duck typing: entries[], source_text, emotion_label, raw_intensity, valence
+      処理上限: entries[:10], raw_intensity < 0.1 or neutral → skip
+      memory_key = generate_memory_key(source_text)  # MD5[:12]
+    [Source 2: EmotionState + Mood]
+      duck typing: joy, anger, sorrow, fear, surprise, love, fun (>= 0.15)
+      memory_key = "__current_emotion_state__" (特殊センチネル)
+      Mood duck typing: valence, arousal
+    [Source 3: RecalledMemories]
+      list[dict] with "summary", "keywords"
+      デフォルト intensity=0.3 (弱い紐づけ)
+    [Source 4: Episodes]
+      duck typing: episodes[], episode_id, summary, emotional_companion, vividness
+      vividness < 0.2 → skip
+      coexisting_emotions は intensity * 0.5 で追加
+  処理フロー:
+    Extract(4関数) → memory_keyでグループ化
+      → 既存binding → _merge_traces（同ラベルはmax intensity, 異ラベルは追加）
+      → 新規binding → traces生成(max 7, freshness=1.0, affinity=CONCURRENT)
+      → BindingLink生成(contribution=max(0.1, 1.0-idx*0.15), max10件)
+      → Decay適用(binding: ref_modifier=max(0.5, 1.0-ref*0.05))
+                  (trace: trace_ref_mod=max(0.5, 1.0-ref*0.08))
+      → 全trace消滅 AND freshness < min(0.05) → 除去
+      → 容量制限(weakest by (freshness, trace_count) tuple, max=200)
+      → Snapshot(_build_store)
+  核心機能:
+    get_emotional_accompaniment(memory_key): 記憶再参照時に感情痕跡が「同伴」
+      effective_intensity = trace.intensity * trace.freshness
+      同ラベルは max で統合
+      reference_binding も呼び出し（再参照で強化）
+  内部構造:
+    EmotionalTrace: frozen, 変異メソッド4種(with_freshness/intensity/reference, reattach)
+      emotion_label: joy/anger/sorrow/fear/surprise/love/fun
+      affinity: CONCURRENT/REACTIVATED/ACCUMULATED/COMPOSITE/UNDEFINED
+    BindingLink: 紐づけの根拠リンク(contribution 0.0〜1.0)
+    MemoryBinding: frozen, 変異メソッド5種(with_freshness/reference/traces/
+      revise_summary/with_added_trace)
+      memory_key: MD5ハッシュ記憶識別子
+    BindingStore: frozen snapshot, avg round4桁
+      フィルタ: get_active_bindings(>stale), get_bindings_for_memory(key)
+      シリアライゼーション: to_dict/from_dict (JSON roundtrip)
+  ライフサイクル:
+    生成時 freshness=1.0 → base_decay_rate=0.02 * ref_modifier/ターン で減衰
+    trace: trace_decay_rate=0.015 * trace_ref_mod/ターン
+    参照時 binding freshness+0.08, trace freshness+0.05, reference_count+1
+    修正可能（revise_summary → revision_count+1）
+    stale_threshold(0.15), min_freshness(0.05): 全trace消滅+freshness<min で自然消滅
+  容量: max_bindings=200, max_traces_per_binding=7, max_binding_links=10
+  タグ出力 (weight * scale):
+    EMOTIONAL_BINDING_COUNT(0.06), _FRESHNESS(0.05), _RICHNESS(0.07),
+    _DOMINANT(0.08), _INTEGRATED(0.08)
+    空/None時: COUNT(0.03)のみ
+  Summary: header + 9フィールド + Top5(freshness降順) + Integrated
+  Introspection dict: emotion_distribution, dominant_emotion,
+    strongest_binding_summary[:120], 統計値
+  固有検証: verify_no_emotion_evaluation（感情評価メソッド禁止）
+    + verify_no_decision_impact, _no_goal_generation,
+      _read_only_principle, _no_value_modification
+  __init__.py エイリアス: 12シンボル名変更(衝突回避)
+  非接続: 判断選択層・目的生成・価値更新・責任評価・外部出力直接生成
+
 IntrospectionConsumption (内省の消費層):
   内省ログ要約 ─────────────┐
   自己物語状態 ─────────────┤
@@ -2650,6 +2720,7 @@ psyche/
 ├── introspection_consumption.py (1455行) - 内省の消費層（読み取り可能断片の循環）
 ├── expectation_formation.py    (1485行) - 予期・期待の形成（未来方向の連続性投射）
 ├── other_agent_model.py        (1603行) - 他者モデル（他者状態の仮説的推測）
+├── emotional_memory_binding.py (1708行) - 感情記憶の紐づけ（中長期感情痕跡）
 ├── responsibility.py              (480行)  - 責任記録・評価
 ├── responsibility_manager.py      (210行)  - 責任マネージャー
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
@@ -2699,6 +2770,7 @@ tests/
 ├── test_introspection_consumption.py (1023行)
 ├── test_expectation_formation.py (1075行)
 ├── test_other_agent_model.py    (1205行)
+├── test_emotional_memory_binding.py (1142行)
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)

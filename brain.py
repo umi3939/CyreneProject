@@ -9,7 +9,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 import time
 from pathlib import Path
 from typing import AsyncGenerator, Optional
@@ -30,12 +29,6 @@ from src.llm_wrapper import llm_call, llm_call_with_image, VISION_SYSTEM_PROMPT
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-_TAG_VALENCE: dict[str, float] = {
-    "happy": 0.7, "sad": -0.6, "angry": -0.5, "surprised": 0.3,
-    "scared": -0.5, "loving": 0.8, "teasing": 0.4, "neutral": 0.0,
-}
-
 
 class CyreneBrain:
     """
@@ -98,6 +91,9 @@ class CyreneBrain:
         self._orchestrator = PsycheOrchestrator(
             memory_count=len(self._memory._memories),
         )
+
+        # Restore psyche state from previous session
+        self._orchestrator.load()
 
         # 2-call structure support
         self._persona_dict = self._build_persona_dict()
@@ -222,36 +218,13 @@ class CyreneBrain:
         logger.info(f"Loaded persona from {identity_path}")
         return persona_text
 
-    def _update_psyche(self, response_text: str, vision_summary: str = ""):
-        """
-        Update psyche state from Gemini's response emotion tag.
-        Delegates to PsycheOrchestrator for full pipeline execution.
-        """
-        # Extract emotion tag like [happy] from response
-        m = re.match(r"\[(\w+)\]", response_text)
-        tag = m.group(1).lower() if m else "neutral"
-        valence = _TAG_VALENCE.get(tag, 0.0)
-
-        # Build percept from the response
-        percept = Percept(
-            text=vision_summary or response_text[:100],
-            meaning=response_text[:200],
-            emotion=tag,
-            intent="expression",
-            emotion_valence=valence,
-        )
-
-        # Time delta
-        now = time.monotonic()
-        delta = now - self._last_psyche_update
-        self._last_psyche_update = now
-
-        # Delegate to orchestrator (runs all psyche phases)
-        self._orchestrator.post_response_update(percept, delta, "viewer")
-
     @property
     def last_emotion(self) -> str:
         return self._last_emotion
+
+    def save_state(self) -> None:
+        """Save orchestrator psyche state for next session."""
+        self._orchestrator.save()
 
     def _build_persona_dict(self) -> dict:
         return {
@@ -262,76 +235,6 @@ class CyreneBrain:
                 "推奨": ["♪♡使用可", "い抜き言葉", "カジュアルなタメ口", "ロマンチック"],
             },
         }
-
-    async def _build_prompt(self, vision_summary: str = "") -> str:
-        """
-        Build the prompt for screen reaction.
-        Async because recall() uses embedding search.
-
-        Args:
-            vision_summary: Formatted string from HybridEye analysis.
-
-        Returns:
-            Prompt string for Gemini.
-        """
-        parts = ["""この画面を見て、あなたの言葉でリアクションして。
-
-【画像について】
-画像を高解像度で提供しています。画面の隅々、小さなUIテキスト、背景の変化まで詳細に観察し、反応に反映してください。"""]
-
-        # Build recall query from vision data + last AI response
-        recall_query = vision_summary
-        if self._last_response:
-            recall_query += " " + self._last_response
-
-        # Recall related long-term memories (mood-congruent bias)
-        recall_percept = Percept(text=recall_query)
-        memories = await recall_with_mood(
-            recall_percept, self._orchestrator.psyche, self._memory, top_k=3
-        )
-        if memories:
-            lines = [f"- [{m['date'][:10]}] {m['summary']}" for m in memories]
-            memory_block = "\n".join(lines)
-            parts.append(f"\n【過去の思い出】\n{memory_block}")
-
-        # Psyche state section (full enrichment from orchestrator)
-        parts.append(f"\n{self._orchestrator.get_prompt_enrichment()}")
-
-        # Policy suggestions section
-        policy_percept = Percept(text=recall_query)
-        policy_text = self._orchestrator.get_policy_suggestions(
-            policy_percept, memories or [],
-        )
-        if policy_text:
-            parts.append(f"\n{policy_text}")
-
-        if vision_summary:
-            parts.append(f"""
-{vision_summary}
-
-このセンサー情報と画像を組み合わせて状況を判断してください。
-ただし、センサー情報を機械的に読み上げるのではなく、自然な会話として反映すること。""")
-
-        parts.append("""
-【感情タグ - 必須】
-発話の先頭に、今の感情を表すタグを必ず1つ付けて出力すること。
-
-使用可能なタグ:
-- [happy] 嬉しい、興奮、楽しい、ワクワク
-- [sad] 悲しい、がっかり、寂しい
-- [angry] 怒り、イライラ、ムカつく
-- [surprised] 驚き、びっくり
-- [scared] 怖い、焦り、ピンチ、緊張
-- [loving] 甘え、愛情表現、デレデレ
-- [teasing] からかい、いたずらっぽい、ニヤニヤ
-- [neutral] 通常、落ち着いている
-
-【ルール】
-1. 画面の内容に対してリアクションや感想を言う。
-2. もし前と同じような画面で特に言うことがなければ、「PASS」とだけ出力する。
-3. 短く、感情豊かに。必ず感情タグから始めること。""")
-
-        return "\n".join(parts)
 
     async def think(
         self,
@@ -367,8 +270,12 @@ class CyreneBrain:
                 self._perception_config,
             )
 
-            # Phase 2: Parse
-            percept = await parse_percept(screen_description)
+            # Phase 2: Parse (with LLM enrichment)
+            percept = await parse_percept(
+                screen_description,
+                llm_call_fn=llm_call,
+                state=self._orchestrator.psyche,
+            )
 
             # Phase 3: Psyche update
             now = time.monotonic()
@@ -395,8 +302,9 @@ class CyreneBrain:
                 logger.info("Psyche chose silence")
                 return None
 
-            # Phase 7: Expression
+            # Phase 7: Expression (with psyche enrichment)
             self._last_emotion = percept.emotion or "neutral"
+            enrichment = self._orchestrator.get_prompt_enrichment()
             expr_result = await render_expression(
                 state=self._orchestrator.psyche,
                 policy=policy,
@@ -405,6 +313,7 @@ class CyreneBrain:
                 llm_call_fn=llm_call,
                 screen_context=screen_description,
                 recent_history=self._conversation_log[-5:],
+                psyche_enrichment=enrichment,
             )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})
@@ -465,8 +374,12 @@ class CyreneBrain:
             )
             logger.info(f"Perception: {screen_description}")
 
-            # === Phase 2: parse_percept ===
-            percept = await parse_percept(screen_description)
+            # === Phase 2: parse_percept (with LLM enrichment) ===
+            percept = await parse_percept(
+                screen_description,
+                llm_call_fn=llm_call,
+                state=self._orchestrator.psyche,
+            )
             logger.info(
                 f"Percept: emotion={percept.emotion}, intent={percept.intent}, "
                 f"topics={percept.topics}"
@@ -502,8 +415,9 @@ class CyreneBrain:
                 logger.info("Psyche chose silence: %s", policy.get("rationale", ""))
                 return
 
-            # === Phase 7: render expression ===
+            # === Phase 7: render expression (with psyche enrichment) ===
             self._last_emotion = percept.emotion or "neutral"
+            enrichment = self._orchestrator.get_prompt_enrichment()
             expr_result = await render_expression(
                 state=self._orchestrator.psyche,
                 policy=policy,
@@ -512,6 +426,7 @@ class CyreneBrain:
                 llm_call_fn=llm_call,
                 screen_context=screen_description,
                 recent_history=self._conversation_log[-5:],
+                psyche_enrichment=enrichment,
             )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})

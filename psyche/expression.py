@@ -34,6 +34,7 @@ async def render_expression(
     llm_call_fn: Callable[..., Awaitable[str]],
     screen_context: str = "",
     recent_history: list[str] | None = None,
+    psyche_enrichment: str = "",
 ) -> dict[str, Any]:
     """Render final response using Gemini as voice only.
 
@@ -47,6 +48,7 @@ async def render_expression(
         state, policy, memory_snippet, persona,
         screen_context=screen_context,
         recent_history=recent_history,
+        psyche_enrichment=psyche_enrichment,
     )
 
     try:
@@ -67,6 +69,7 @@ def _build_render_prompt(
     persona: dict[str, Any],
     screen_context: str = "",
     recent_history: list[str] | None = None,
+    psyche_enrichment: str = "",
 ) -> str:
     """Build the user-facing prompt for expression rendering."""
     mem_text = ""
@@ -103,6 +106,7 @@ def _build_render_prompt(
 【関連記憶（参考）】
 {mem_text or "(なし)"}
 
+{psyche_enrichment or ""}
 【禁止パターン】{', '.join(prohibitions) if prohibitions else 'なし'}
 【推奨パターン】{', '.join(recommendations) if recommendations else 'なし'}
 

@@ -47,6 +47,32 @@ from .dynamics import (
     get_dynamics_summary,
 )
 
+# Emotion amplitude
+from .emotion_amplitude import (
+    AmplitudeState,
+    create_amplitude_state,
+    update_amplitude,
+    decay_amplitude,
+    compute_amplitude_from_dynamics,
+    apply_amplitude_to_emotion_deltas,
+)
+
+# Multi-emotion
+from .multi_emotion import (
+    MultiEmotionConfig,
+    apply_independent_decay,
+    get_active_emotions,
+    has_conflicting_emotions,
+)
+
+# STM-Emotion coupling
+from .stm_emotion_coupling import (
+    STMEmotionCouplingConfig,
+    CouplingInfluence,
+    apply_stm_coupling,
+    get_coupling_summary,
+)
+
 # Pillar managers
 from . import attachment_manager, identity_manager, continuity_manager, projection_manager
 
@@ -253,9 +279,6 @@ from .long_term_dynamics import (
     get_observer_summary,
 )
 
-# Snapshot / Persistence
-from .snapshot import Snapshot
-
 # Dispersion
 from .responsibility_dispersion import DispersionState, create_dispersion_state
 
@@ -432,9 +455,19 @@ class PsycheOrchestrator:
         # ── Dispersion state ──
         self._dispersion_state = create_dispersion_state()
 
+        # ── Emotion amplitude ──
+        self._amplitude_state = create_amplitude_state()
+
+        # ── Multi-emotion config ──
+        self._multi_emotion_config = MultiEmotionConfig()
+
+        # ── STM-Emotion coupling ──
+        self._stm_coupling_config = STMEmotionCouplingConfig()
+        self._last_coupling: Optional[CouplingInfluence] = None
+
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=35",
+            "systems=38",
             fear.value, fear.dominant_fear,
         )
 
@@ -483,6 +516,41 @@ class PsycheOrchestrator:
             current_emotions=emo_dict,
             residue_intensity=residue_total,
         )
+
+        # Phase 2a: emotion_amplitude — dynamics相による振幅計算
+        amp_from_dynamics = compute_amplitude_from_dynamics(self._dynamics)
+        max_emo = max(emo_dict.values()) if emo_dict else 0.0
+        self._amplitude_state = update_amplitude(
+            self._amplitude_state,
+            intensity_factor=residue_total,
+            emotion_intensity=max_emo,
+        )
+        self._amplitude_state = decay_amplitude(self._amplitude_state, delta_time)
+
+        # Phase 2b: multi_emotion — 感情別独立減衰
+        try:
+            decayed = apply_independent_decay(
+                self._psyche.emotions,
+                delta_time=delta_time,
+                config=self._multi_emotion_config,
+            )
+            self._psyche = self._psyche.model_copy(update={"emotions": decayed})
+        except Exception as e:
+            logger.debug("Multi-emotion decay skipped: %s", e)
+
+        # Phase 2c: stm_emotion_coupling — STM残留→再活性化・蓄積
+        if self._loop_state and self._loop_state.memory:
+            try:
+                coupled, self._last_coupling = apply_stm_coupling(
+                    emotions=self._psyche.emotions,
+                    stm=self._loop_state.memory,
+                    delta_time=delta_time,
+                    config=self._stm_coupling_config,
+                    apply_persistence=False,  # multi_emotion handles decay
+                )
+                self._psyche = self._psyche.model_copy(update={"emotions": coupled})
+            except Exception as e:
+                logger.debug("STM-emotion coupling skipped: %s", e)
 
         # Phase 3: attachment — 視聴者ボンド更新
         if self._psyche.attachment is not None:
@@ -536,12 +604,13 @@ class PsycheOrchestrator:
 
         logger.info(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
-            "dynamics=%s",
+            "dynamics=%s (accumulated=%.2f)",
             self._tick_count,
             percept.emotion or "neutral",
             self._psyche.mood.valence,
             self._psyche.fear_level,
             get_dynamics_summary(self._dynamics),
+            self._amplitude_state.current_amplitude,
         )
 
     # ── Phase 8-14: Every 3 ticks ────────────────────────────────

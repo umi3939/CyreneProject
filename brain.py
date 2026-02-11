@@ -20,12 +20,9 @@ from PIL import Image
 from dotenv import load_dotenv
 
 from memory_manager import MemoryManager
-from psyche.state import PsycheState, Percept
-from psyche.pillars import AttachmentState, ContinuityState, IdentityState, ProjectionState
-from psyche.reaction import react
+from psyche.orchestrator import PsycheOrchestrator
+from psyche.state import Percept
 from psyche.memory_link import recall_with_mood
-from psyche.fear import compute_fear_index
-from psyche import attachment_manager, identity_manager, continuity_manager, projection_manager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -92,9 +89,11 @@ class CyreneBrain:
         self._chat = self._create_chat()
         logger.info(f"Gemini model ready ({self._model_name})")
 
-        # Psyche (psychological state tracker)
+        # Psyche (psychological state tracker) — all modules via orchestrator
         self._last_psyche_update = time.monotonic()
-        self._init_psyche()
+        self._orchestrator = PsycheOrchestrator(
+            memory_count=len(self._memory._memories),
+        )
 
     async def _embed_text(self, text: str) -> list[float]:
         """
@@ -172,16 +171,12 @@ class CyreneBrain:
                 await self._memory.add_memory(summary, keywords, importance)
                 logger.info(f"Memory saved: {summary}")
 
-                # Update continuity pillar with new memory count
-                if self._psyche.continuity is not None:
-                    self._psyche = self._psyche.model_copy(update={
-                        "continuity": self._psyche.continuity.model_copy(
-                            update={
-                                "memory_count": len(self._memory._memories),
-                            }
-                        ),
-                    })
-                    self._recompute_fear()
+                # Notify orchestrator of memory save
+                self._orchestrator.on_memory_saved(
+                    summary=summary,
+                    keywords=keywords,
+                    memory_count=len(self._memory._memories),
+                )
             else:
                 logger.warning("Empty summary from Gemini parse")
 
@@ -212,81 +207,10 @@ class CyreneBrain:
         logger.info(f"Loaded persona from {identity_path}")
         return persona_text
 
-    def _init_psyche(self):
-        """Initialize the psychological state with four pillars and fear index."""
-        identity = IdentityState(
-            core_traits=["romantic", "sweet", "playful", "caring", "confident"],
-            trait_confidence={
-                "romantic": 0.9,
-                "sweet": 0.9,
-                "playful": 0.8,
-                "caring": 0.9,
-                "confident": 0.8,
-            },
-        )
-        attachment = AttachmentState()
-        continuity = ContinuityState(
-            memory_count=len(self._memory._memories),
-        )
-        projection = ProjectionState(
-            goals=[{
-                "id": "entertain",
-                "description": "視聴者を楽しませる",
-                "progress": 0.1,
-                "status": "active",
-            }],
-        )
-
-        fear = compute_fear_index(
-            identity_risk=identity_manager.calc_identity_risk(identity),
-            attachment_risk=attachment_manager.calc_attachment_risk(attachment),
-            continuity_risk=continuity_manager.calc_continuity_risk(
-                memory_count=continuity.memory_count,
-            ),
-            projection_risk=projection_manager.calc_projection_risk(projection),
-        )
-
-        self._psyche = PsycheState(
-            identity=identity,
-            attachment=attachment,
-            continuity=continuity,
-            projection=projection,
-            fear_index=fear,
-        )
-        logger.info(
-            f"Psyche initialized: fear={fear.value:.2f}, "
-            f"dominant_fear={fear.dominant_fear}"
-        )
-
-    def _format_psyche_for_prompt(self) -> str:
-        """Generate the 【心理状態】 section string for the Gemini prompt."""
-        p = self._psyche
-        lines = [
-            "【心理状態（内面）】",
-            f"感情: {p.emotion_summary()}",
-            f"ムード: valence={p.mood.valence:.2f}, arousal={p.mood.arousal:.2f}",
-            f"ドライブ: social={p.drives.social:.2f}, "
-            f"curiosity={p.drives.curiosity:.2f}, "
-            f"expression={p.drives.expression:.2f}",
-            p.fear_summary(),
-        ]
-        if p.dominant_emotion_value > 0.3:
-            lines.append(
-                f"支配的感情: {p.dominant_emotion} "
-                f"({p.dominant_emotion_value:.2f})"
-            )
-        lines.append(
-            "この内面状態を自然に反映した反応をしてください。"
-            "機械的に読み上げないこと。"
-        )
-        return "\n".join(lines)
-
     def _update_psyche(self, response_text: str, vision_summary: str = ""):
         """
         Update psyche state from Gemini's response emotion tag.
-
-        Extracts [happy] etc. from the response, converts to a Percept,
-        runs react(), updates attachment bond, and recomputes fear.
+        Delegates to PsycheOrchestrator for full pipeline execution.
         """
         # Extract emotion tag like [happy] from response
         m = re.match(r"\[(\w+)\]", response_text)
@@ -307,47 +231,8 @@ class CyreneBrain:
         delta = now - self._last_psyche_update
         self._last_psyche_update = now
 
-        # React: emotion update, decay, drive shift, mood drift
-        self._psyche = react(percept, self._psyche, delta_time=delta)
-
-        # Update attachment: every interaction is a positive bond event
-        if self._psyche.attachment is not None:
-            self._psyche = self._psyche.model_copy(update={
-                "attachment": attachment_manager.update_bond(
-                    self._psyche.attachment, "viewer", "positive", abs(valence)
-                ),
-            })
-
-        # Recompute fear from updated pillars
-        self._recompute_fear()
-
-        logger.info(
-            f"Psyche updated: emotion={tag}, valence={valence:.1f}, "
-            f"mood={self._psyche.mood.valence:.2f}, "
-            f"fear={self._psyche.fear_level:.2f}"
-        )
-
-    def _recompute_fear(self):
-        """Recompute fear index from current pillar states."""
-        p = self._psyche
-        fear = compute_fear_index(
-            identity_risk=(
-                identity_manager.calc_identity_risk(p.identity)
-                if p.identity else 0.0
-            ),
-            attachment_risk=(
-                attachment_manager.calc_attachment_risk(p.attachment)
-                if p.attachment else 0.7
-            ),
-            continuity_risk=continuity_manager.calc_continuity_risk(
-                memory_count=p.continuity.memory_count if p.continuity else 0,
-            ),
-            projection_risk=(
-                projection_manager.calc_projection_risk(p.projection)
-                if p.projection else 0.7
-            ),
-        )
-        self._psyche = self._psyche.model_copy(update={"fear_index": fear})
+        # Delegate to orchestrator (runs all psyche phases)
+        self._orchestrator.post_response_update(percept, delta, "viewer")
 
     async def _build_prompt(self, vision_summary: str = "") -> str:
         """
@@ -373,15 +258,23 @@ class CyreneBrain:
         # Recall related long-term memories (mood-congruent bias)
         recall_percept = Percept(text=recall_query)
         memories = await recall_with_mood(
-            recall_percept, self._psyche, self._memory, top_k=3
+            recall_percept, self._orchestrator.psyche, self._memory, top_k=3
         )
         if memories:
             lines = [f"- [{m['date'][:10]}] {m['summary']}" for m in memories]
             memory_block = "\n".join(lines)
             parts.append(f"\n【過去の思い出】\n{memory_block}")
 
-        # Psyche state section
-        parts.append(f"\n{self._format_psyche_for_prompt()}")
+        # Psyche state section (full enrichment from orchestrator)
+        parts.append(f"\n{self._orchestrator.get_prompt_enrichment()}")
+
+        # Policy suggestions section
+        policy_percept = Percept(text=recall_query)
+        policy_text = self._orchestrator.get_policy_suggestions(
+            policy_percept, memories or [],
+        )
+        if policy_text:
+            parts.append(f"\n{policy_text}")
 
         if vision_summary:
             parts.append(f"""

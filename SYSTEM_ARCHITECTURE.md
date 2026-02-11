@@ -1,8 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-総コード行数: ~67,800行
-総テスト数: 2,035テスト
+更新日: 2026-02-11
+総コード行数: ~69,500行
+総テスト数: 2,075テスト
 
 ---
 
@@ -65,11 +66,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 50 | 34,156 | 心理システム本体 |
-| tests/ | 39 | 26,422 | 自動テストコード |
+| psyche/ | 51 | 35,356 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 40 | 26,922 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
-| ルート | 4 | 1,686 | コアシステム |
-| **合計** | **107** | **64,854** | |
+| ルート | 4 | 1,586 | コアシステム |
+| **合計** | **109** | **66,454** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -127,12 +128,13 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
+| 41 | orchestrator.py | ~1,200 | 40 | 統合 | 全モジュール統合管理（PsycheOrchestrator） |
 
 ### 2.3 コアシステムファイル
 
 | ファイル | 行数 | 主要クラス/関数 | 説明 |
 |---------|------|----------------|------|
-| brain.py | 592 | CyreneBrain | Gemini API連携・思考生成 |
+| brain.py | 486 | CyreneBrain | Gemini API連携・思考生成（PsycheOrchestrator委譲） |
 | voice.py | 437 | VoiceClient | Style-Bert-VITS2連携 |
 | vision.py | 393 | GameCapture, HybridEye | 画面キャプチャ・分析 |
 | main.py | 264 | main() | メインループ制御 |
@@ -458,6 +460,43 @@ Psyche初期化詳細:
 ---
 
 ## 4. Psycheシステム詳細
+
+### 4.0 PsycheOrchestrator (orchestrator.py) — 全モジュール統合管理
+
+brain.py からは `PsycheOrchestrator` のみを参照し、全51モジュールを一元管理する。
+
+```
+実行モデル:
+┌────────────────────────────────────────────────────────────────┐
+│ 毎ティック (Phase 1-7):                                         │
+│   react_with_stm → dynamics → attachment → responsibility      │
+│   → self_reference → repeated_tendency → fear_recompute        │
+│                                                                 │
+│ 3ティック毎 (Phase 8-14):                                       │
+│   tendency_awareness → self_model → proto_goal_vector           │
+│   → goal_candidates → transient_goal → scoped_goal             │
+│   → intrinsic_motivation                                        │
+│                                                                 │
+│ 5ティック毎 (Phase 15-26):                                      │
+│   temporal_diff → strain → self_image → coherence               │
+│   → narrative → episodic → binding → introspection              │
+│   → consumption → expectation → other_model → value_orientation │
+│                                                                 │
+│ 10ティック毎 (Phase 27-29):                                     │
+│   stability_valve → long_term_dynamics → snapshot               │
+│                                                                 │
+│ プロンプト生成前 (Phase 30-35):                                  │
+│   thought → decision_bias → tone → context_sensitivity          │
+│   → silence_hesitation → stability_valve (bias)                 │
+└────────────────────────────────────────────────────────────────┘
+
+brain.py との接続:
+  _init_psyche()           → PsycheOrchestrator(memory_count=...)
+  _update_psyche()         → orchestrator.post_response_update(percept, delta, user_id)
+  _format_psyche_for_prompt() → orchestrator.get_prompt_enrichment()
+  _build_prompt()          → + orchestrator.get_policy_suggestions(percept, memories)
+  summarize_and_save()     → orchestrator.on_memory_saved(summary, keywords, count)
+```
 
 ### 4.1 状態管理層
 
@@ -2500,11 +2539,12 @@ TendencyAwareness (傾向の自己認知):
 │  │         ├─ 画像分析依頼                                             │   │
 │  │         ├─ センサー情報 (vision_summary)                            │   │
 │  │         ├─ 関連記憶検索 (recall_with_mood, top_k=3)                 │   │
-│  │         ├─ 心理状態 (_format_psyche_for_prompt)                     │   │
-│  │         │   ├─ 感情サマリー                                         │   │
-│  │         │   ├─ ムード (valence, arousal)                            │   │
-│  │         │   ├─ ドライブ (social, curiosity, expression)             │   │
-│  │         │   └─ 恐怖サマリー                                         │   │
+│  │         ├─ 心理状態 (orchestrator.get_prompt_enrichment())          │   │
+│  │         │   ├─ 【心理状態（内面）】感情・ムード・ドライブ・恐怖     │   │
+│  │         │   ├─ 【自己認識】自己像・一貫性・傾向・変化               │   │
+│  │         │   └─ 【動機・目標】動機・目標候補・期待                   │   │
+│  │         ├─ 行動方針候補 (orchestrator.get_policy_suggestions())     │   │
+│  │         │   └─ 【行動方針候補】トップ3方針+スコア+トーン            │   │
 │  │         └─ 感情タグルール                                           │   │
 │  │                                                                     │   │
 │  │   [2.2] Gemini API呼び出し                                          │   │

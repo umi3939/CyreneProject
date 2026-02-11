@@ -968,6 +968,9 @@ from . import continuity_manager
 from . import identity_manager
 from . import projection_manager
 
+# Orchestrator (全モジュール統合管理)
+from .orchestrator import PsycheOrchestrator
+
 __all__ = [
     # Data models
     "PsycheState", "Percept", "EmotionVector", "DriveVector", "Mood",
@@ -1306,4 +1309,6 @@ __all__ = [
     "verify_motive_no_decision_impact", "verify_motive_no_goal_generation",
     "verify_motive_read_only_principle", "verify_motive_no_value_modification",
     "verify_no_motivation_prescription",
+    # Orchestrator (全モジュール統合管理)
+    "PsycheOrchestrator",
 ]

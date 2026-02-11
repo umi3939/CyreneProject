@@ -47,6 +47,16 @@ PERCEPTION_SYSTEM_PROMPT: str = """\
 }
 """
 
+VISION_SYSTEM_PROMPT: str = """\
+あなたは画面記述エンジンです。
+与えられたスクリーンショットの内容を客観的に記述してください。
+
+【厳守ルール】
+- 判断・感情・解釈を加えないこと
+- 何が映っているか、テキスト、UI要素、場面を事実として記述すること
+- 出力は日本語の自然な文章で、200文字以内に収めること
+"""
+
 EXPRESSION_SYSTEM_PROMPT: str = """\
 あなたは発話レンダラです。
 
@@ -143,6 +153,61 @@ async def llm_call_streaming(
             logger.warning("llm_call_streaming failed: %s", e)
 
     yield json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+
+
+async def llm_call_with_image(
+    system_prompt: str,
+    user_prompt: str,
+    image: Any,  # PIL.Image
+    params: dict[str, Any] | None = None,
+) -> str:
+    """Send *user_prompt* + *image* with a *system_prompt* to Gemini (multimodal)."""
+    params = params or {}
+    api_key = os.getenv("LLM_API_KEY") or os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        return json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+
+    last_error: Exception | None = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=api_key)
+
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=params.get("temperature", 0.3),
+                max_output_tokens=params.get("max_tokens", 256),
+            )
+
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=params.get("model", DEFAULT_MODEL),
+                    contents=[user_prompt, image],
+                    config=config,
+                ),
+                timeout=params.get("timeout", DEFAULT_TIMEOUT),
+            )
+
+            if response and response.text:
+                text = response.text.strip()
+                return filter_forbidden(text)
+
+        except asyncio.TimeoutError:
+            logger.warning("llm_call_with_image timeout (attempt %d/%d)", attempt + 1, MAX_RETRIES)
+            last_error = TimeoutError("LLM image call timed out")
+        except Exception as e:
+            logger.warning("llm_call_with_image error (attempt %d/%d): %s", attempt + 1, MAX_RETRIES, e)
+            last_error = e
+
+        if attempt < MAX_RETRIES - 1:
+            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+
+    logger.error("llm_call_with_image failed after %d retries: %s", MAX_RETRIES, last_error)
+    return json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
 
 
 # ── Internal ───────────────────────────────────────────────────

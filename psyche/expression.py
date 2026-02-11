@@ -32,6 +32,8 @@ async def render_expression(
     memory_snippet: list[dict],
     persona: dict[str, Any],
     llm_call_fn: Callable[..., Awaitable[str]],
+    screen_context: str = "",
+    recent_history: list[str] | None = None,
 ) -> dict[str, Any]:
     """Render final response using Gemini as voice only.
 
@@ -41,7 +43,11 @@ async def render_expression(
 
     Returns ``{"text": str, "meta": {"emotion": str, "intensity": float, "action": str}}``.
     """
-    user_prompt = _build_render_prompt(state, policy, memory_snippet, persona)
+    user_prompt = _build_render_prompt(
+        state, policy, memory_snippet, persona,
+        screen_context=screen_context,
+        recent_history=recent_history,
+    )
 
     try:
         # Import system prompt from llm_wrapper
@@ -59,6 +65,8 @@ def _build_render_prompt(
     policy: dict[str, Any],
     memory_snippet: list[dict],
     persona: dict[str, Any],
+    screen_context: str = "",
+    recent_history: list[str] | None = None,
 ) -> str:
     """Build the user-facing prompt for expression rendering."""
     mem_text = ""
@@ -71,6 +79,10 @@ def _build_render_prompt(
     prohibitions = persona.get("style_rules", {}).get("禁止", [])
     recommendations = persona.get("style_rules", {}).get("推奨", [])
 
+    formatted_history = ""
+    if recent_history:
+        formatted_history = "\n".join(recent_history[-5:])
+
     return f"""以下の確定済み情報に基づいてセリフをJSON形式で出力してください。
 
 【確定済み情報（変更禁止）】
@@ -81,6 +93,12 @@ def _build_render_prompt(
 全体感情: {state.emotion_summary()}
 気分: valence={state.mood.valence:.2f}, arousal={state.mood.arousal:.2f}
 喪失恐怖: {state.fear_summary()}
+
+【画面の状況】
+{screen_context or "(画面情報なし)"}
+
+【直近の会話】
+{formatted_history or "(なし)"}
 
 【関連記憶（参考）】
 {mem_text or "(なし)"}

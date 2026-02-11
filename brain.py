@@ -23,6 +23,10 @@ from memory_manager import MemoryManager
 from psyche.orchestrator import PsycheOrchestrator
 from psyche.state import Percept
 from psyche.memory_link import recall_with_mood
+from psyche.perception import parse_percept
+from psyche.expression import render_expression
+from psyche.silence_hesitation import is_silence_policy
+from src.llm_wrapper import llm_call, llm_call_with_image, VISION_SYSTEM_PROMPT
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -94,6 +98,14 @@ class CyreneBrain:
         self._orchestrator = PsycheOrchestrator(
             memory_count=len(self._memory._memories),
         )
+
+        # 2-call structure support
+        self._persona_dict = self._build_persona_dict()
+        self._last_emotion: str = "neutral"
+        self._perception_config: dict = {
+            "temperature": 0.3,
+            "max_tokens": 256,
+        }
 
     async def _embed_text(self, text: str) -> list[float]:
         """
@@ -237,6 +249,20 @@ class CyreneBrain:
         # Delegate to orchestrator (runs all psyche phases)
         self._orchestrator.post_response_update(percept, delta, "viewer")
 
+    @property
+    def last_emotion(self) -> str:
+        return self._last_emotion
+
+    def _build_persona_dict(self) -> dict:
+        return {
+            "name": "キュレネ",
+            "tone": "romantic, sweet, playful",
+            "style_rules": {
+                "禁止": ["敬語", "絵文字", "行動描写", "説明的な回答"],
+                "推奨": ["♪♡使用可", "い抜き言葉", "カジュアルなタメ口", "ロマンチック"],
+            },
+        }
+
     async def _build_prompt(self, vision_summary: str = "") -> str:
         """
         Build the prompt for screen reaction.
@@ -313,8 +339,8 @@ class CyreneBrain:
         vision_summary: str = ""
     ) -> Optional[str]:
         """
-        Analyze screen image and generate a response.
-        Returns None if AI decides to stay silent (PASS).
+        2-call structure (non-streaming version).
+        Returns None if psyche decides silence.
 
         Args:
             image_path: Path to JPEG image file.
@@ -323,34 +349,74 @@ class CyreneBrain:
         Returns:
             Generated text in Cyrene's voice, or None for silence.
         """
-        prompt = await self._build_prompt(vision_summary)
-
         try:
-            # Load image directly with PIL (no file upload needed)
             image_file = Path(image_path)
             if not image_file.exists():
                 raise FileNotFoundError(f"Image not found: {image_path}")
-
             image = Image.open(image_file)
 
-            # Send message via chat session (retains conversation history)
-            response = await self._chat.send_message([prompt, image])
+            # Phase 1: Perception
+            perception_prompt = "この画面の内容を客観的に記述してください。"
+            if vision_summary:
+                perception_prompt += f"\n\n参考センサー情報:\n{vision_summary}"
 
-            if response and response.text:
-                result = response.text.strip()
+            screen_description = await llm_call_with_image(
+                VISION_SYSTEM_PROMPT,
+                perception_prompt,
+                image,
+                self._perception_config,
+            )
 
-                # Check for PASS (AI wants to stay silent)
-                if result.upper() == "PASS":
-                    logger.info("AI chose silence (PASS)")
-                    return None
+            # Phase 2: Parse
+            percept = await parse_percept(screen_description)
 
-                # Update psyche from response emotion tag
-                self._update_psyche(result, vision_summary)
+            # Phase 3: Psyche update
+            now = time.monotonic()
+            delta = now - self._last_psyche_update
+            self._last_psyche_update = now
+            self._orchestrator.post_response_update(percept, delta, "viewer")
 
-                return result
-            else:
-                logger.warning("Empty response from Gemini")
+            # Phase 4: Recall
+            recall_query = screen_description
+            if self._last_response:
+                recall_query += " " + self._last_response
+            recall_percept = Percept(text=recall_query)
+            memories = await recall_with_mood(
+                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+            )
+
+            # Phase 5: Policy
+            policy = self._orchestrator.select_policy_dict(
+                percept, memories or [], "viewer"
+            )
+
+            # Phase 6: Silence check
+            if is_silence_policy(policy):
+                logger.info("Psyche chose silence")
                 return None
+
+            # Phase 7: Expression
+            self._last_emotion = percept.emotion or "neutral"
+            expr_result = await render_expression(
+                state=self._orchestrator.psyche,
+                policy=policy,
+                memory_snippet=memories or [],
+                persona=self._persona_dict,
+                llm_call_fn=llm_call,
+                screen_context=screen_description,
+                recent_history=self._conversation_log[-5:],
+            )
+            full_text = expr_result.get("text", "")
+            meta = expr_result.get("meta", {})
+
+            if not full_text:
+                return None
+
+            if meta.get("emotion"):
+                self._last_emotion = meta["emotion"]
+
+            self._last_response = full_text
+            return full_text
 
         except Exception as e:
             logger.error(f"Think failed: {e}")
@@ -362,39 +428,105 @@ class CyreneBrain:
         vision_summary: str = ""
     ) -> AsyncGenerator[str, None]:
         """
-        Analyze screen image and generate a response, then yield sentences.
+        2-call structure: perception → psyche → expression.
 
-        Args:
-            image_path: Path to JPEG image file.
-            vision_summary: Formatted sensor data from HybridEye (YOLO + OCR).
+        Phase 1: Gemini vision call (image → screen description text)
+        Phase 2: parse_percept (text → structured Percept)
+        Phase 3: orchestrator.post_response_update (psyche full pipeline)
+        Phase 4: recall_with_mood (memory search)
+        Phase 5: select_policy_dict (policy selection)
+        Phase 6: is_silence_policy check → silence → return
+        Phase 7: render_expression (expression call)
+        Phase 8: sentence split + yield
+        Phase 9: log + periodic memory save
 
         Yields:
             Complete sentences only.
         """
         self._turn_count += 1
-        prompt = await self._build_prompt(vision_summary)
 
         try:
-            # Load image directly with PIL (no file upload needed)
+            # Load image
             image_file = Path(image_path)
             if not image_file.exists():
                 raise FileNotFoundError(f"Image not found: {image_path}")
-
             image = Image.open(image_file)
 
-            # === STEP 1: Get FULL response via chat session ===
-            logger.info("Requesting response from Gemini...")
-            response = await self._chat.send_message([prompt, image])
+            # === Phase 1: Gemini perception call ===
+            perception_prompt = "この画面の内容を客観的に記述してください。"
+            if vision_summary:
+                perception_prompt += f"\n\n参考センサー情報:\n{vision_summary}"
 
-            # Extract full text
-            if not response or not response.text:
-                logger.warning("Empty response from Gemini")
+            screen_description = await llm_call_with_image(
+                VISION_SYSTEM_PROMPT,
+                perception_prompt,
+                image,
+                self._perception_config,
+            )
+            logger.info(f"Perception: {screen_description}")
+
+            # === Phase 2: parse_percept ===
+            percept = await parse_percept(screen_description)
+            logger.info(
+                f"Percept: emotion={percept.emotion}, intent={percept.intent}, "
+                f"topics={percept.topics}"
+            )
+
+            # === Phase 3: psyche update ===
+            now = time.monotonic()
+            delta = now - self._last_psyche_update
+            self._last_psyche_update = now
+            self._orchestrator.post_response_update(percept, delta, "viewer")
+            logger.info("Psyche tick %d complete", self._orchestrator.tick_count)
+
+            # === Phase 4: recall memories ===
+            recall_query = screen_description
+            if self._last_response:
+                recall_query += " " + self._last_response
+            recall_percept = Percept(text=recall_query)
+            memories = await recall_with_mood(
+                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+            )
+
+            # === Phase 5: select policy ===
+            policy = self._orchestrator.select_policy_dict(
+                percept, memories or [], "viewer"
+            )
+            logger.info(
+                f"Policy: {policy.get('policy_label', '?')} "
+                f"(score={policy.get('_score', 0):.2f})"
+            )
+
+            # === Phase 6: silence check ===
+            if is_silence_policy(policy):
+                logger.info("Psyche chose silence: %s", policy.get("rationale", ""))
                 return
 
-            full_text = response.text.strip()
-            logger.info(f"Full response: {full_text}")
+            # === Phase 7: render expression ===
+            self._last_emotion = percept.emotion or "neutral"
+            expr_result = await render_expression(
+                state=self._orchestrator.psyche,
+                policy=policy,
+                memory_snippet=memories or [],
+                persona=self._persona_dict,
+                llm_call_fn=llm_call,
+                screen_context=screen_description,
+                recent_history=self._conversation_log[-5:],
+            )
+            full_text = expr_result.get("text", "")
+            meta = expr_result.get("meta", {})
 
-            # Record to self-managed conversation log
+            if not full_text:
+                logger.warning("Empty expression result")
+                return
+
+            logger.info(f"Expression: {full_text}")
+
+            # Update last_emotion from meta if available
+            if meta.get("emotion"):
+                self._last_emotion = meta["emotion"]
+
+            # Record to conversation log
             if vision_summary:
                 self._conversation_log.append(
                     f"[画面情報] {vision_summary[:200]}"
@@ -402,16 +534,7 @@ class CyreneBrain:
             self._conversation_log.append(f"[キュレネ] {full_text}")
             self._last_response = full_text
 
-            # Check for PASS
-            if full_text.upper() == "PASS":
-                logger.info("AI chose silence (PASS)")
-                return
-
-            # Update psyche from response emotion tag
-            self._update_psyche(full_text, vision_summary)
-
-            # === STEP 2: Split into sentences ===
-            # Terminators: 。！？!?\n
+            # === Phase 8: Split into sentences + yield ===
             sentences = []
             current = ""
 
@@ -423,7 +546,6 @@ class CyreneBrain:
                         sentences.append(sentence)
                     current = ""
                 elif char == 'w':
-                    # Treat trailing w/ww/www as delimiter only after Japanese text
                     next_char = full_text[i + 1] if i + 1 < len(full_text) else None
                     if next_char != 'w':
                         pre_w = current.rstrip('w')
@@ -433,18 +555,16 @@ class CyreneBrain:
                                 sentences.append(sentence)
                             current = ""
 
-            # Add remaining text (if any)
             if current.strip():
                 sentences.append(current.strip())
 
             logger.info(f"Split into {len(sentences)} sentence(s)")
 
-            # === STEP 3: Yield each complete sentence ===
             for i, sentence in enumerate(sentences):
                 logger.info(f"[{i+1}/{len(sentences)}] Yielding: {sentence}")
                 yield sentence
 
-            # === STEP 4: Periodic memory save (every 5 turns) ===
+            # === Phase 9: Periodic memory save ===
             if self._turn_count % 5 == 0:
                 logger.info("Periodic memory save triggered")
                 await self.summarize_and_save()

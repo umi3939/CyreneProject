@@ -939,24 +939,13 @@ class PsycheOrchestrator:
 
     # ── Policy suggestions ────────────────────────────────────────
 
-    def get_policy_suggestions(
+    def _generate_final_candidates(
         self,
         percept: Percept,
         recalled_memories: list[dict],
-        user_id: str = "viewer",
-    ) -> str:
-        """行動方針候補を生成し、プロンプト用テキストとして返す。
-
-        Phase 30-35 に相当する処理を一括実行。
-
-        Args:
-            percept: 知覚入力
-            recalled_memories: 記憶検索結果
-            user_id: 視聴者ID
-
-        Returns:
-            【行動方針候補】セクションのテキスト
-        """
+        user_id: str,
+    ) -> tuple[list[dict], Any]:
+        """Phase 30-35: 候補生成+バイアス適用。candidatesとtone_modを返す。"""
         resp_influence = self._responsibility_mgr.get_influence(user_id)
 
         # Phase 31: decision_bias — STM→判断バイアス計算
@@ -1015,6 +1004,41 @@ class PsycheOrchestrator:
             )
         except Exception:
             pass
+
+        return candidates, tone_mod
+
+    def select_policy_dict(
+        self,
+        percept: Percept,
+        recalled_memories: list[dict],
+        user_id: str = "viewer",
+    ) -> dict[str, Any]:
+        """最終選択されたポリシーをdictで返す（expression.py用）。"""
+        candidates, _ = self._generate_final_candidates(percept, recalled_memories, user_id)
+        resp_influence = self._responsibility_mgr.get_influence(user_id)
+        return select_policy(candidates, self._psyche, resp_influence)
+
+    def get_policy_suggestions(
+        self,
+        percept: Percept,
+        recalled_memories: list[dict],
+        user_id: str = "viewer",
+    ) -> str:
+        """行動方針候補を生成し、プロンプト用テキストとして返す。
+
+        Phase 30-35 に相当する処理を一括実行。
+
+        Args:
+            percept: 知覚入力
+            recalled_memories: 記憶検索結果
+            user_id: 視聴者ID
+
+        Returns:
+            【行動方針候補】セクションのテキスト
+        """
+        candidates, tone_mod = self._generate_final_candidates(
+            percept, recalled_memories, user_id,
+        )
 
         # Format output
         if not candidates:

@@ -2790,10 +2790,10 @@ tests/
 | 3 | 内省の消費層 | introspection_trace, self_narrative, identity_coherenceの観測結果を「読んで自分について語る」層。内省は生成されるが消費先がない | introspection_trace, self_narrative, identity_coherence | 完了 |
 | 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 完了 |
 | 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 完了 |
-| 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 未着手 |
+| 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 完了 |
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 未着手 |
 
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~59,200行 / テスト数: 1,678*
+*総コード行数: ~64,900行 / テスト数: 1,922*

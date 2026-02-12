@@ -129,7 +129,7 @@ class ResponsibilityManager:
         new_state, decision_id = _record_decision(state, policy, context)
         self._data[user_id] = to_dict(new_state)
         self._save()
-        logger.info(
+        logger.debug(
             "Decision recorded: user=%s, policy=%s, id=%s",
             user_id, policy.get("policy_label", "unknown"), decision_id
         )
@@ -157,7 +157,7 @@ class ResponsibilityManager:
         new_state = _evaluate_outcome(state, decision_id, outcome)
         self._data[user_id] = to_dict(new_state)
         self._save()
-        logger.info(
+        logger.debug(
             "Outcome evaluated: user=%s, decision=%s, reaction=%s",
             user_id, decision_id, outcome.get("user_reaction", "unknown")
         )

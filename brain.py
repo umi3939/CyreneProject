@@ -27,7 +27,9 @@ from psyche.expression import render_expression
 from psyche.silence_hesitation import is_silence_policy
 from src.llm_wrapper import llm_call, llm_call_with_image, VISION_SYSTEM_PROMPT
 
-logging.basicConfig(level=logging.INFO)
+from src.logging_config import configure_logging
+
+configure_logging()
 logger = logging.getLogger(__name__)
 
 class CyreneBrain:
@@ -140,7 +142,7 @@ class CyreneBrain:
         """
         try:
             if len(self._conversation_log) < 2:
-                logger.info("Not enough conversation to summarize")
+                logger.debug("Not enough conversation to summarize")
                 return
 
             # Use last 10 entries from our own log
@@ -180,7 +182,7 @@ class CyreneBrain:
                     summary, "", {},
                     importance=importance,
                 )
-                logger.info(f"Memory saved: {summary}")
+                logger.debug(f"Memory saved: {summary}")
 
                 # Notify orchestrator of memory save
                 self._orchestrator.on_memory_saved(
@@ -300,7 +302,7 @@ class CyreneBrain:
 
             # Phase 6: Silence check
             if is_silence_policy(policy):
-                logger.info("Psyche chose silence")
+                logger.debug("Psyche chose silence")
                 return None
 
             # Phase 7: Expression (with psyche enrichment)
@@ -373,7 +375,7 @@ class CyreneBrain:
                 image,
                 self._perception_config,
             )
-            logger.info(f"Perception: {screen_description}")
+            logger.debug(f"Perception: {screen_description}")
 
             # === Phase 2: parse_percept (with LLM enrichment) ===
             percept = await parse_percept(
@@ -381,7 +383,7 @@ class CyreneBrain:
                 llm_call_fn=llm_call,
                 state=self._orchestrator.psyche,
             )
-            logger.info(
+            logger.debug(
                 f"Percept: emotion={percept.emotion}, intent={percept.intent}, "
                 f"topics={percept.topics}"
             )
@@ -391,7 +393,7 @@ class CyreneBrain:
             delta = now - self._last_psyche_update
             self._last_psyche_update = now
             self._orchestrator.post_response_update(percept, delta, "viewer")
-            logger.info("Psyche tick %d complete", self._orchestrator.tick_count)
+            logger.debug("Psyche tick %d complete", self._orchestrator.tick_count)
 
             # === Phase 4: recall memories ===
             recall_query = screen_description
@@ -407,14 +409,14 @@ class CyreneBrain:
             policy = self._orchestrator.select_policy_dict(
                 percept, memories or [], "viewer"
             )
-            logger.info(
+            logger.debug(
                 f"Policy: {policy.get('policy_label', '?')} "
                 f"(score={policy.get('_score', 0):.2f})"
             )
 
             # === Phase 6: silence check ===
             if is_silence_policy(policy):
-                logger.info("Psyche chose silence: %s", policy.get("rationale", ""))
+                logger.debug("Psyche chose silence: %s", policy.get("rationale", ""))
                 return
 
             # === Phase 7: render expression (with psyche enrichment) ===
@@ -437,7 +439,7 @@ class CyreneBrain:
                 logger.warning("Empty expression result")
                 return
 
-            logger.info(f"Expression: {full_text}")
+            logger.debug(f"Expression: {full_text}")
 
             # Update last_emotion from meta if available
             if meta.get("emotion"):
@@ -475,15 +477,15 @@ class CyreneBrain:
             if current.strip():
                 sentences.append(current.strip())
 
-            logger.info(f"Split into {len(sentences)} sentence(s)")
+            logger.debug(f"Split into {len(sentences)} sentence(s)")
 
             for i, sentence in enumerate(sentences):
-                logger.info(f"[{i+1}/{len(sentences)}] Yielding: {sentence}")
+                logger.debug(f"[{i+1}/{len(sentences)}] Yielding: {sentence}")
                 yield sentence
 
             # === Phase 9: Periodic memory save ===
             if self._turn_count % 5 == 0:
-                logger.info("Periodic memory save triggered")
+                logger.debug("Periodic memory save triggered")
                 await self.summarize_and_save()
 
         except Exception as e:

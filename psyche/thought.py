@@ -159,14 +159,14 @@ def select_policy(
     if responsibility_influence and responsibility_influence.caution_bias > 0.3:
         if best["policy_label"] == "からかう" and len(candidates) > 1:
             # からかうは避けて次善策を選ぶ
-            logger.info(
+            logger.debug(
                 "Responsibility caution override: %s → %s (caution=%.2f)",
                 best["policy_label"], candidates[1]["policy_label"],
                 responsibility_influence.caution_bias
             )
             best = candidates[1]
 
-    logger.info("Policy selected (LOCAL): %s (score=%.2f)", best["policy_label"], best.get("_score", 0))
+    logger.debug("Policy selected (LOCAL): %s (score=%.2f)", best["policy_label"], best.get("_score", 0))
     return best
 
 

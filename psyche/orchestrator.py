@@ -638,7 +638,7 @@ class PsycheOrchestrator:
         # Phase 7: fear recompute — 4柱リスク再計算
         self._recompute_fear()
 
-        logger.info(
+        logger.debug(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
             "dynamics=%s (accumulated=%.2f)",
             self._tick_count,
@@ -727,7 +727,7 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Intrinsic motivation skipped: %s", e)
 
-        logger.info(
+        logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
             self._tick_count,
             "ok" if self._last_self_view else "none",
@@ -902,7 +902,7 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Value orientation skipped: %s", e)
 
-        logger.info(
+        logger.debug(
             "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
             "episodes=%s, expectations=%s",
             self._tick_count,
@@ -943,7 +943,7 @@ class PsycheOrchestrator:
             logger.debug("Long-term dynamics skipped: %s", e)
 
         # Phase 29: snapshot — 永続化は save() で明示的に行う
-        logger.info(
+        logger.debug(
             "Tick %d every-10: stability_valve observed, dynamics logged",
             self._tick_count,
         )
@@ -1263,7 +1263,7 @@ class PsycheOrchestrator:
                 ),
             })
             self._recompute_fear()
-            logger.info(
+            logger.debug(
                 "Memory saved callback: count=%d, fear=%.2f",
                 memory_count, self._psyche.fear_level,
             )

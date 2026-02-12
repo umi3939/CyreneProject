@@ -36,7 +36,7 @@ def maybe_save(
     """
     should_save = importance >= 3 or is_attachment_event
     if should_save:
-        logger.info("Continuity: saving event to memory")
+        logger.debug("Continuity: saving event to memory")
         # Actual save is delegated to memory_mgr by the caller
         return True
     return False
@@ -52,7 +52,7 @@ def compress_and_cleanup(
         Number of memories compressed.
     """
     # This is a stub; actual compression logic depends on MemoryManager API
-    logger.info(f"Continuity: compress_and_cleanup (max_age={max_age_days})")
+    logger.debug(f"Continuity: compress_and_cleanup (max_age={max_age_days})")
     return 0
 
 

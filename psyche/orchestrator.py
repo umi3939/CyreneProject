@@ -294,7 +294,12 @@ from .long_term_dynamics import (
 )
 
 # Dispersion
-from .responsibility_dispersion import DispersionState, create_dispersion_state
+from .responsibility_dispersion import (
+    DispersionState,
+    create_dispersion_state,
+    to_dict as dispersion_to_dict,
+    from_dict as dispersion_from_dict,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -1275,7 +1280,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 5,
+            "version": 6,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1304,6 +1309,10 @@ class PsycheOrchestrator:
             "candidate_state": self._candidate_gen.state.to_dict(),
             "transient_goal_state": self._transient_goal_mgr.state.to_dict(),
             "stability_valve": self._stability_valve.to_dict(),
+            # Version 6 fields
+            "dispersion_state": dispersion_to_dict(self._dispersion_state),
+            "context_sensitivity_state": self._ctx_state.to_dict(),
+            "last_coupling": self._last_coupling.to_dict() if self._last_coupling else {},
         }
 
         save_path.write_text(
@@ -1386,6 +1395,14 @@ class PsycheOrchestrator:
                 self._transient_goal_mgr._state = TransientGoalState.from_dict(data["transient_goal_state"])
             if data.get("stability_valve"):
                 self._stability_valve = StabilityValve.from_dict(data["stability_valve"])
+
+            # Version 6+ fields
+            if data.get("dispersion_state"):
+                self._dispersion_state = dispersion_from_dict(data["dispersion_state"])
+            if data.get("context_sensitivity_state"):
+                self._ctx_state = ContextState.from_dict(data["context_sensitivity_state"])
+            if data.get("last_coupling"):
+                self._last_coupling = CouplingInfluence.from_dict(data["last_coupling"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

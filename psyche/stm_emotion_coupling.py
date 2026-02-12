@@ -156,6 +156,41 @@ class CouplingInfluence:
         default_factory=STMEmotionCouplingConfig
     )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dict."""
+        return {
+            "emotion_data": {
+                k: {
+                    "persistence_support": v.persistence_support,
+                    "reactivation_potential": v.reactivation_potential,
+                    "accumulation_weight": v.accumulation_weight,
+                    "supporting_entry_count": v.supporting_entry_count,
+                }
+                for k, v in self.emotion_data.items()
+            },
+            "context_continuity": self.context_continuity,
+            "is_continuous": self.is_continuous,
+            "active_entry_count": self.active_entry_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CouplingInfluence":
+        """Deserialize from dict."""
+        emotion_data = {}
+        for k, v in data.get("emotion_data", {}).items():
+            emotion_data[k] = EmotionCouplingData(
+                persistence_support=v.get("persistence_support", 0.0),
+                reactivation_potential=v.get("reactivation_potential", 0.0),
+                accumulation_weight=v.get("accumulation_weight", 0.0),
+                supporting_entry_count=v.get("supporting_entry_count", 0),
+            )
+        return cls(
+            emotion_data=emotion_data,
+            context_continuity=data.get("context_continuity", 0.0),
+            is_continuous=data.get("is_continuous", False),
+            active_entry_count=data.get("active_entry_count", 0),
+        )
+
 
 # ── Core Computation (Read-Only STM Access) ────────────────────────
 

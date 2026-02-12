@@ -3236,6 +3236,7 @@ tests/
 | 8 | 他者モデル入力供給 | other_agent_modelのexternal_context/reaction_logが常にNoneだった問題を解消。STM・dynamics・psyche状態から入力を生成しorchestrator経由で供給 | other_agent_model, short_term_memory, orchestrator | 完了 |
 | 9 | orchestrator未接続入力の配線 | Phase 19/20/33でexternal_context=None固定、Phase 21でmemories=None固定。input_supplyのContextSnapshotおよびbrain.pyのrecalled_memoriesを渡す配線が必要 | orchestrator, self_narrative, episodic_memory, emotional_memory_binding, context_sensitivity | 完了 |
 | 10 | save/load未対応モジュールの永続化 | repeated_tendency, proto_goal_vector, goal_candidates, transient_goal, stability_valveをorchestratorのsave/loadに追加。scoped_goalは設計上エフェメラルのため対象外。snapshot v4→v5 (25フィールド) | orchestrator, stability_valve | 完了 |
+| 11 | save/load v5→v6: 残り3モジュール永続化 | responsibility_dispersion, context_sensitivity, stm_emotion_couplingの3モジュールをorchestratorのsave/loadに追加。CouplingInfluenceにto_dict/from_dict新規追加。snapshot v5→v6 (28フィールド) | orchestrator, stm_emotion_coupling | 完了 |
 
 ### 8.1 未接続入力の配線 (#9) — 完了
 
@@ -3263,6 +3264,100 @@ snapshot v5 (25フィールド) で以下5モジュールの永続化を追加:
 | stability_valve | stability_valve | StabilityValve | to_dict/from_dict 新規追加 → save/load追加 |
 
 **対象外**: scoped_goal — 設計上エフェメラル（メモリ内のみ、永続化しない）
+
+### 8.3a save/load永続化対応 (#11) — 完了
+
+snapshot v6 (28フィールド) で以下3モジュールの永続化を追加:
+
+| モジュール | snapshotキー | 状態クラス | 対応内容 |
+|-----------|-------------|-----------|----------|
+| responsibility_dispersion | dispersion_state | DispersionState | to_dict/from_dict 既存（Pydantic） → save/load追加 |
+| context_sensitivity | context_sensitivity_state | ContextState | to_dict/from_dict 既存 → save/load追加 |
+| stm_emotion_coupling | last_coupling | CouplingInfluence | to_dict/from_dict 新規追加 → save/load追加 |
+
+### 8.3 全設計書 × 全実装 照合レポート — 2026-02-12
+
+設計書39本 × 実装53ファイル × orchestrator配線（Phase 1-35）を網羅照合した結果。
+
+#### 8.3.1 tick配線（入出力）: 全モジュール正常接続 ✅
+
+Phase 1-7（毎tick）、Phase 8-14（3tick毎）、Phase 15-26（5tick毎）、Phase 27-29（10tick毎）、Phase 30-35（policy生成時）
+— 全35フェーズの入力・出力は設計書通りに配線済み。ミスマッチなし。
+
+#### 8.3.2 設計書あり → 実装なし（2件）
+
+| 設計書 | 想定モジュール | 備考 |
+|--------|---------------|------|
+| design_logging_production.md | logging設定の整理 | ログは散在しているが専用モジュールなし |
+| design_long_term_simulation.md | 長期シミュレーション基盤 | 未着手 |
+
+#### 8.3.3 実装あり → 設計書なし（11件）
+
+| Python モジュール | 重要度 | 備考 |
+|-------------------|--------|------|
+| attachment_manager.py | 高 | 4柱の1つ（design_loss.md内で言及） |
+| identity_manager.py | 高 | 4柱の1つ（design_loss.md内で言及） |
+| continuity_manager.py | 高 | 4柱の1つ（design_loss.md内で言及） |
+| projection_manager.py | 高 | 4柱の1つ（design_loss.md内で言及） |
+| reaction_with_stm.py | 中 | Phase 1の中核反応処理 |
+| perception.py | 中 | brain.py 2-call構造の知覚側 |
+| expression.py | 中 | brain.py 2-call構造の代弁側 |
+| thought.py | 中 | Phase 30の候補生成 |
+| memory_link.py | 中 | brain.pyの記憶想起連携 |
+| reaction.py | 中 | 基本反応処理 |
+| snapshot.py | 低 | スナップショットデータクラス |
+
+#### 8.3.4 save/load 永続化の欠落 — 解消済み ✅
+
+v6 (28フィールド) で以下3件を追加し、全モジュールの永続化が完了:
+
+| モジュール | 状態クラス | 対応 |
+|-----------|-----------|------|
+| responsibility_dispersion | DispersionState | v6で追加 ✅ |
+| context_sensitivity | ContextState | v6で追加 ✅ |
+| stm_emotion_coupling | CouplingInfluence | v6で追加（to_dict/from_dict新規実装） ✅ |
+
+※ responsibility_manager / long_term_dynamics は別途JSONファイルに自力永続化済み
+※ scoped_goal は設計上エフェメラルのため対象外
+
+#### 8.3.5 get_prompt_enrichment() 未含データ（13件）
+
+Geminiへの心理コンテキスト注入（4セクション構造）に含まれていない状態:
+
+| 未含データ | 影響 |
+|-----------|------|
+| responsibility（責任の重さ・caution_bias） | 応答トーンに影響すべき |
+| responsibility_dispersion（責任拡散状態） | 責任の拡散・昇華状態 |
+| scoped_goal（現在のスコープ目標） | 行動方向の文脈 |
+| transient_goal（一時目標） | 目標の文脈 |
+| proto_goal_vector（方向ベクトル） | 方向性の文脈 |
+| stability_valve（安定弁の状態） | 極端回避の文脈 |
+| introspection_trace（内省ログ） | 内省の直接参照 |
+| long_term_dynamics（長期傾向） | 長期パターン |
+| decision_bias | 判断バイアスの文脈 |
+| stm_emotion_coupling | 感情結合状態 |
+| tone modifier | トーン推奨 |
+| context_sensitivity state | 空気読み状態 |
+| silence/hesitation state | 沈黙傾向 |
+
+※ これらの一部はpolicy suggestion（Phase 30-35）で候補スコアに反映されているが、enrichmentテキストには含まれていない
+
+#### 8.3.6 命名の不整合 — 解消済み ✅
+
+| ファイル | 対応 |
+|---------|------|
+| SELF_NARRATIVE_DESIGN.md → design_self_narrative.md | リネーム完了 ✅ |
+
+#### 8.3.7 照合サマリ
+
+| カテゴリ | 状態 |
+|---------|------|
+| tick配線（入出力） | 35/35 ✅ |
+| 設計→実装 | 37/39 ⚠️ 2件未実装 |
+| 実装→設計 | 42/53 ⚠️ 11件設計書なし |
+| save/load | 28/28 ✅ （v6で完了） |
+| prompt enrichment | ⚠️ 13項目未含（設計判断待ち） |
+| 命名不整合 | ✅ 解消済み |
 
 ---
 

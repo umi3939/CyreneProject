@@ -3351,5 +3351,70 @@ Phase 30-35 の判断バイアス群は `_generate_final_candidates()` で計算
 
 ---
 
+## 9. 今後の実装計画（優先順）
+
+psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
+以下は「工学的自我」の実現に向けて不足している領域を、依存関係とリスクの低い順に整理したもの。
+
+### 9.1 実装順序
+
+| 順序 | 項目 | リスク | 依存 | 概要 |
+|------|------|--------|------|------|
+| ① | テスト追加（12モジュール） | ゼロ | なし | 既存コード変更なし。以降の変更のセーフティネット |
+| ② | thought.py ポリシー候補拡張 | 低 | ① | 固定6種→拡張。thought.py内完結、外部影響なし |
+| ③ | 記憶系統統合（episodic↔memory_manager） | 中 | ① | psyche内エピソード記憶とGemini長期記憶の連携 |
+| ④ | 他者モデルへのリアルフィード | 中 | ③ | input_supplyにユーザー反応の実データを配線 |
+| ⑤ | 入力経路拡充（テキスト対話） | 中〜高 | ①〜④ | main.pyループ構造変更、対話パス追加 |
+| ⑥ | 自発性の追加 | 高 | ①〜⑤ | orchestratorティックモデル変更、外部入力なしの起動 |
+| ⑦ | value_orientation 実運用検証 | 低 | ⑥ | 長期運用データでの変化観測 |
+
+### 9.2 各項目の詳細
+
+#### ① テスト追加（12モジュール）
+専用テストファイルが存在しないモジュール:
+
+| モジュール | 重要度 | 備考 |
+|-----------|--------|------|
+| perception.py | 高 | ヒューリスティック部分のテスト |
+| expression.py | 高 | フォールバック・パース部分のテスト |
+| reaction.py | 高 | 感情更新の中核ロジック |
+| reaction_with_stm.py | 高 | STM統合反応 |
+| fear.py | 中 | 4柱→fear_index計算 |
+| memory_link.py | 中 | ムードバイアス記憶検索 |
+| short_term_memory.py | 中 | STMエントリ管理・残滓計算 |
+| responsibility_manager.py | 中 | 責任状態管理 |
+| attachment_manager.py | 低 | pillar manager |
+| continuity_manager.py | 低 | pillar manager |
+| identity_manager.py | 低 | pillar manager |
+| projection_manager.py | 低 | pillar manager |
+
+#### ② thought.py ポリシー候補拡張
+現在の固定6種（共感/質問/からかう/話題変更/感想/励ます）に対し、
+38モジュール分の内面の豊かさが行動の多様性に繋がっていない問題の解消。
+
+#### ③ 記憶系統統合
+- psyche/episodic_memory.py（自己観測ベース）と src/memory_manager.py（Gemini要約ベース）が別系統
+- brain.py の recall_with_mood 周辺で統合
+
+#### ④ 他者モデルへのリアルフィード
+- other_model_input_supply.py の supply_context() にユーザー反応の実データ（発言頻度、感情トーン等）を配線
+- ③の記憶統合後のほうがデータの質が向上
+
+#### ⑤ 入力経路拡充
+- 現在は画面キャプチャ→反応の一方向のみ
+- テキスト対話（チャット入力）のパスを main.py に追加
+- src/api.py の POST /respond との統合も検討
+
+#### ⑥ 自発性の追加
+- 現在は受動ループのみ（外部入力→反応）
+- intrinsic_motivation / proto_goal_vector が自発的行動を起こすトリガーになっていない
+- orchestratorのティックモデル根幹に関わる最大リスク変更
+
+#### ⑦ value_orientation 実運用検証
+- ±5%（超高慣性）の価値軸変化を実運用で観測
+- tools/long_term_sim.py と実運用データの両方で検証
+
+---
+
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
 *総コード行数: ~73,939行 / テスト数: 2,131*

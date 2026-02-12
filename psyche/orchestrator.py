@@ -299,6 +299,7 @@ from .responsibility_dispersion import (
     create_dispersion_state,
     to_dict as dispersion_to_dict,
     from_dict as dispersion_from_dict,
+    get_dispersion_summary,
 )
 
 
@@ -490,6 +491,12 @@ class PsycheOrchestrator:
         # ── STM-Emotion coupling ──
         self._stm_coupling_config = STMEmotionCouplingConfig()
         self._last_coupling: Optional[CouplingInfluence] = None
+
+        # ── Phase 30-35 cached results (for enrichment) ──
+        self._last_decision_bias: Optional[DecisionBias] = None
+        self._last_tone_mod: Optional[ToneModifier] = None
+        self._last_sensitivity_bias: Optional[SensitivityBias] = None
+        self._last_has_silence: bool = False
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
@@ -982,10 +989,13 @@ class PsycheOrchestrator:
 
     # ── Prompt enrichment ─────────────────────────────────────────
 
-    def get_prompt_enrichment(self) -> str:
+    def get_prompt_enrichment(self, user_id: str = "viewer") -> str:
         """Gemini プロンプト用の心理状態テキストを生成する。
 
         brain.py の _format_psyche_for_prompt を置き換える。
+
+        Args:
+            user_id: 責任状態取得用のユーザーID
         """
         p = self._psyche
         sections: list[str] = []
@@ -1005,6 +1015,36 @@ class PsycheOrchestrator:
                 f"支配的感情: {p.dominant_emotion} "
                 f"({p.dominant_emotion_value:.2f})"
             )
+        # #1 responsibility
+        try:
+            resp_summary = self._responsibility_mgr.get_summary(user_id)
+            psyche_lines.append(
+                f"責任: weight={resp_summary['total_weight']:.2f}, "
+                f"harm={resp_summary['accumulated_harm']:.2f}, "
+                f"caution={resp_summary['influence']['caution_bias']:.2f}, "
+                f"empathy={resp_summary['influence']['empathy_bias']:.2f}"
+            )
+        except Exception:
+            pass
+        # #2 responsibility_dispersion
+        if self._dispersion_state is not None:
+            disp_summary = get_dispersion_summary(self._dispersion_state)
+            if disp_summary:
+                psyche_lines.append(f"責任拡散: {disp_summary}")
+        # #6 stability_valve
+        try:
+            valve_bias = self._stability_valve.generate_bias()
+            if valve_bias.is_active:
+                psyche_lines.append(
+                    f"安定弁: active, level={valve_bias.activation_level:.2f}"
+                )
+        except Exception:
+            pass
+        # #10 stm_emotion_coupling
+        if self._last_coupling is not None:
+            coupling_str = get_coupling_summary(self._last_coupling)
+            if coupling_str:
+                psyche_lines.append(f"感情連動: {coupling_str}")
         sections.append("\n".join(psyche_lines))
 
         # ── 【自己認識】 ──
@@ -1033,6 +1073,11 @@ class PsycheOrchestrator:
             narr_summary = get_narrative_summary(self._last_narrative)
             if narr_summary:
                 self_lines.append(f"自己語り: {narr_summary}")
+        # #8 long_term_dynamics
+        if self._dynamics_observer is not None:
+            ltd_summary = get_observer_summary(self._dynamics_observer)
+            if ltd_summary:
+                self_lines.append(f"長期傾向: {ltd_summary}")
         if len(self_lines) > 1:
             sections.append("\n".join(self_lines))
 
@@ -1055,6 +1100,32 @@ class PsycheOrchestrator:
             exp_summary = get_expectation_summary(self._last_expectations)
             if exp_summary:
                 motive_lines.append(f"期待: {exp_summary}")
+        # #3 scoped_goal
+        if self._scoped_goal_sys is not None:
+            sg_summary = get_scoped_goal_summary(self._scoped_goal_sys)
+            if sg_summary and sg_summary.get("has_active_scope"):
+                scope = sg_summary.get("current_scope", {})
+                motive_lines.append(
+                    f"スコープ目標: {scope.get('category', '?')} "
+                    f"(strength={scope.get('strength', 0):.2f})"
+                )
+        # #4 transient_goal
+        if self._transient_goal_mgr is not None:
+            tg_summary = get_transient_goal_summary(self._transient_goal_mgr)
+            if tg_summary and tg_summary.get("has_active_goal"):
+                goal = tg_summary.get("active_goal", {})
+                motive_lines.append(
+                    f"一時目標: {goal.get('category', '?')} "
+                    f"(strength={goal.get('strength', 0):.2f})"
+                )
+        # #5 proto_goal_vector
+        if self._vector_gen is not None:
+            vec_summary = get_vector_summary(self._vector_gen)
+            if vec_summary and vec_summary.get("vector_count", 0) > 0:
+                motive_lines.append(
+                    f"方向ベクトル: {vec_summary['vector_count']}本, "
+                    f"最強={vec_summary['strongest_magnitude']:.2f}"
+                )
         if len(motive_lines) > 1:
             sections.append("\n".join(motive_lines))
 
@@ -1076,8 +1147,40 @@ class PsycheOrchestrator:
             other_summary = get_other_model_summary(self._last_other_model)
             if other_summary:
                 memory_lines.append(f"他者モデル: {other_summary}")
+        # #7 introspection_trace
+        if self._last_trace is not None:
+            trace_str = get_trace_summary(self._last_trace)
+            if trace_str:
+                memory_lines.append(f"内省: {trace_str}")
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
+
+        # ── 【判断傾向】 ── (Phase 30-35 cached)
+        bias_lines = ["【判断傾向】"]
+        # #9 decision_bias
+        if self._last_decision_bias is not None:
+            db = self._last_decision_bias
+            bias_lines.append(
+                f"判断バイアス: phase={db.dynamics_phase.value}, "
+                f"valence={db.valence_bias:.2f}"
+            )
+        # #11 tone modifier
+        if self._last_tone_mod is not None:
+            bias_lines.append(
+                f"トーン推奨: {self._last_tone_mod.recommended.value}"
+            )
+        # #12 context_sensitivity
+        if self._last_sensitivity_bias is not None:
+            sb = self._last_sensitivity_bias
+            if sb.caution_level > 0.5:
+                bias_lines.append(
+                    f"空気読み: caution={sb.caution_level:.2f}"
+                )
+        # #13 silence/hesitation
+        if self._last_has_silence:
+            bias_lines.append("沈黙傾向: あり")
+        if len(bias_lines) > 1:
+            sections.append("\n".join(bias_lines))
 
         # Footer
         sections.append(
@@ -1161,6 +1264,14 @@ class PsycheOrchestrator:
             )
         except Exception:
             pass
+
+        # Cache Phase 30-35 results for enrichment
+        self._last_decision_bias = decision_bias
+        self._last_tone_mod = tone_mod
+        self._last_sensitivity_bias = sensitivity_bias
+        self._last_has_silence = any(
+            c.get("policy_label") == "silence" for c in candidates
+        )
 
         return candidates, tone_mod
 

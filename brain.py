@@ -307,7 +307,7 @@ class CyreneBrain:
 
             # Phase 7: Expression (with psyche enrichment)
             self._last_emotion = percept.emotion or "neutral"
-            enrichment = self._orchestrator.get_prompt_enrichment()
+            enrichment = self._orchestrator.get_prompt_enrichment("viewer")
             expr_result = await render_expression(
                 state=self._orchestrator.psyche,
                 policy=policy,
@@ -421,7 +421,7 @@ class CyreneBrain:
 
             # === Phase 7: render expression (with psyche enrichment) ===
             self._last_emotion = percept.emotion or "neutral"
-            enrichment = self._orchestrator.get_prompt_enrichment()
+            enrichment = self._orchestrator.get_prompt_enrichment("viewer")
             expr_result = await render_expression(
                 state=self._orchestrator.psyche,
                 policy=policy,

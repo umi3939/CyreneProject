@@ -9,8 +9,8 @@ brain.py からは本クラスのみを参照すればよく、個別モジュ�
               repeated_tendency, fear_recompute
 - 3ティック毎: tendency_awareness → self_model → goals → intrinsic_motivation
 - 5ティック毎: temporal_diff → strain → self_image → coherence → narrative →
-               episodic → binding → introspection → consumption → expectation →
-               other_model → value_orientation
+               episodic → binding → memory_integration → introspection →
+               consumption → expectation → other_model → value_orientation
 - 10ティック毎: stability_valve → long_term_dynamics → snapshot
 - プロンプト生成前: thought → decision_bias → tone → context_sensitivity →
                     silence_hesitation → stability_valve (bias application)
@@ -312,6 +312,16 @@ from .policy_candidate_expansion import (
     get_expansion_summary_text,
 )
 
+# Memory system integration
+from .memory_system_integration import (
+    MemorySystemIntegrator,
+    IntegrationState,
+    IntegrationContext,
+    IntegrationResult,
+    create_integrator as create_memory_integrator,
+    get_integration_summary_text,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -505,6 +515,10 @@ class PsycheOrchestrator:
         # ── Policy candidate expansion ──
         self._policy_expander = create_policy_expander()
 
+        # ── Memory system integration ──
+        self._memory_integrator = create_memory_integrator()
+        self._last_integration_result: Optional[IntegrationResult] = None
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -513,7 +527,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=39",
+            "systems=40",
             fear.value, fear.dominant_fear,
         )
 
@@ -846,6 +860,34 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Emotional binding skipped: %s", e)
 
+        # Phase 21b: memory_system_integration — 記憶系統統合
+        try:
+            int_ctx = IntegrationContext(
+                emotions={
+                    k: getattr(self._psyche.emotions, k, 0.0)
+                    for k in ["joy", "sadness", "anger", "fear",
+                              "surprise", "disgust", "trust"]
+                },
+                mood_valence=self._psyche.mood.valence,
+                percept_topics=list(
+                    getattr(self._last_percept, 'topics', ()) or ()
+                ) if self._last_percept else [],
+                percept_text=getattr(self._last_percept, 'text', '')
+                if self._last_percept else '',
+                percept_intent=getattr(self._last_percept, 'intent', 'unknown')
+                if self._last_percept else 'unknown',
+                current_time=time.time(),
+                tick_count=self._tick_count,
+            )
+            self._last_integration_result = self._memory_integrator.integrate(
+                episodes=self._last_episodes,
+                long_term_memories=self._last_recalled_memories,
+                bindings=self._last_bindings,
+                context=int_ctx,
+            )
+        except Exception as e:
+            logger.debug("Memory integration skipped: %s", e)
+
         # Phase 22: introspection_trace — 内省ログ生成
         try:
             resp_influence = self._responsibility_mgr.get_influence(user_id)
@@ -1173,6 +1215,14 @@ class PsycheOrchestrator:
             trace_str = get_trace_summary(self._last_trace)
             if trace_str:
                 memory_lines.append(f"内省: {trace_str}")
+        # #15 memory_system_integration
+        if self._memory_integrator is not None:
+            try:
+                int_text = get_integration_summary_text(self._memory_integrator)
+                if int_text:
+                    memory_lines.append(f"記憶統合: {int_text}")
+            except Exception:
+                pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -1545,7 +1595,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 7,
+            "version": 8,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1580,6 +1630,8 @@ class PsycheOrchestrator:
             "last_coupling": self._last_coupling.to_dict() if self._last_coupling else {},
             # Version 7 fields
             "policy_expansion_state": self._policy_expander.state.to_dict() if self._policy_expander else {},
+            # Version 8 fields
+            "memory_integration_state": self._memory_integrator.state.to_dict() if self._memory_integrator else {},
         }
 
         save_path.write_text(
@@ -1674,6 +1726,10 @@ class PsycheOrchestrator:
             # Version 7+ fields
             if data.get("policy_expansion_state"):
                 self._policy_expander._state = ExpansionState.from_dict(data["policy_expansion_state"])
+
+            # Version 8+ fields
+            if data.get("memory_integration_state"):
+                self._memory_integrator._state = IntegrationState.from_dict(data["memory_integration_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

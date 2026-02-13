@@ -983,6 +983,31 @@ from .policy_candidate_expansion import (
     get_expansion_summary_text,
 )
 
+# Memory System Integration (記憶系統統合)
+from .memory_system_integration import (
+    MemorySource,
+    TemporalPhase,
+    UnifiedMemoryUnit,
+    DuplicateEntry,
+    ConflictEntry,
+    ReferenceHistoryEntry,
+    IntegrationContext,
+    IntegrationConfig,
+    IntegrationState,
+    IntegrationResult,
+    MemorySystemIntegrator,
+    create_integrator as create_memory_integrator,
+    create_config as create_integration_config,
+    get_integration_summary,
+    get_integration_summary_text,
+    normalize_episodic,
+    normalize_long_term,
+    normalize_bindings,
+    detect_duplicates,
+    detect_conflicts,
+    check_conflict_health,
+)
+
 # Other Model Input Supply (他者モデル入力供給)
 from .other_model_input_supply import (
     SupplyEntry,
@@ -1343,6 +1368,15 @@ __all__ = [
     "verify_motive_no_decision_impact", "verify_motive_no_goal_generation",
     "verify_motive_read_only_principle", "verify_motive_no_value_modification",
     "verify_no_motivation_prescription",
+    # Memory System Integration (記憶系統統合)
+    "MemorySource", "TemporalPhase",
+    "UnifiedMemoryUnit", "DuplicateEntry", "ConflictEntry", "ReferenceHistoryEntry",
+    "IntegrationContext", "IntegrationConfig", "IntegrationState", "IntegrationResult",
+    "MemorySystemIntegrator",
+    "create_memory_integrator", "create_integration_config",
+    "get_integration_summary", "get_integration_summary_text",
+    "normalize_episodic", "normalize_long_term", "normalize_bindings",
+    "detect_duplicates", "detect_conflicts", "check_conflict_health",
     # Other Model Input Supply (他者モデル入力供給)
     "SupplyEntry", "ContextSnapshot", "ReactionBufferEntry", "InputSupplyState",
     "create_input_supply", "update_input_supply",

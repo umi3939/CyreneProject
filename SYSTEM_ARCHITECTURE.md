@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-13
-総コード行数: ~73,472行
-総テスト数: 2,131テスト
+総コード行数: ~80,877行
+総テスト数: 2,806テスト
 
 ---
 
@@ -67,7 +67,7 @@
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
 | psyche/ | 52 | 35,664 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 41 | 27,252 | 自動テストコード |
+| tests/ | 53 | 37,106 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,586 | コアシステム |
 | **合計** | **111** | **67,092** | |
@@ -3216,7 +3216,16 @@ tests/
 ├── test_tone.py                   (592行)
 ├── test_transient_goal.py         (664行)
 ├── test_value_orientation.py      (599行)
-└── test_context_sensitivity.py    (704行)
+├── test_context_sensitivity.py    (704行)
+├── test_perception.py             (661行)
+├── test_expression.py             (695行)
+├── test_reaction.py               (813行)
+├── test_reaction_with_stm.py      (993行)
+├── test_fear.py                   (528行)
+├── test_memory_link.py            (598行)
+├── test_short_term_memory.py      (1061行)
+├── test_responsibility_manager.py (728行)
+└── test_pillar_managers.py        (959行)
 ```
 
 ---
@@ -3360,7 +3369,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 
 | 順序 | 項目 | リスク | 依存 | 概要 |
 |------|------|--------|------|------|
-| ① | テスト追加（12モジュール） | ゼロ | なし | 既存コード変更なし。以降の変更のセーフティネット |
+| ① | テスト追加（12モジュール） ✅完了 | ゼロ | なし | 9ファイル675テスト追加済（2,131→2,806） |
 | ② | thought.py ポリシー候補拡張 | 低 | ① | 固定6種→拡張。thought.py内完結、外部影響なし |
 | ③ | 記憶系統統合（episodic↔memory_manager） | 中 | ① | psyche内エピソード記憶とGemini長期記憶の連携 |
 | ④ | 他者モデルへのリアルフィード | 中 | ③ | input_supplyにユーザー反応の実データを配線 |
@@ -3370,23 +3379,21 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 
 ### 9.2 各項目の詳細
 
-#### ① テスト追加（12モジュール）
-専用テストファイルが存在しないモジュール:
+#### ① テスト追加（12モジュール） ✅完了
 
-| モジュール | 重要度 | 備考 |
-|-----------|--------|------|
-| perception.py | 高 | ヒューリスティック部分のテスト |
-| expression.py | 高 | フォールバック・パース部分のテスト |
-| reaction.py | 高 | 感情更新の中核ロジック |
-| reaction_with_stm.py | 高 | STM統合反応 |
-| fear.py | 中 | 4柱→fear_index計算 |
-| memory_link.py | 中 | ムードバイアス記憶検索 |
-| short_term_memory.py | 中 | STMエントリ管理・残滓計算 |
-| responsibility_manager.py | 中 | 責任状態管理 |
-| attachment_manager.py | 低 | pillar manager |
-| continuity_manager.py | 低 | pillar manager |
-| identity_manager.py | 低 | pillar manager |
-| projection_manager.py | 低 | pillar manager |
+9テストファイル・675テスト追加（2,131→2,806テスト）:
+
+| テストファイル | テスト数 | 対象モジュール |
+|---------------|---------|---------------|
+| test_perception.py | 90 | perception.py |
+| test_expression.py | 60 | expression.py |
+| test_reaction.py | 73 | reaction.py |
+| test_reaction_with_stm.py | 77 | reaction_with_stm.py |
+| test_fear.py | 53 | fear.py |
+| test_memory_link.py | 43 | memory_link.py |
+| test_short_term_memory.py | 104 | short_term_memory.py |
+| test_responsibility_manager.py | 44 | responsibility_manager.py |
+| test_pillar_managers.py | 131 | attachment/continuity/identity/projection_manager.py |
 
 #### ② thought.py ポリシー候補拡張
 現在の固定6種（共感/質問/からかう/話題変更/感想/励ます）に対し、
@@ -3417,4 +3424,4 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~73,939行 / テスト数: 2,131*
+*総コード行数: ~80,877行 / テスト数: 2,806*

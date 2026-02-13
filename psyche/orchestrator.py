@@ -302,6 +302,16 @@ from .responsibility_dispersion import (
     get_dispersion_summary,
 )
 
+# Policy candidate expansion
+from .policy_candidate_expansion import (
+    PolicyCandidateExpander,
+    ExpansionState,
+    ExpansionConfig,
+    CrossSectionInputs,
+    create_expander as create_policy_expander,
+    get_expansion_summary_text,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -492,6 +502,9 @@ class PsycheOrchestrator:
         self._stm_coupling_config = STMEmotionCouplingConfig()
         self._last_coupling: Optional[CouplingInfluence] = None
 
+        # ── Policy candidate expansion ──
+        self._policy_expander = create_policy_expander()
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -500,7 +513,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=38",
+            "systems=39",
             fear.value, fear.dominant_fear,
         )
 
@@ -1126,6 +1139,14 @@ class PsycheOrchestrator:
                     f"方向ベクトル: {vec_summary['vector_count']}本, "
                     f"最強={vec_summary['strongest_magnitude']:.2f}"
                 )
+        # #14 policy_candidate_expansion
+        if self._policy_expander is not None:
+            try:
+                exp_text = get_expansion_summary_text(self._policy_expander)
+                if exp_text:
+                    motive_lines.append(f"候補拡張: {exp_text}")
+            except Exception:
+                pass
         if len(motive_lines) > 1:
             sections.append("\n".join(motive_lines))
 
@@ -1217,6 +1238,21 @@ class PsycheOrchestrator:
             decision_bias=decision_bias,
         )
 
+        # Phase 30b: policy_candidate_expansion — 内面反映候補拡張
+        try:
+            cs_inputs = self._build_cross_section_inputs(
+                percept, recalled_memories, resp_influence, user_id,
+            )
+            expanded = self._policy_expander.expand_candidates(
+                base_candidates=candidates,
+                inputs=cs_inputs,
+            )
+            candidates.extend(expanded)
+            # 拡張後にスコア降順で再ソート
+            candidates.sort(key=lambda c: c.get("_score", 0), reverse=True)
+        except Exception as e:
+            logger.debug("Policy expansion skipped: %s", e)
+
         # Phase 32: tone — トーン修飾子計算
         tone_mod = compute_tone_bias(
             state=self._psyche,
@@ -1274,6 +1310,124 @@ class PsycheOrchestrator:
         )
 
         return candidates, tone_mod
+
+    def _build_cross_section_inputs(
+        self,
+        percept: Percept,
+        recalled_memories: list[dict],
+        resp_influence: Optional[ResponsibilityInfluence],
+        user_id: str,
+    ) -> CrossSectionInputs:
+        """各断面の参照データを CrossSectionInputs に集約する。"""
+        p = self._psyche
+        emotions = p.emotions.as_dict() if p.emotions else {}
+
+        # 傾向断面
+        tendency_count = 0
+        dominant_tendency = ""
+        tendency_strength = 0.0
+        if self._tendency_sys is not None:
+            tendencies = self._tendency_sys.state.tendencies
+            tendency_count = len(tendencies)
+            if tendencies:
+                strongest = max(tendencies, key=lambda t: t.strength)
+                dominant_tendency = strongest.pattern.value if hasattr(strongest, 'pattern') else ""
+                tendency_strength = strongest.strength
+
+        # 責任断面
+        caution = 0.0
+        empathy = 0.0
+        if resp_influence is not None:
+            caution = resp_influence.caution_bias
+            empathy = resp_influence.empathy_bias
+
+        # 自己観測断面
+        self_image_stability = 0.5
+        coherence_level = 0.5
+        strain_level = 0.0
+        narrative_coherence = 0.5
+        if self._last_self_image is not None:
+            self_image_stability = getattr(self._last_self_image, 'stability', 0.5)
+        if self._last_coherence is not None:
+            coherence_level = getattr(self._last_coherence, 'overall_level', 0.5)
+            if hasattr(coherence_level, 'value'):
+                # Enum → float mapping
+                level_map = {"high": 0.8, "moderate": 0.5, "low": 0.2, "unstable": 0.1}
+                coherence_level = level_map.get(str(coherence_level), 0.5)
+        if self._last_strain is not None:
+            strain_level = getattr(self._last_strain, 'level', 0.0)
+            if hasattr(strain_level, 'value'):
+                level_map = {"none": 0.0, "low": 0.2, "moderate": 0.5, "high": 0.8, "critical": 1.0}
+                strain_level = level_map.get(str(strain_level), 0.0)
+        if self._last_narrative is not None:
+            narrative_coherence = getattr(self._last_narrative, 'coherence', 0.5)
+            if hasattr(narrative_coherence, 'level'):
+                narrative_coherence = getattr(narrative_coherence, 'level', 0.5)
+
+        # 他者推定断面
+        other_count = 0
+        boundary_clarity = 0.5
+        if self._last_other_model is not None:
+            hypotheses = getattr(self._last_other_model, 'hypotheses', [])
+            other_count = len(hypotheses) if hypotheses else 0
+            boundary = getattr(self._last_other_model, 'boundary', None)
+            if boundary is not None:
+                boundary_clarity = getattr(boundary, 'clarity', 0.5)
+
+        # 目的断面
+        has_active_goal = False
+        goal_strength = 0.0
+        if self._transient_goal_mgr is not None:
+            active = getattr(self._transient_goal_mgr, 'active_goal', None)
+            if active is None:
+                active = getattr(self._transient_goal_mgr.state, 'active_goal', None)
+            if active is not None:
+                has_active_goal = True
+                goal_strength = getattr(active, 'strength', 0.5)
+
+        motive_count = 0
+        if self._last_motives is not None:
+            motives = getattr(self._last_motives, 'entries', [])
+            motive_count = len(motives) if motives else 0
+
+        expectation_count = 0
+        if self._last_expectations is not None:
+            expectations = getattr(self._last_expectations, 'candidates', [])
+            expectation_count = len(expectations) if expectations else 0
+
+        vector_count = 0
+        if self._vector_gen is not None:
+            vectors = getattr(self._vector_gen.state, 'vectors', [])
+            vector_count = len(vectors) if vectors else 0
+
+        return CrossSectionInputs(
+            emotions=emotions,
+            mood_valence=p.mood.valence,
+            mood_arousal=p.mood.arousal,
+            recalled_count=len(recalled_memories) if recalled_memories else 0,
+            has_emotional_bindings=self._last_bindings is not None,
+            episode_count=len(getattr(self._last_episodes, 'entries', [])) if self._last_episodes else 0,
+            tendency_count=tendency_count,
+            dominant_tendency=dominant_tendency,
+            tendency_strength=tendency_strength,
+            caution_bias=caution,
+            empathy_bias=empathy,
+            dispersion_active=self._dispersion_state is not None,
+            percept_intent=percept.intent,
+            percept_valence=percept.emotion_valence,
+            percept_text_length=len(percept.text),
+            self_image_stability=self_image_stability if isinstance(self_image_stability, (int, float)) else 0.5,
+            coherence_level=coherence_level if isinstance(coherence_level, (int, float)) else 0.5,
+            strain_level=strain_level if isinstance(strain_level, (int, float)) else 0.0,
+            narrative_coherence=narrative_coherence if isinstance(narrative_coherence, (int, float)) else 0.5,
+            other_model_count=other_count,
+            other_boundary_clarity=boundary_clarity if isinstance(boundary_clarity, (int, float)) else 0.5,
+            has_active_goal=has_active_goal,
+            goal_strength=goal_strength,
+            motive_count=motive_count,
+            expectation_count=expectation_count,
+            vector_count=vector_count,
+        )
 
     def select_policy_dict(
         self,
@@ -1391,7 +1545,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 6,
+            "version": 7,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1424,6 +1578,8 @@ class PsycheOrchestrator:
             "dispersion_state": dispersion_to_dict(self._dispersion_state),
             "context_sensitivity_state": self._ctx_state.to_dict(),
             "last_coupling": self._last_coupling.to_dict() if self._last_coupling else {},
+            # Version 7 fields
+            "policy_expansion_state": self._policy_expander.state.to_dict() if self._policy_expander else {},
         }
 
         save_path.write_text(
@@ -1514,6 +1670,10 @@ class PsycheOrchestrator:
                 self._ctx_state = ContextState.from_dict(data["context_sensitivity_state"])
             if data.get("last_coupling"):
                 self._last_coupling = CouplingInfluence.from_dict(data["last_coupling"])
+
+            # Version 7+ fields
+            if data.get("policy_expansion_state"):
+                self._policy_expander._state = ExpansionState.from_dict(data["policy_expansion_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

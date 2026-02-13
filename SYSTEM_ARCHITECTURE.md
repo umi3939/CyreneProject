@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-02-13
-総コード行数: ~80,877行
-総テスト数: 2,806テスト
+更新日: 2026-02-14
+総コード行数: ~83,840行
+総テスト数: 2,892テスト
 
 ---
 
@@ -66,11 +66,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 52 | 35,664 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 53 | 37,106 | 自動テストコード |
+| psyche/ | 53 | 37,415 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 54 | 38,318 | 自動テストコード |
 | src/ | 14 | 2,590 | 補助モジュール |
 | ルート | 4 | 1,586 | コアシステム |
-| **合計** | **111** | **67,092** | |
+| **合計** | **113** | **70,055** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -90,6 +90,7 @@
 | 11 | emotional_memory_binding.py | 1,708 | 114 | 記憶 | 感情記憶の紐づけ（中長期感情痕跡） |
 | 12 | intrinsic_motivation.py | 1,752 | 113 | 動機 | 自発的内的動機（感情・傾向由来の内的推進力） |
 | 13 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
+| 13a | policy_candidate_expansion.py | 1,388 | 86 | 判断 | ポリシー候補拡張（8断面×10軸、内面反映経路の増設） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -101,7 +102,7 @@
 | 11 | value_orientation.py | 746 | 34 | 目的 | 長期価値観 |
 | 12 | stability_valve.py | 728 | 40 | 判断 | 極端回避バルブ |
 | 13 | silence_hesitation.py | 724 | 36 | 出力 | 沈黙・躊躇い表現 |
-| 14 | __init__.py | 1,246 | - | 基盤 | エクスポート定義 |
+| 14 | __init__.py | 1,360 | - | 基盤 | エクスポート定義 |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
 | 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
@@ -129,7 +130,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 1,320 | 40 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 38システム, save/load v4(20項目永続化), enrichment(4セクション), select_policy_dict含む） |
+| 41 | orchestrator.py | 1,683 | 40 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 39システム, save/load v7(29項目永続化), enrichment(5セクション), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3291,7 +3292,7 @@ snapshot v6 (28フィールド) で以下3モジュールの永続化を追加:
 
 #### 8.3.1 tick配線（入出力）: 全モジュール正常接続 ✅
 
-Phase 1-7（毎tick）、Phase 8-14（3tick毎）、Phase 15-26（5tick毎）、Phase 27-29（10tick毎）、Phase 30-35（policy生成時）
+Phase 1-7（毎tick）、Phase 8-14（3tick毎）、Phase 15-26（5tick毎）、Phase 27-29（10tick毎）、Phase 30-30b-31-35（policy生成時: 30b=候補拡張）
 — 全35フェーズの入力・出力は設計書通りに配線済み。ミスマッチなし。
 
 #### 8.3.2 設計書あり → 実装なし（0件） ✅
@@ -3370,7 +3371,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | 順序 | 項目 | リスク | 依存 | 概要 |
 |------|------|--------|------|------|
 | ① | テスト追加（12モジュール） ✅完了 | ゼロ | なし | 9ファイル675テスト追加済（2,131→2,806） |
-| ② | thought.py ポリシー候補拡張 | 低 | ① | 固定6種→拡張。thought.py内完結、外部影響なし |
+| ② | ポリシー候補拡張 ✅完了 | 低 | ① | policy_candidate_expansion.py (1,388行/86テスト) 8断面×10軸。orchestrator Phase 30b、save/load v7 |
 | ③ | 記憶系統統合（episodic↔memory_manager） | 中 | ① | psyche内エピソード記憶とGemini長期記憶の連携 |
 | ④ | 他者モデルへのリアルフィード | 中 | ③ | input_supplyにユーザー反応の実データを配線 |
 | ⑤ | 入力経路拡充（テキスト対話） | 中〜高 | ①〜④ | main.pyループ構造変更、対話パス追加 |
@@ -3395,9 +3396,14 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | test_responsibility_manager.py | 44 | responsibility_manager.py |
 | test_pillar_managers.py | 131 | attachment/continuity/identity/projection_manager.py |
 
-#### ② thought.py ポリシー候補拡張
-現在の固定6種（共感/質問/からかう/話題変更/感想/励ます）に対し、
-38モジュール分の内面の豊かさが行動の多様性に繋がっていない問題の解消。
+#### ② ポリシー候補拡張 ✅完了
+policy_candidate_expansion.py (1,388行/86テスト)
+- 8入力断面（感情/記憶/傾向/責任/対話/自己観測/他者推定/目的）を特徴断片に変換
+- 10候補軸（接近/保留/探索/転換/維持/修復/境界調整/確認/委譲/内省反映）の活性度を都度再決定
+- 複数断面の交差で候補生成（単一断面支配を抑制）
+- 候補履歴（残存+希薄化）、抑制履歴（可逆）、競合履歴（未採択保持+再注入）
+- 単線化警告+代替補充、抑制恒常化検知+緩和
+- orchestrator Phase 30b統合、save/load v7（29フィールド）、enrichment #14
 
 #### ③ 記憶系統統合
 - psyche/episodic_memory.py（自己観測ベース）と src/memory_manager.py（Gemini要約ベース）が別系統

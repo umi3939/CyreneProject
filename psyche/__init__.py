@@ -963,6 +963,26 @@ from .intrinsic_motivation import (
     verify_no_motivation_prescription,
 )
 
+# Policy Candidate Expansion (ポリシー候補拡張)
+from .policy_candidate_expansion import (
+    CrossSection,
+    PolicyAxis,
+    InputFragment,
+    ExpandedCandidate,
+    HistoryEntry,
+    SuppressionEntry,
+    CompetitionEntry,
+    ExpansionConfig,
+    ExpansionState,
+    CrossSectionInputs,
+    PolicyCandidateExpander,
+    create_expander as create_policy_expander,
+    create_config as create_expansion_config,
+    extract_all_fragments,
+    get_expansion_summary,
+    get_expansion_summary_text,
+)
+
 # Other Model Input Supply (他者モデル入力供給)
 from .other_model_input_supply import (
     SupplyEntry,
@@ -1328,6 +1348,13 @@ __all__ = [
     "create_input_supply", "update_input_supply",
     "decay_buffer", "supply_context", "supply_reaction_log",
     "get_input_supply_summary",
+    # Policy Candidate Expansion (ポリシー候補拡張)
+    "CrossSection", "PolicyAxis", "InputFragment",
+    "ExpandedCandidate", "HistoryEntry", "SuppressionEntry", "CompetitionEntry",
+    "ExpansionConfig", "ExpansionState", "CrossSectionInputs",
+    "PolicyCandidateExpander",
+    "create_policy_expander", "create_expansion_config",
+    "extract_all_fragments", "get_expansion_summary", "get_expansion_summary_text",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

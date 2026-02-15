@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-14
-総コード行数: ~86,419行
-総テスト数: 2,985テスト
+総コード行数: ~89,424行
+総テスト数: 3,087テスト
 
 ---
 
@@ -66,11 +66,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 56 | 42,138 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 55 | 39,431 | 自動テストコード |
+| psyche/ | 57 | 43,719 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 56 | 40,437 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | ルート | 6 | 2,195 | コアシステム |
-| **合計** | **131** | **86,419** | |
+| **合計** | **133** | **89,006** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -92,6 +92,7 @@
 | 13 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 13a | policy_candidate_expansion.py | 1,388 | 86 | 判断 | ポリシー候補拡張（8断面×10軸、内面反映経路の増設） |
 | 13b | memory_system_integration.py | 1,132 | 93 | 記憶 | 記憶系統統合（episodic↔long_term↔binding正規化、重複並立・競合併存・出所多様性） |
+| 13c | other_model_real_feed.py | 1,063 | 102 | 内省 | 他者モデルリアルフィード統合（8観測断片抽出・正規化・競合併存・鮮度管理・安全弁） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -2273,6 +2274,77 @@ TendencyAwareness (傾向の自己認知):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### 4.7.4b 他者モデルリアルフィード統合
+
+```
+他者モデルリアルフィード統合 実装仕様 (other_model_real_feed.py: 1,063行 / 102テスト):
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  思想:                                                          │
+│    現在の他者推定は内部記録中心で、直近対話の反応差分が推定更新  │
+│    に十分反映されない。実対話由来の反応断片を他者モデル入力へ    │
+│    接続し、推定状態の停滞を防ぐ。                               │
+│    他者の意図を断定せず、単回反応を恒常特性へ昇格させない。     │
+│    競合する観測は排除せず並立保持して揺らぎ情報として渡す。     │
+│                                                                 │
+│  Enum定義 (4種):                                                │
+│    ObservationFragmentType (8値): SPEECH_REACTION,              │
+│      RESPONSE_INTERVAL, TOPIC_TRANSITION, EMOTIONAL_TONE,       │
+│      CONTINUED_ENGAGEMENT, REJECTION_ACCEPTANCE,                │
+│      CONTEXT_ALIGNMENT, RECENT_HISTORY                          │
+│    FragmentFreshness: FRESH / RECENT / AGING / STALE / FADED   │
+│    AlignmentStatus: ALIGNED / PARTIAL / UNALIGNED / UNKNOWN    │
+│    ConflictStatus: NONE / PARALLEL / CONVERGENCE_RISK          │
+│                                                                 │
+│  データ構造:                                                    │
+│    ObservationFragment  - 8種の抽出関数から生成される観測断片    │
+│    ObservationUnit      - 正規化された観測単位（複数断片統合）   │
+│    ConflictRecord       - 対立する観測単位のペア記録             │
+│    FeedHistoryEntry     - 投入履歴の1エントリ                   │
+│    HoldbackEntry        - 未投入保留の1エントリ                 │
+│    RealFeedConfig       - 設定パラメータ（9項目）               │
+│    RealFeedState        - 全体状態（11フィールド）              │
+│    FeedResult           - process()の出力（6フィールド）         │
+│                                                                 │
+│  断片抽出関数 (8個、pure、duck-typed):                          │
+│    extract_speech_reaction    - 発話の質・感情内容               │
+│    extract_response_interval  - 入力間隔パターン                │
+│    extract_topic_transition   - 話題変化の度合い                │
+│    extract_emotional_tone     - 感情的色合い                    │
+│    extract_continued_engagement - 継続的関与の程度              │
+│    extract_rejection_acceptance - 承認・拒否信号                │
+│    extract_context_alignment  - 文脈適合度                      │
+│    extract_recent_history     - 直近やりとりの要約              │
+│                                                                 │
+│  処理パイプライン (10段):                                       │
+│    1. 8断片抽出 → normalize_fragments → ObservationUnit化       │
+│    2. align_units → 鮮度・値順ソート、整合状態判定              │
+│    3. detect_feed_duplicates → 類似観測のグループ化             │
+│    4. detect_feed_conflicts → 対立観測の並立保持                │
+│    5. apply_freshness → 時間減衰、希薄化履歴更新               │
+│    6. suppress_recent_series → 直近投入系列の抑制               │
+│    7. ensure_type_diversity → 単一種別支配防止                  │
+│    8. check_convergence → 単一解釈収束時に競合補充              │
+│    9. check_stagnation → 停滞時に鮮度低下反映                  │
+│   10. 出力制限 → max_output_units で切り捨て                    │
+│                                                                 │
+│  出力統合: enhance_context_with_feed()                          │
+│    CONTINUED_ENGAGEMENT → responsiveness 上方修正               │
+│    EMOTIONAL_TONE → weight 上方修正                             │
+│    TOPIC_TRANSITION → density 調整                              │
+│    RESPONSE_INTERVAL → pace 調整                                │
+│    既存値を0.0-1.0にclamp、adjustment_weight=0.3               │
+│                                                                 │
+│  orchestrator配線:                                              │
+│    Phase 25a: _real_feed_processor.process() 呼出               │
+│    Phase 25: supply_context() 後に enhance_context_with_feed()  │
+│    save/load v9: real_feed_state フィールド追加 (31項目)        │
+│    enrichment #16: 【記憶・内省】に「観測フィード」行追加       │
+│    systems: 40→41                                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 #### 4.7.5 自発的内的動機
 
 ```
@@ -3162,6 +3234,7 @@ psyche/
 ├── expectation_formation.py    (1485行) - 予期・期待の形成（未来方向の連続性投射）
 ├── other_agent_model.py        (1603行) - 他者モデル（他者状態の仮説的推測）
 ├── other_model_input_supply.py  (308行) - 他者モデル入力供給（external_context / reaction_log 生成）
+├── other_model_real_feed.py  (1,481行) - 他者モデルリアルフィード統合（8観測断片・10段パイプライン・安全弁）
 ├── emotional_memory_binding.py (1708行) - 感情記憶の紐づけ（中長期感情痕跡）
 ├── intrinsic_motivation.py    (1752行) - 自発的内的動機（感情・傾向由来の内的推進力）
 ├── responsibility.py              (480行)  - 責任記録・評価
@@ -3214,6 +3287,7 @@ tests/
 ├── test_expectation_formation.py (1075行)
 ├── test_other_agent_model.py    (1205行)
 ├── test_other_model_input_supply.py (330行)
+├── test_other_model_real_feed.py (1,006行)
 ├── test_emotional_memory_binding.py (1142行)
 ├── test_intrinsic_motivation.py (1157行)
 ├── test_tone.py                   (592行)
@@ -3375,7 +3449,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ① | テスト追加（12モジュール） ✅完了 | ゼロ | なし | 9ファイル675テスト追加済（2,131→2,806） |
 | ② | ポリシー候補拡張 ✅完了 | 低 | ① | policy_candidate_expansion.py (1,388行/86テスト) 8断面×10軸。orchestrator Phase 30b、save/load v7 |
 | ③ | 記憶系統統合 ✅完了 | 中 | ① | memory_system_integration.py (1,132行/93テスト) 3系統正規化・重複並立・競合併存。orchestrator Phase 21b、save/load v8 |
-| ④ | 他者モデルへのリアルフィード | 中 | ③ | input_supplyにユーザー反応の実データを配線 |
+| ④ | 他者モデルへのリアルフィード ✅完了 | 中 | ③ | other_model_real_feed.py (1,063行/102テスト) 8観測断片・10段パイプライン。orchestrator Phase 25a、save/load v9 |
 | ⑤ | 入力経路拡充（テキスト対話） | 中〜高 | ①〜④ | main.pyループ構造変更、対話パス追加 |
 | ⑥ | 自発性の追加 | 高 | ①〜⑤ | orchestratorティックモデル変更、外部入力なしの起動 |
 | ⑦ | value_orientation 実運用検証 | 低 | ⑥ | 長期運用データでの変化観測 |
@@ -3417,9 +3491,13 @@ memory_system_integration.py (1,132行/93テスト)
 - 競合不可視化の自動復元（安全弁）、直近再採用抑制
 - orchestrator Phase 21b統合、save/load v8（30フィールド）、enrichment #15
 
-#### ④ 他者モデルへのリアルフィード
-- other_model_input_supply.py の supply_context() にユーザー反応の実データ（発言頻度、感情トーン等）を配線
-- ③の記憶統合後のほうがデータの質が向上
+#### ④ 他者モデルへのリアルフィード ✅完了
+other_model_real_feed.py (1,063行/102テスト)
+- 8種の観測断片（発話反応・応答間隔・話題遷移・感情トーン・継続関与・拒否受容・文脈整合・直近履歴）を抽出
+- 10段処理パイプライン: 正規化→整列→重複統合→競合併存→鮮度減衰→系列抑制→多様性確保→収束安全弁→停滞安全弁→出力制限
+- enhance_context_with_feed() で既存 ContextSnapshot を差分調整（上書きしない）
+- 競合観測は排除せず並立保持、単一解釈収束時は holdback から補充
+- orchestrator Phase 25a統合、save/load v9（31フィールド）、enrichment #16
 
 #### ⑤ 入力経路拡充
 - 現在は画面キャプチャ→反応の一方向のみ
@@ -3438,4 +3516,4 @@ memory_system_integration.py (1,132行/93テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~80,877行 / テスト数: 2,806*
+*総コード行数: ~89,424行 / テスト数: 3,087*

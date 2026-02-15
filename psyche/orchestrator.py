@@ -322,6 +322,16 @@ from .memory_system_integration import (
     get_integration_summary_text,
 )
 
+# Other model real feed
+from .other_model_real_feed import (
+    RealFeedProcessor,
+    RealFeedState,
+    FeedResult,
+    create_real_feed_processor,
+    enhance_context_with_feed,
+    get_real_feed_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -517,6 +527,10 @@ class PsycheOrchestrator:
 
         # ── Memory system integration ──
         self._memory_integrator = create_memory_integrator()
+
+        # ── Other model real feed ──
+        self._real_feed_processor = create_real_feed_processor()
+        self._last_feed_result: Optional[FeedResult] = None
         self._last_integration_result: Optional[IntegrationResult] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
@@ -527,7 +541,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=40",
+            "systems=41",
             fear.value, fear.dominant_fear,
         )
 
@@ -929,6 +943,20 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Expectation formation skipped: %s", e)
 
+        # Phase 25a: other_model_real_feed — 実対話由来の観測断片抽出・正規化
+        try:
+            self._last_feed_result = self._real_feed_processor.process(
+                percept=self._last_percept,
+                stm=self._loop_state.memory if self._loop_state else None,
+                psyche=self._psyche,
+                dynamics=self._dynamics,
+                recalled_memories=self._last_recalled_memories,
+                integration_result=self._last_integration_result,
+                tick_count=self._tick_count,
+            )
+        except Exception as e:
+            logger.debug("Real feed processing skipped: %s", e)
+
         # Phase 25: other_agent_model — 他者モデル仮説更新 (入力供給経由)
         try:
             # 入力供給更新: percept / STM / dynamics / psyche から計算
@@ -943,6 +971,11 @@ class PsycheOrchestrator:
 
             # 供給: context snapshot + reaction log
             ctx = supply_context(self._input_supply)
+
+            # リアルフィードで context を差分調整
+            if self._last_feed_result is not None:
+                ctx = enhance_context_with_feed(ctx, self._last_feed_result)
+
             rlog = supply_reaction_log(self._input_supply)
 
             self._last_other_model = observe_other_from_chain(
@@ -1221,6 +1254,14 @@ class PsycheOrchestrator:
                 int_text = get_integration_summary_text(self._memory_integrator)
                 if int_text:
                     memory_lines.append(f"記憶統合: {int_text}")
+            except Exception:
+                pass
+        # #16 other_model_real_feed
+        if self._real_feed_processor is not None:
+            try:
+                feed_text = get_real_feed_summary(self._real_feed_processor)
+                if feed_text and "inactive" not in feed_text:
+                    memory_lines.append(f"観測フィード: {feed_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -1595,7 +1636,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 8,
+            "version": 9,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1632,6 +1673,8 @@ class PsycheOrchestrator:
             "policy_expansion_state": self._policy_expander.state.to_dict() if self._policy_expander else {},
             # Version 8 fields
             "memory_integration_state": self._memory_integrator.state.to_dict() if self._memory_integrator else {},
+            # Version 9 fields
+            "real_feed_state": self._real_feed_processor.state.to_dict() if self._real_feed_processor else {},
         }
 
         save_path.write_text(
@@ -1730,6 +1773,10 @@ class PsycheOrchestrator:
             # Version 8+ fields
             if data.get("memory_integration_state"):
                 self._memory_integrator._state = IntegrationState.from_dict(data["memory_integration_state"])
+
+            # Version 9+ fields
+            if data.get("real_feed_state"):
+                self._real_feed_processor._state = RealFeedState.from_dict(data["real_feed_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

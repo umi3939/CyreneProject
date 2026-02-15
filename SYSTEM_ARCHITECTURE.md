@@ -2,7 +2,7 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-16
-総コード行数: ~94,979行
+総コード行数: ~94,978行
 総テスト数: 3,273テスト
 
 ---
@@ -33,7 +33,7 @@
 │         ▼                                                      │            │
 │   ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐         │
 │   │  vision   │───→│   brain   │───→│  psyche   │───→│   voice   │         │
-│   │  (393行)  │    │  (592行)  │    │(19,239行) │    │  (437行)  │         │
+│   │  (393行)  │    │  (912行)  │    │(47,051行) │    │  (437行)  │         │
 │   └───────────┘    └───────────┘    └───────────┘    └───────────┘         │
 │         │                │                │                │                │
 │    dxcam/YOLO       Gemini API      心理処理        Style-Bert-VITS2       │
@@ -41,7 +41,7 @@
 │                                                                             │
 │                    ┌───────────┐                                            │
 │                    │   main    │ ← メインループ制御                         │
-│                    │  (264行)  │                                            │
+│                    │  (271行)  │                                            │
 │                    └───────────┘                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -66,11 +66,12 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 59 | 46,827 | 心理システム本体（orchestrator.py含む） |
+| psyche/ | 59 | 47,051 | 心理システム本体（orchestrator.py含む） |
 | tests/ | 58 | 42,274 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
-| ルート | 6 | 2,195 | コアシステム |
-| **合計** | **137** | **93,951** | |
+| tools/ | 2 | 418 | 長期シミュレーション等 |
+| ルート | 6 | 2,580 | コアシステム |
+| **合計** | **139** | **94,978** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -92,7 +93,7 @@
 | 13 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 13a | policy_candidate_expansion.py | 1,388 | 86 | 判断 | ポリシー候補拡張（8断面×10軸、内面反映経路の増設） |
 | 13b | memory_system_integration.py | 1,132 | 93 | 記憶 | 記憶系統統合（episodic↔long_term↔binding正規化、重複並立・競合併存・出所多様性） |
-| 13c | other_model_real_feed.py | 1,063 | 102 | 内省 | 他者モデルリアルフィード統合（8観測断片抽出・正規化・競合併存・鮮度管理・安全弁） |
+| 13c | other_model_real_feed.py | 1,481 | 102 | 内省 | 他者モデルリアルフィード統合（8観測断片抽出・正規化・競合併存・鮮度管理・安全弁） |
 | 13d | text_dialogue_input.py | 1,559 | 102 | 入力 | テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁） |
 | 13e | spontaneous_activation.py | 1,549 | 84 | 起動 | 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
@@ -134,16 +135,16 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 1,739 | 40 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 40システム, save/load v8(30項目永続化), enrichment(5セクション), select_policy_dict含む） |
+| 41 | orchestrator.py | 1,895 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 43システム, save/load v11(35項目永続化), enrichment(5セクション), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
 | ファイル | 行数 | 主要クラス/関数 | 説明 |
 |---------|------|----------------|------|
-| brain.py | 523 | CyreneBrain | 2-call思考生成（perception+expression, psyche enrichment, save/load, LLM parse_percept） |
+| brain.py | 912 | CyreneBrain | 2-call思考生成（perception+expression, psyche enrichment, save/load, LLM parse_percept, think_text/think_spontaneous） |
 | voice.py | 437 | VoiceClient | Style-Bert-VITS2連携 |
 | vision.py | 393 | GameCapture, HybridEye | 画面キャプチャ・分析 |
-| main.py | 264 | main() | メインループ制御 |
+| main.py | 271 | main() | メインループ制御 |
 
 ### 2.4 補助モジュール (src/)
 
@@ -2340,7 +2341,7 @@ TendencyAwareness (傾向の自己認知):
 │  orchestrator配線:                                              │
 │    Phase 25a: _real_feed_processor.process() 呼出               │
 │    Phase 25: supply_context() 後に enhance_context_with_feed()  │
-│    save/load v9: real_feed_state フィールド追加 (31項目)        │
+│    save/load v9: real_feed_state フィールド追加 (33項目)        │
 │    enrichment #16: 【記憶・内省】に「観測フィード」行追加       │
 │    systems: 40→41                                               │
 │                                                                 │
@@ -2402,7 +2403,7 @@ TendencyAwareness (傾向の自己認知):
 │  orchestrator配線:                                              │
 │    Phase 25b: text_dialogue_processor（外部からprocess()呼出）   │
 │    process_text_input(): brain.pyからの呼出口                    │
-│    save/load v10: text_dialogue_state フィールド追加 (32項目)    │
+│    save/load v10: text_dialogue_state フィールド追加 (34項目)    │
 │    enrichment #17: 【記憶・内省】に「入力経路」行追加            │
 │    systems: 41→42                                               │
 │                                                                 │
@@ -2462,7 +2463,7 @@ TendencyAwareness (傾向の自己認知):
 │  orchestrator統合:                                               │
 │    check_spontaneous_activation(): 起動候補チェック              │
 │    post_response_update時: notify_external_input()               │
-│    save/load v11 (33フィールド)、enrichment #18、systems 43      │
+│    save/load v11 (35フィールド)、enrichment #18、systems 43      │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -3448,8 +3449,8 @@ tests/
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 完了 |
 | 8 | 他者モデル入力供給 | other_agent_modelのexternal_context/reaction_logが常にNoneだった問題を解消。STM・dynamics・psyche状態から入力を生成しorchestrator経由で供給 | other_agent_model, short_term_memory, orchestrator | 完了 |
 | 9 | orchestrator未接続入力の配線 | Phase 19/20/33でexternal_context=None固定、Phase 21でmemories=None固定。input_supplyのContextSnapshotおよびbrain.pyのrecalled_memoriesを渡す配線が必要 | orchestrator, self_narrative, episodic_memory, emotional_memory_binding, context_sensitivity | 完了 |
-| 10 | save/load未対応モジュールの永続化 | repeated_tendency, proto_goal_vector, goal_candidates, transient_goal, stability_valveをorchestratorのsave/loadに追加。scoped_goalは設計上エフェメラルのため対象外。snapshot v4→v5 (25フィールド) | orchestrator, stability_valve | 完了 |
-| 11 | save/load v5→v6: 残り3モジュール永続化 | responsibility_dispersion, context_sensitivity, stm_emotion_couplingの3モジュールをorchestratorのsave/loadに追加。CouplingInfluenceにto_dict/from_dict新規追加。snapshot v5→v6 (28フィールド) | orchestrator, stm_emotion_coupling | 完了 |
+| 10 | save/load未対応モジュールの永続化 | repeated_tendency, proto_goal_vector, goal_candidates, transient_goal, stability_valveをorchestratorのsave/loadに追加。scoped_goalは設計上エフェメラルのため対象外。snapshot v4→v5 (27フィールド) | orchestrator, stability_valve | 完了 |
+| 11 | save/load v5→v6: 残り3モジュール永続化 | responsibility_dispersion, context_sensitivity, stm_emotion_couplingの3モジュールをorchestratorのsave/loadに追加。CouplingInfluenceにto_dict/from_dict新規追加。snapshot v5→v6 (30フィールド) | orchestrator, stm_emotion_coupling | 完了 |
 
 ### 8.1 未接続入力の配線 (#9) — 完了
 
@@ -3466,7 +3467,7 @@ brain.py側: recall_with_mood後に orchestrator.set_recalled_memories(memories)
 
 ### 8.2 save/load永続化対応 (#10) — 完了
 
-snapshot v5 (25フィールド) で以下5モジュールの永続化を追加:
+snapshot v5 (27フィールド) で以下5モジュールの永続化を追加:
 
 | モジュール | snapshotキー | 状態クラス | 対応内容 |
 |-----------|-------------|-----------|----------|
@@ -3480,7 +3481,7 @@ snapshot v5 (25フィールド) で以下5モジュールの永続化を追加:
 
 ### 8.3a save/load永続化対応 (#11) — 完了
 
-snapshot v6 (28フィールド) で以下3モジュールの永続化を追加:
+snapshot v6 (30フィールド) で以下3モジュールの永続化を追加:
 
 | モジュール | snapshotキー | 状態クラス | 対応内容 |
 |-----------|-------------|-----------|----------|
@@ -3557,7 +3558,7 @@ Phase 30-35 の判断バイアス群は `_generate_final_candidates()` で計算
 | tick配線（入出力） | 35/35 ✅ |
 | 設計→実装 | 39/39 ✅ |
 | 実装→設計 | 53/53 ✅ （11件は統合設計書内に記述） |
-| save/load | 28/28 ✅ （v6で完了） |
+| save/load | 30/30 ✅ （v6で完了、v11で35フィールド） |
 | prompt enrichment | 全項目配線完了 ✅ |
 | 命名不整合 | ✅ 解消済み |
 
@@ -3573,11 +3574,11 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | 順序 | 項目 | リスク | 依存 | 概要 |
 |------|------|--------|------|------|
 | ① | テスト追加（12モジュール） ✅完了 | ゼロ | なし | 9ファイル675テスト追加済（2,131→2,806） |
-| ② | ポリシー候補拡張 ✅完了 | 低 | ① | policy_candidate_expansion.py (1,388行/86テスト) 8断面×10軸。orchestrator Phase 30b、save/load v7 |
-| ③ | 記憶系統統合 ✅完了 | 中 | ① | memory_system_integration.py (1,132行/93テスト) 3系統正規化・重複並立・競合併存。orchestrator Phase 21b、save/load v8 |
-| ④ | 他者モデルへのリアルフィード ✅完了 | 中 | ③ | other_model_real_feed.py (1,063行/102テスト) 8観測断片・10段パイプライン。orchestrator Phase 25a、save/load v9 |
-| ⑤ | 入力経路拡充（テキスト対話） ✅完了 | 中〜高 | ①〜④ | text_dialogue_input.py (1,559行/102テスト) 6段パイプライン・経路多様性。orchestrator Phase 25b、save/load v10。brain.py think_text/think_streaming_text追加 |
-| ⑥ | 自発性の追加 ✅完了 | 高 | ①〜⑤ | spontaneous_activation.py (1,549行/84テスト) 8断面交差・5段パイプライン。orchestrator check_spontaneous_activation()、save/load v11。brain.py think_spontaneous/think_streaming_spontaneous追加 |
+| ② | ポリシー候補拡張 ✅完了 | 低 | ① | policy_candidate_expansion.py (1,388行/86テスト) 8断面×10軸。orchestrator Phase 30b、save/load v7 (31フィールド) |
+| ③ | 記憶系統統合 ✅完了 | 中 | ① | memory_system_integration.py (1,132行/93テスト) 3系統正規化・重複並立・競合併存。orchestrator Phase 21b、save/load v8 (32フィールド) |
+| ④ | 他者モデルへのリアルフィード ✅完了 | 中 | ③ | other_model_real_feed.py (1,481行/102テスト) 8観測断片・10段パイプライン。orchestrator Phase 25a、save/load v9 (33フィールド) |
+| ⑤ | 入力経路拡充（テキスト対話） ✅完了 | 中〜高 | ①〜④ | text_dialogue_input.py (1,559行/102テスト) 6段パイプライン・経路多様性。orchestrator Phase 25b、save/load v10 (34フィールド)。brain.py think_text/think_streaming_text追加 |
+| ⑥ | 自発性の追加 ✅完了 | 高 | ①〜⑤ | spontaneous_activation.py (1,549行/84テスト) 8断面交差・5段パイプライン。orchestrator check_spontaneous_activation()、save/load v11 (35フィールド)。brain.py think_spontaneous/think_streaming_spontaneous追加 |
 | ⑦ | value_orientation 実運用検証 | 低 | ⑥ | 長期運用データでの変化観測 |
 
 ### 9.2 各項目の詳細
@@ -3605,7 +3606,7 @@ policy_candidate_expansion.py (1,388行/86テスト)
 - 複数断面の交差で候補生成（単一断面支配を抑制）
 - 候補履歴（残存+希薄化）、抑制履歴（可逆）、競合履歴（未採択保持+再注入）
 - 単線化警告+代替補充、抑制恒常化検知+緩和
-- orchestrator Phase 30b統合、save/load v7（29フィールド）、enrichment #14
+- orchestrator Phase 30b統合、save/load v7（31フィールド）、enrichment #14
 
 #### ③ 記憶系統統合 ✅完了
 memory_system_integration.py (1,132行/93テスト)
@@ -3615,21 +3616,21 @@ memory_system_integration.py (1,132行/93テスト)
 - 出所横断の混在提示を維持し、単一視点への収束を防止
 - 参照履歴と再利用履歴は累積と希薄化を併置（可逆）
 - 競合不可視化の自動復元（安全弁）、直近再採用抑制
-- orchestrator Phase 21b統合、save/load v8（30フィールド）、enrichment #15
+- orchestrator Phase 21b統合、save/load v8（32フィールド）、enrichment #15
 
 #### ④ 他者モデルへのリアルフィード ✅完了
-other_model_real_feed.py (1,063行/102テスト)
+other_model_real_feed.py (1,481行/102テスト)
 - 8種の観測断片（発話反応・応答間隔・話題遷移・感情トーン・継続関与・拒否受容・文脈整合・直近履歴）を抽出
 - 10段処理パイプライン: 正規化→整列→重複統合→競合併存→鮮度減衰→系列抑制→多様性確保→収束安全弁→停滞安全弁→出力制限
 - enhance_context_with_feed() で既存 ContextSnapshot を差分調整（上書きしない）
 - 競合観測は排除せず並立保持、単一解釈収束時は holdback から補充
-- orchestrator Phase 25a統合、save/load v9（31フィールド）、enrichment #16
+- orchestrator Phase 25a統合、save/load v9（33フィールド）、enrichment #16
 
 #### ⑤ 入力経路拡充 ✅完了
 - text_dialogue_input.py (1,559行/102テスト)
 - 6段パイプライン: 受信→正規化→文脈付与→既存形式整合→重複調整→受け渡し
 - 安全弁: 空入力連続→保留、単一経路支配→複線復元、形式多様性維持、循環参照防止、自己強化ループ防止
-- orchestrator Phase 25b、save/load v10 (32フィールド)、enrichment #17、systems 41→42
+- orchestrator Phase 25b、save/load v10 (34フィールド)、enrichment #17、systems 41→42
 - brain.py: think_text() / think_streaming_text() 追加（テキスト入力のみの思考経路）
 
 #### ⑥ 自発性の追加 ✅完了
@@ -3637,7 +3638,7 @@ spontaneous_activation.py (1,549行/84テスト)
 - 8断面入力: 内的動機・方向・未完了意図・記憶残響・感情推移・責任・直近行動・外部入力有無
 - 5段パイプライン: 候補抽出(断面交差)→条件整列(連続差分)→競合整理(並立保持)→可否判定→受渡
 - 安全弁: 連続採択抑制、過密化クールダウン、単線候補時代替補充、鮮度減衰、未採択再浮上
-- orchestrator check_spontaneous_activation()、save/load v11 (33フィールド)、enrichment #18、systems 42→43
+- orchestrator check_spontaneous_activation()、save/load v11 (35フィールド)、enrichment #18、systems 42→43
 - brain.py: think_spontaneous() / think_streaming_spontaneous() 追加（外部入力なし時の自発思考経路）
 
 #### ⑦ value_orientation 実運用検証
@@ -3647,4 +3648,4 @@ spontaneous_activation.py (1,549行/84テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~94,979行 / テスト数: 3,273*
+*総コード行数: ~94,978行 / テスト数: 3,273*

@@ -25,7 +25,6 @@ from psyche.memory_link import recall_with_mood
 from psyche.perception import parse_percept
 from psyche.expression import render_expression
 from psyche.silence_hesitation import is_silence_policy
-from psyche.text_dialogue_input import merge_with_percept
 from src.llm_wrapper import llm_call, llm_call_with_image, VISION_SYSTEM_PROMPT
 
 from src.logging_config import configure_logging

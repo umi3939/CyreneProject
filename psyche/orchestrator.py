@@ -339,6 +339,15 @@ from .text_dialogue_input import (
     get_text_dialogue_summary,
 )
 
+# Spontaneous activation
+from .spontaneous_activation import (
+    SpontaneousActivationProcessor,
+    SpontaneousState,
+    ActivationResult as SpontaneousResult,
+    create_spontaneous_processor,
+    get_spontaneous_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -544,6 +553,10 @@ class PsycheOrchestrator:
         self._text_dialogue_processor = create_text_dialogue_processor()
         self._last_text_handoff: Optional[TextHandoffResult] = None
 
+        # ── Spontaneous activation ──
+        self._spontaneous_processor = create_spontaneous_processor()
+        self._last_activation_result: Optional[SpontaneousResult] = None
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -552,7 +565,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=42",
+            "systems=43",
             fear.value, fear.dominant_fear,
         )
 
@@ -601,6 +614,27 @@ class PsycheOrchestrator:
             return self._last_text_handoff
         except Exception as e:
             logger.debug("Text dialogue input processing failed: %s", e)
+            return None
+
+    def check_spontaneous_activation(self) -> Optional[SpontaneousResult]:
+        """外部入力なし時の自発起動チェック。brain.pyから呼出。
+
+        起動候補情報のみを返し、判断・評価・行動決定は行わない。
+        """
+        try:
+            result = self._spontaneous_processor.process(
+                psyche=self._psyche,
+                dynamics=self._dynamics,
+                stm=self._loop_state.memory if self._loop_state else None,
+                memories=self._last_recalled_memories,
+                recent_actions=None,
+                has_external_input=False,
+                tick_count=self._tick_count,
+            )
+            self._last_activation_result = result
+            return result
+        except Exception as e:
+            logger.debug("Spontaneous activation check failed: %s", e)
             return None
 
     # ── Phase 1-7: Every-tick update ──────────────────────────────
@@ -1100,6 +1134,9 @@ class PsycheOrchestrator:
         """
         self._tick_count += 1
 
+        # Notify spontaneous processor of external input
+        self._spontaneous_processor.notify_external_input()
+
         # Phase 1-7: every tick
         self._run_every_tick(percept, delta_time, user_id)
 
@@ -1260,6 +1297,16 @@ class PsycheOrchestrator:
                 exp_text = get_expansion_summary_text(self._policy_expander)
                 if exp_text:
                     motive_lines.append(f"候補拡張: {exp_text}")
+            except Exception:
+                pass
+        # #18 spontaneous_activation
+        if self._spontaneous_processor is not None:
+            try:
+                sp_text = get_spontaneous_summary(
+                    self._spontaneous_processor.state
+                )
+                if sp_text and "待機中" not in sp_text:
+                    motive_lines.append(f"自発起動: {sp_text}")
             except Exception:
                 pass
         if len(motive_lines) > 1:
@@ -1686,7 +1733,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 10,
+            "version": 11,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1727,6 +1774,8 @@ class PsycheOrchestrator:
             "real_feed_state": self._real_feed_processor.state.to_dict() if self._real_feed_processor else {},
             # Version 10 fields
             "text_dialogue_state": self._text_dialogue_processor.state.to_dict() if self._text_dialogue_processor else {},
+            # Version 11 fields
+            "spontaneous_state": self._spontaneous_processor.state.to_dict() if self._spontaneous_processor else {},
         }
 
         save_path.write_text(
@@ -1833,6 +1882,10 @@ class PsycheOrchestrator:
             # Version 10+ fields
             if data.get("text_dialogue_state"):
                 self._text_dialogue_processor._state = TextDialogueState.from_dict(data["text_dialogue_state"])
+
+            # Version 11+ fields
+            if data.get("spontaneous_state"):
+                self._spontaneous_processor._state = SpontaneousState.from_dict(data["spontaneous_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

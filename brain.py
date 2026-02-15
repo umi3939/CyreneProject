@@ -694,6 +694,193 @@ class CyreneBrain:
             yield "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
 
 
+    async def think_spontaneous(self) -> Optional[str]:
+        """自発起動経路による思考（非ストリーミング版）。
+
+        外部入力なし時に内部状態から起動候補を形成し、
+        起動すべきと判定された場合のみ応答を生成する。
+        Returns None if no spontaneous activation or silence chosen.
+        """
+        try:
+            result = self._orchestrator.check_spontaneous_activation()
+            if result is None or not result.should_activate:
+                return None
+
+            best = max(
+                result.candidates,
+                key=lambda c: c.activation_strength,
+            ) if result.candidates else None
+            if not best:
+                return None
+
+            # Build Percept from internal activation
+            percept = Percept(
+                text=f"[内部起動] {best.description}",
+                emotion="neutral",
+                intent="spontaneous",
+            )
+
+            # Psyche update
+            now = time.monotonic()
+            delta = now - self._last_psyche_update
+            self._last_psyche_update = now
+            self._orchestrator.post_response_update(percept, delta, "internal")
+
+            # Recall
+            recall_percept = Percept(text=percept.text)
+            memories = await recall_with_mood(
+                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+            )
+            self._orchestrator.set_recalled_memories(memories)
+
+            # Policy
+            policy = self._orchestrator.select_policy_dict(
+                percept, memories or [], "internal"
+            )
+
+            # Silence check
+            if is_silence_policy(policy):
+                logger.debug("Psyche chose silence (spontaneous)")
+                return None
+
+            # Expression
+            self._last_emotion = "neutral"
+            enrichment = self._orchestrator.get_prompt_enrichment("internal")
+            expr_result = await render_expression(
+                state=self._orchestrator.psyche,
+                policy=policy,
+                memory_snippet=memories or [],
+                persona=self._persona_dict,
+                llm_call_fn=llm_call,
+                screen_context="（自発的思考 — 外部入力なし）",
+                recent_history=self._conversation_log[-5:],
+                psyche_enrichment=enrichment,
+            )
+            full_text = expr_result.get("text", "")
+            meta = expr_result.get("meta", {})
+
+            if not full_text:
+                return None
+
+            if meta.get("emotion"):
+                self._last_emotion = meta["emotion"]
+
+            self._conversation_log.append(f"[キュレネ/自発] {full_text}")
+            self._last_response = full_text
+            return full_text
+
+        except Exception as e:
+            logger.error(f"Think spontaneous failed: {e}")
+            return None
+
+    async def think_streaming_spontaneous(
+        self,
+    ) -> AsyncGenerator[str, None]:
+        """自発起動経路による思考（ストリーミング版）。
+
+        外部入力なし時に内部状態から起動候補を形成し、
+        起動すべきと判定された場合のみ応答を生成する。
+        Yields complete sentences.
+        """
+        try:
+            result = self._orchestrator.check_spontaneous_activation()
+            if result is None or not result.should_activate:
+                return
+
+            best = max(
+                result.candidates,
+                key=lambda c: c.activation_strength,
+            ) if result.candidates else None
+            if not best:
+                return
+
+            self._turn_count += 1
+
+            # Build Percept from internal activation
+            percept = Percept(
+                text=f"[内部起動] {best.description}",
+                emotion="neutral",
+                intent="spontaneous",
+            )
+
+            # Psyche update
+            now = time.monotonic()
+            delta = now - self._last_psyche_update
+            self._last_psyche_update = now
+            self._orchestrator.post_response_update(percept, delta, "internal")
+
+            # Recall
+            recall_percept = Percept(text=percept.text)
+            memories = await recall_with_mood(
+                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+            )
+            self._orchestrator.set_recalled_memories(memories)
+
+            # Policy
+            policy = self._orchestrator.select_policy_dict(
+                percept, memories or [], "internal"
+            )
+
+            # Silence check
+            if is_silence_policy(policy):
+                logger.debug("Psyche chose silence (spontaneous)")
+                return
+
+            # Expression
+            self._last_emotion = "neutral"
+            enrichment = self._orchestrator.get_prompt_enrichment("internal")
+            expr_result = await render_expression(
+                state=self._orchestrator.psyche,
+                policy=policy,
+                memory_snippet=memories or [],
+                persona=self._persona_dict,
+                llm_call_fn=llm_call,
+                screen_context="（自発的思考 — 外部入力なし）",
+                recent_history=self._conversation_log[-5:],
+                psyche_enrichment=enrichment,
+            )
+            full_text = expr_result.get("text", "")
+            meta = expr_result.get("meta", {})
+
+            if not full_text:
+                return
+
+            if meta.get("emotion"):
+                self._last_emotion = meta["emotion"]
+
+            self._conversation_log.append(f"[キュレネ/自発] {full_text}")
+            self._last_response = full_text
+
+            # Sentence split + yield
+            sentences = []
+            current = ""
+            for i, char in enumerate(full_text):
+                current += char
+                if char in "。！？!?♪♥♡★☆\n":
+                    sentence = current.strip()
+                    if sentence:
+                        sentences.append(sentence)
+                    current = ""
+                elif char == 'w':
+                    next_char = full_text[i + 1] if i + 1 < len(full_text) else None
+                    if next_char != 'w':
+                        pre_w = current.rstrip('w')
+                        if pre_w and not pre_w[-1].isascii():
+                            sentence = current.strip()
+                            if sentence:
+                                sentences.append(sentence)
+                            current = ""
+            if current.strip():
+                sentences.append(current.strip())
+
+            for sentence in sentences:
+                yield sentence
+
+        except Exception as e:
+            logger.error(f"Think streaming spontaneous failed: {e}")
+            yield "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
+
+
 async def _test_brain():
     """Test function for brain module."""
     print("Starting brain test...")

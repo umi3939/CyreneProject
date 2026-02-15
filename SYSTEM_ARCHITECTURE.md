@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-16
-総コード行数: ~91,908行
-総テスト数: 3,189テスト
+総コード行数: ~94,979行
+総テスト数: 3,273テスト
 
 ---
 
@@ -66,11 +66,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 58 | 45,278 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 57 | 41,462 | 自動テストコード |
+| psyche/ | 59 | 46,827 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 58 | 42,274 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | ルート | 6 | 2,195 | コアシステム |
-| **合計** | **135** | **91,590** | |
+| **合計** | **137** | **93,951** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -94,6 +94,7 @@
 | 13b | memory_system_integration.py | 1,132 | 93 | 記憶 | 記憶系統統合（episodic↔long_term↔binding正規化、重複並立・競合併存・出所多様性） |
 | 13c | other_model_real_feed.py | 1,063 | 102 | 内省 | 他者モデルリアルフィード統合（8観測断片抽出・正規化・競合併存・鮮度管理・安全弁） |
 | 13d | text_dialogue_input.py | 1,559 | 102 | 入力 | テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁） |
+| 13e | spontaneous_activation.py | 1,549 | 84 | 起動 | 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -105,7 +106,7 @@
 | 11 | value_orientation.py | 746 | 34 | 目的 | 長期価値観 |
 | 12 | stability_valve.py | 728 | 40 | 判断 | 極端回避バルブ |
 | 13 | silence_hesitation.py | 724 | 36 | 出力 | 沈黙・躊躇い表現 |
-| 14 | __init__.py | 1,394 | - | 基盤 | エクスポート定義 |
+| 14 | __init__.py | 1,562 | - | 基盤 | エクスポート定義 |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
 | 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
@@ -2412,6 +2413,60 @@ TendencyAwareness (傾向の自己認知):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### 4.7.4d 自発起動経路
+
+```
+自発起動経路 実装仕様 (spontaneous_activation.py: 1,549行 / 84テスト):
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  思想:                                                          │
+│    外部入力がない局面でも内部状態の変化を処理可能にする。        │
+│    外部入力経路を置き換えず、内部動機を単一路線へ固定せず、      │
+│    起動成立だけで行動内容を確定せず、継続駆動を無制限化しない。  │
+│    出力は起動候補情報としてのみ流し、判断・評価・行動決定を      │
+│    直接起動しない。                                              │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  8断面入力 (duck-typed extraction):                              │
+│    INTRINSIC_MOTIVATION  内的動機断面                            │
+│    DIRECTION_VECTOR      方向断面                                │
+│    UNFINISHED_INTENT     未完了意図断面                          │
+│    MEMORY_ECHO           記憶残響断面                            │
+│    EMOTIONAL_TRANSITION  感情推移断面                            │
+│    RESPONSIBILITY        責任断面                                │
+│    RECENT_ACTION         直近行動履歴断面                        │
+│    EXTERNAL_INPUT_ABSENCE 外部入力有無断面                       │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  5段パイプライン:                                                │
+│    1. 起動候補抽出（複数断面交差で成立）                         │
+│    2. 起動条件整列（連続差分参照、単回変動の恒常化防止）         │
+│    3. 競合整理（並立保持、未採択候補は消去せず次回候補化へ戻す） │
+│    4. 起動可否判定用情報化                                       │
+│    5. 受け渡し準備                                               │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  安全弁:                                                        │
+│    - 連続採択系列の抑制（自己強化ループ防止）                    │
+│    - 過密化時クールダウン有効化（起動間隔偏り緩和）              │
+│    - 単線候補時の代替系列補充（複線候補へ復帰）                  │
+│    - 鮮度減衰（単回判定が恒久状態にならない）                    │
+│    - 未採択候補の再浮上経路維持                                  │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  brain.py統合:                                                   │
+│    think_spontaneous(): 非ストリーミング自発思考                 │
+│    think_streaming_spontaneous(): ストリーミング自発思考         │
+│    外部入力存在時は notify_external_input() で競合回避           │
+│                                                                 │
+│  orchestrator統合:                                               │
+│    check_spontaneous_activation(): 起動候補チェック              │
+│    post_response_update時: notify_external_input()               │
+│    save/load v11 (33フィールド)、enrichment #18、systems 43      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 #### 4.7.5 自発的内的動機
 
 ```
@@ -3303,6 +3358,7 @@ psyche/
 ├── other_model_input_supply.py  (308行) - 他者モデル入力供給（external_context / reaction_log 生成）
 ├── other_model_real_feed.py  (1,481行) - 他者モデルリアルフィード統合（8観測断片・10段パイプライン・安全弁）
 ├── text_dialogue_input.py   (1,559行) - テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁）
+├── spontaneous_activation.py (1,549行) - 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁）
 ├── emotional_memory_binding.py (1708行) - 感情記憶の紐づけ（中長期感情痕跡）
 ├── intrinsic_motivation.py    (1752行) - 自発的内的動機（感情・傾向由来の内的推進力）
 ├── responsibility.py              (480行)  - 責任記録・評価
@@ -3357,6 +3413,7 @@ tests/
 ├── test_other_model_input_supply.py (330行)
 ├── test_other_model_real_feed.py (1,006行)
 ├── test_text_dialogue_input.py  (1,025行)
+├── test_spontaneous_activation.py (812行)
 ├── test_emotional_memory_binding.py (1142行)
 ├── test_intrinsic_motivation.py (1157行)
 ├── test_tone.py                   (592行)
@@ -3520,7 +3577,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ③ | 記憶系統統合 ✅完了 | 中 | ① | memory_system_integration.py (1,132行/93テスト) 3系統正規化・重複並立・競合併存。orchestrator Phase 21b、save/load v8 |
 | ④ | 他者モデルへのリアルフィード ✅完了 | 中 | ③ | other_model_real_feed.py (1,063行/102テスト) 8観測断片・10段パイプライン。orchestrator Phase 25a、save/load v9 |
 | ⑤ | 入力経路拡充（テキスト対話） ✅完了 | 中〜高 | ①〜④ | text_dialogue_input.py (1,559行/102テスト) 6段パイプライン・経路多様性。orchestrator Phase 25b、save/load v10。brain.py think_text/think_streaming_text追加 |
-| ⑥ | 自発性の追加 | 高 | ①〜⑤ | orchestratorティックモデル変更、外部入力なしの起動 |
+| ⑥ | 自発性の追加 ✅完了 | 高 | ①〜⑤ | spontaneous_activation.py (1,549行/84テスト) 8断面交差・5段パイプライン。orchestrator check_spontaneous_activation()、save/load v11。brain.py think_spontaneous/think_streaming_spontaneous追加 |
 | ⑦ | value_orientation 実運用検証 | 低 | ⑥ | 長期運用データでの変化観測 |
 
 ### 9.2 各項目の詳細
@@ -3575,10 +3632,13 @@ other_model_real_feed.py (1,063行/102テスト)
 - orchestrator Phase 25b、save/load v10 (32フィールド)、enrichment #17、systems 41→42
 - brain.py: think_text() / think_streaming_text() 追加（テキスト入力のみの思考経路）
 
-#### ⑥ 自発性の追加
-- 現在は受動ループのみ（外部入力→反応）
-- intrinsic_motivation / proto_goal_vector が自発的行動を起こすトリガーになっていない
-- orchestratorのティックモデル根幹に関わる最大リスク変更
+#### ⑥ 自発性の追加 ✅完了
+spontaneous_activation.py (1,549行/84テスト)
+- 8断面入力: 内的動機・方向・未完了意図・記憶残響・感情推移・責任・直近行動・外部入力有無
+- 5段パイプライン: 候補抽出(断面交差)→条件整列(連続差分)→競合整理(並立保持)→可否判定→受渡
+- 安全弁: 連続採択抑制、過密化クールダウン、単線候補時代替補充、鮮度減衰、未採択再浮上
+- orchestrator check_spontaneous_activation()、save/load v11 (33フィールド)、enrichment #18、systems 42→43
+- brain.py: think_spontaneous() / think_streaming_spontaneous() 追加（外部入力なし時の自発思考経路）
 
 #### ⑦ value_orientation 実運用検証
 - ±5%（超高慣性）の価値軸変化を実運用で観測
@@ -3587,4 +3647,4 @@ other_model_real_feed.py (1,063行/102テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~91,908行 / テスト数: 3,189*
+*総コード行数: ~94,979行 / テスト数: 3,273*

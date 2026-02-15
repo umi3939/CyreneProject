@@ -41,7 +41,7 @@
 │                                                                             │
 │                    ┌───────────┐                                            │
 │                    │   main    │ ← メインループ制御                         │
-│                    │  (271行)  │                                            │
+│                    │  (307行)  │                                            │
 │                    └───────────┘                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -144,7 +144,7 @@
 | brain.py | 912 | CyreneBrain | 2-call思考生成（perception+expression, psyche enrichment, save/load, LLM parse_percept, think_text/think_spontaneous） |
 | voice.py | 437 | VoiceClient | Style-Bert-VITS2連携 |
 | vision.py | 393 | GameCapture, HybridEye | 画面キャプチャ・分析 |
-| main.py | 271 | main() | メインループ制御 |
+| main.py | 307 | main(), speak_sentences(), start_text_listener() | メインループ制御（3経路同列: テキスト→画面→自発） |
 
 ### 2.4 補助モジュール (src/)
 
@@ -427,7 +427,19 @@ Psyche初期化詳細:
 ### 3.4 main.py - メインループ
 
 ```
-メインループ処理フロー:
+ヘルパー関数:
+┌─────────────────────────────────────────────────────────────────┐
+│ async start_text_listener(queue: asyncio.Queue):                │
+│   stdinを別スレッドで読み、asyncio.Queueに投入                 │
+│   (daemon thread, non-blocking)                                 │
+│                                                                 │
+│ async speak_sentences(brain, voice, sentence_gen) -> int:       │
+│   共通発話パイプライン: streaming generator → voice.speak        │
+│   感情はbrain.last_emotionから取得、style_weightを自動設定      │
+│   戻り値: 発話した文数                                          │
+└─────────────────────────────────────────────────────────────────┘
+
+メインループ処理フロー (3経路同列):
 ┌─────────────────────────────────────────────────────────────────┐
 │ async main():                                                   │
 │                                                                 │
@@ -438,42 +450,43 @@ Psyche初期化詳細:
 │   │ 3. ensure_server_running() → VoiceClient() 初期化       │   │
 │   │ 4. HybridEye(analysis_interval=0.5) 初期化              │   │
 │   │ 5. 一時ファイルパス設定                                 │   │
+│   │ 6. テキスト入力リスナー起動 (stdin → asyncio.Queue)     │   │
 │   └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│   メインループ:                                                 │
+│   メインループ (3経路同列・恒常優先なし):                       │
 │   ┌─────────────────────────────────────────────────────────┐   │
 │   │ while True:                                             │   │
 │   │                                                         │   │
-│   │   [1] 終了キーチェック                                  │   │
+│   │   [0] 終了キーチェック                                  │   │
 │   │       if keyboard.is_pressed('l'): break                │   │
 │   │                                                         │   │
-│   │   [2] 画面キャプチャ                                    │   │
+│   │   [A] テキスト入力チェック (非ブロッキング)             │   │
+│   │       user_text = text_queue.get_nowait()               │   │
+│   │       → brain.think_streaming_text(user_text)           │   │
+│   │       → speak_sentences()                               │   │
+│   │                                                         │   │
+│   │   [B] 画面キャプチャ (テキスト入力がなかった場合)       │   │
 │   │       frame = capture.capture_frame()                   │   │
-│   │       frame.save(temp_path, "JPEG", quality=95)         │   │
+│   │       → hybrid_eye.analyze_frame(frame)                 │   │
+│   │       → brain.think_streaming(image, vision_summary)    │   │
+│   │       → speak_sentences()                               │   │
 │   │                                                         │   │
-│   │   [3] 画像分析 (YOLO + OCR)                             │   │
-│   │       analysis = hybrid_eye.analyze_frame(frame)        │   │
-│   │       vision_summary = hybrid_eye.format_for_prompt()   │   │
+│   │   [C] 自発起動チェック (外部入力がなかった場合)         │   │
+│   │       idle_sec >= 30.0 の場合:                          │   │
+│   │       → brain.think_streaming_spontaneous()             │   │
+│   │       → speak_sentences()                               │   │
 │   │                                                         │   │
-│   │   [4] 思考生成 & 発話 (2-call: perception+expression)    │   │
-│   │       async for sentence in brain.think_streaming(...): │   │
-│   │         # 感情はbrain.last_emotionから取得              │   │
-│   │         emotion, sw, clean = parse_emotion_tag(sentence)│   │
-│   │         # 字幕表示                                      │   │
-│   │         print(f"[Cyrene] ({emotion}): {clean}")         │   │
-│   │         # 音声合成・再生                                │   │
-│   │         await voice.speak(clean, style_weight=sw)       │   │
-│   │                                                         │   │
-│   │   [5] ループ遅延                                        │   │
+│   │   [D] ループ遅延                                        │   │
 │   │       await asyncio.sleep(0.1)                          │   │
 │   └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │   終了処理:                                                     │
 │   ┌─────────────────────────────────────────────────────────┐   │
 │   │ 1. brain.summarize_and_save() - 長期記憶保存            │   │
-│   │ 2. capture.release() - dxcamリソース解放                │   │
-│   │ 3. voice.close() - HTTPクライアント終了                 │   │
-│   │ 4. 一時ファイル削除                                     │   │
+│   │ 2. brain.save_state() - psyche状態保存                  │   │
+│   │ 3. capture.release() - dxcamリソース解放                │   │
+│   │ 4. voice.close() - HTTPクライアント終了                 │   │
+│   │ 5. 一時ファイル削除                                     │   │
 │   └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```

@@ -1,0 +1,2863 @@
+{
+  "metadata": {
+    "scenario": "gradual_recovery",
+    "total_turns": 50,
+    "delta_time_per_turn": 2.0,
+    "user_id": "sim_user",
+    "started_at": "2026-02-13T01:24:28",
+    "finished_at": "2026-02-13T01:24:28",
+    "version": 1
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "tick": 1,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0229,
+          "sorrow": 0.8206,
+          "fear": 0.0902,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.51,
+          "curiosity": 0.52,
+          "expression": 0.4915
+        },
+        "mood": {
+          "valence": -0.0134,
+          "arousal": 0.2935
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.8206,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.063,
+        "accumulated_harm": 0.0315,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.0315,
+        "caution_bias": 0.0158,
+        "anxiety_baseline": 0.0063,
+        "empathy_bias": 0.0284
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.57,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 2,
+      "tick": 2,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0404,
+          "sorrow": 0.9409,
+          "fear": 0.1544,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.49,
+          "curiosity": 0.54,
+          "expression": 0.5153
+        },
+        "mood": {
+          "valence": -0.0524,
+          "arousal": 0.3544
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.126,
+        "accumulated_harm": 0.063,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.063,
+        "caution_bias": 0.0315,
+        "anxiety_baseline": 0.0126,
+        "empathy_bias": 0.0567
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.55,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 3,
+      "tick": 3,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0538,
+          "sorrow": 0.9409,
+          "fear": 0.2112,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.47,
+          "curiosity": 0.56,
+          "expression": 0.5383
+        },
+        "mood": {
+          "valence": -0.0921,
+          "arousal": 0.4092
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.189,
+        "accumulated_harm": 0.0945,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.0945,
+        "caution_bias": 0.0473,
+        "anxiety_baseline": 0.0189,
+        "empathy_bias": 0.0851
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.53,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 4,
+      "tick": 4,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.064,
+          "sorrow": 0.9409,
+          "fear": 0.2621,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.45,
+          "curiosity": 0.58,
+          "expression": 0.5603
+        },
+        "mood": {
+          "valence": -0.1321,
+          "arousal": 0.4585
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.252,
+        "accumulated_harm": 0.126,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.126,
+        "caution_bias": 0.063,
+        "anxiety_baseline": 0.0252,
+        "empathy_bias": 0.1134
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.51,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 5,
+      "tick": 5,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0718,
+          "sorrow": 0.9409,
+          "fear": 0.3082,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.43,
+          "curiosity": 0.6,
+          "expression": 0.5814
+        },
+        "mood": {
+          "valence": -0.172,
+          "arousal": 0.5029
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.315,
+        "accumulated_harm": 0.1575,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.1575,
+        "caution_bias": 0.0788,
+        "anxiety_baseline": 0.0315,
+        "empathy_bias": 0.1417
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.8302,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 6,
+      "tick": 6,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0778,
+          "sorrow": 0.9409,
+          "fear": 0.3505,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.41,
+          "curiosity": 0.62,
+          "expression": 0.6018
+        },
+        "mood": {
+          "valence": -0.2116,
+          "arousal": 0.5429
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.378,
+        "accumulated_harm": 0.189,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.189,
+        "caution_bias": 0.0945,
+        "anxiety_baseline": 0.0378,
+        "empathy_bias": 0.1701
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.8951,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 7,
+      "tick": 7,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0823,
+          "sorrow": 0.9409,
+          "fear": 0.3899,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.39,
+          "curiosity": 0.64,
+          "expression": 0.6213
+        },
+        "mood": {
+          "valence": -0.2508,
+          "arousal": 0.5788
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.441,
+        "accumulated_harm": 0.2205,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.2205,
+        "caution_bias": 0.1103,
+        "anxiety_baseline": 0.0441,
+        "empathy_bias": 0.1984
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.5703,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 8,
+      "tick": 8,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0858,
+          "sorrow": 0.9409,
+          "fear": 0.4268,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.37,
+          "curiosity": 0.66,
+          "expression": 0.64
+        },
+        "mood": {
+          "valence": -0.2895,
+          "arousal": 0.6112
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.504,
+        "accumulated_harm": 0.252,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.252,
+        "caution_bias": 0.126,
+        "anxiety_baseline": 0.0504,
+        "empathy_bias": 0.2268
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 3.6552,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 9,
+      "tick": 9,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0885,
+          "sorrow": 0.9409,
+          "fear": 0.4618,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.35,
+          "curiosity": 0.68,
+          "expression": 0.658
+        },
+        "mood": {
+          "valence": -0.3277,
+          "arousal": 0.6403
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.567,
+        "accumulated_harm": 0.2835,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.2835,
+        "caution_bias": 0.1417,
+        "anxiety_baseline": 0.0567,
+        "empathy_bias": 0.2551
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 4.3958,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 10,
+      "tick": 10,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0905,
+          "sorrow": 0.9409,
+          "fear": 0.4953,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.33,
+          "curiosity": 0.7,
+          "expression": 0.6753
+        },
+        "mood": {
+          "valence": -0.3653,
+          "arousal": 0.6665
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.63,
+        "accumulated_harm": 0.315,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.315,
+        "caution_bias": 0.1575,
+        "anxiety_baseline": 0.063,
+        "empathy_bias": 0.2835
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 4.5558,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 11,
+      "tick": 11,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.092,
+          "sorrow": 0.9409,
+          "fear": 0.5276,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.31,
+          "curiosity": 0.72,
+          "expression": 0.6919
+        },
+        "mood": {
+          "valence": -0.4022,
+          "arousal": 0.6901
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.693,
+        "accumulated_harm": 0.3465,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3465,
+        "caution_bias": 0.1732,
+        "anxiety_baseline": 0.0693,
+        "empathy_bias": 0.3118
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 4.715,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 12,
+      "tick": 12,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0932,
+          "sorrow": 0.9409,
+          "fear": 0.5589,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.29,
+          "curiosity": 0.74,
+          "expression": 0.7078
+        },
+        "mood": {
+          "valence": -0.4386,
+          "arousal": 0.7114
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.756,
+        "accumulated_harm": 0.378,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.378,
+        "caution_bias": 0.189,
+        "anxiety_baseline": 0.0756,
+        "empathy_bias": 0.3402
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 4.8727,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 13,
+      "tick": 13,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0941,
+          "sorrow": 0.9409,
+          "fear": 0.5894,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.27,
+          "curiosity": 0.76,
+          "expression": 0.7231
+        },
+        "mood": {
+          "valence": -0.4745,
+          "arousal": 0.7305
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.819,
+        "accumulated_harm": 0.4095,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4095,
+        "caution_bias": 0.2047,
+        "anxiety_baseline": 0.0819,
+        "empathy_bias": 0.3685
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.0296,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 14,
+      "tick": 14,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0948,
+          "sorrow": 0.9409,
+          "fear": 0.6194,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.25,
+          "curiosity": 0.78,
+          "expression": 0.7378
+        },
+        "mood": {
+          "valence": -0.5098,
+          "arousal": 0.7477
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.882,
+        "accumulated_harm": 0.441,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.441,
+        "caution_bias": 0.2205,
+        "anxiety_baseline": 0.0882,
+        "empathy_bias": 0.3969
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.1851,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 15,
+      "tick": 15,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0953,
+          "sorrow": 0.9409,
+          "fear": 0.6488,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.23,
+          "curiosity": 0.8,
+          "expression": 0.7519
+        },
+        "mood": {
+          "valence": -0.5446,
+          "arousal": 0.7632
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.945,
+        "accumulated_harm": 0.4725,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4725,
+        "caution_bias": 0.2362,
+        "anxiety_baseline": 0.0945,
+        "empathy_bias": 0.4252
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.3399,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 16,
+      "tick": 16,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0957,
+          "sorrow": 0.9409,
+          "fear": 0.6778,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.21,
+          "curiosity": 0.82,
+          "expression": 0.7655
+        },
+        "mood": {
+          "valence": -0.5789,
+          "arousal": 0.7771
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.504,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.2512,
+        "anxiety_baseline": 0.1008,
+        "empathy_bias": 0.4508
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.4934,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 17,
+      "tick": 17,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0961,
+          "sorrow": 0.9409,
+          "fear": 0.7058,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.19,
+          "curiosity": 0.84,
+          "expression": 0.7785
+        },
+        "mood": {
+          "valence": -0.6127,
+          "arousal": 0.7896
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.5355,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.2606,
+        "anxiety_baseline": 0.1071,
+        "empathy_bias": 0.4571
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.8395,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 18,
+      "tick": 18,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0963,
+          "sorrow": 0.9409,
+          "fear": 0.7282,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.17,
+          "curiosity": 0.86,
+          "expression": 0.791
+        },
+        "mood": {
+          "valence": -0.6459,
+          "arousal": 0.8009
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.567,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.2701,
+        "anxiety_baseline": 0.1134,
+        "empathy_bias": 0.4634
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.9374,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 19,
+      "tick": 19,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0965,
+          "sorrow": 0.9409,
+          "fear": 0.746,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.15,
+          "curiosity": 0.88,
+          "expression": 0.8031
+        },
+        "mood": {
+          "valence": -0.6784,
+          "arousal": 0.8111
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.5985,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.2795,
+        "anxiety_baseline": 0.1197,
+        "empathy_bias": 0.4697
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 6.0338,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 20,
+      "tick": 20,
+      "input_pattern": "negative",
+      "input": {
+        "text": "もういやだ、つらい",
+        "emotion": "sad",
+        "intent": "expression",
+        "emotion_valence": -0.6
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0966,
+          "sorrow": 0.9409,
+          "fear": 0.7602,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.13,
+          "curiosity": 0.9,
+          "expression": 0.8146
+        },
+        "mood": {
+          "valence": -0.71,
+          "arousal": 0.8202
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.9409,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 6.1286,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "negative",
+        "relationship_delta": -0.1,
+        "expectation_gap": 0.3
+      }
+    },
+    {
+      "turn": 21,
+      "tick": 21,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0738,
+          "sorrow": 0.8272,
+          "fear": 0.7476,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.11,
+          "curiosity": 0.82,
+          "expression": 0.8231
+        },
+        "mood": {
+          "valence": -0.7372,
+          "arousal": 0.8231
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "sorrow",
+        "dominant_emotion_value": 0.8272,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.3145,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 22,
+      "tick": 22,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0564,
+          "sorrow": 0.7307,
+          "fear": 0.7375,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.74,
+          "expression": 0.8264
+        },
+        "mood": {
+          "valence": -0.7572,
+          "arousal": 0.8155
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7375,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.3545,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 23,
+      "tick": 23,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0431,
+          "sorrow": 0.6487,
+          "fear": 0.7295,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.66,
+          "expression": 0.8256
+        },
+        "mood": {
+          "valence": -0.7715,
+          "arousal": 0.8005
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7295,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.383,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 24,
+      "tick": 24,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0329,
+          "sorrow": 0.5791,
+          "fear": 0.7231,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.58,
+          "expression": 0.8245
+        },
+        "mood": {
+          "valence": -0.7813,
+          "arousal": 0.7863
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7231,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.4025,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 25,
+      "tick": 25,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0251,
+          "sorrow": 0.5199,
+          "fear": 0.718,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.5,
+          "expression": 0.8232
+        },
+        "mood": {
+          "valence": -0.7874,
+          "arousal": 0.7729
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.718,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.4149,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 26,
+      "tick": 26,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0192,
+          "sorrow": 0.4697,
+          "fear": 0.714,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.42,
+          "expression": 0.8217
+        },
+        "mood": {
+          "valence": -0.7908,
+          "arousal": 0.7604
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.714,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.4216,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 27,
+      "tick": 27,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0147,
+          "sorrow": 0.4271,
+          "fear": 0.7107,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.34,
+          "expression": 0.8201
+        },
+        "mood": {
+          "valence": -0.7921,
+          "arousal": 0.7488
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7107,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.4241,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 28,
+      "tick": 28,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0112,
+          "sorrow": 0.3909,
+          "fear": 0.7081,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.26,
+          "expression": 0.8185
+        },
+        "mood": {
+          "valence": -0.7917,
+          "arousal": 0.7381
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7081,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.4233,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 29,
+      "tick": 29,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0086,
+          "sorrow": 0.3602,
+          "fear": 0.7061,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.18,
+          "expression": 0.8167
+        },
+        "mood": {
+          "valence": -0.79,
+          "arousal": 0.7282
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7061,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.42,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 30,
+      "tick": 30,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0065,
+          "sorrow": 0.3341,
+          "fear": 0.7044,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.1,
+          "expression": 0.815
+        },
+        "mood": {
+          "valence": -0.7875,
+          "arousal": 0.7191
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7044,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.3717,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 31,
+      "tick": 31,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.005,
+          "sorrow": 0.3119,
+          "fear": 0.7031,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.02,
+          "expression": 0.8132
+        },
+        "mood": {
+          "valence": -0.7843,
+          "arousal": 0.7108
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7031,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.3223,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 32,
+      "tick": 32,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0038,
+          "sorrow": 0.2931,
+          "fear": 0.7021,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.0,
+          "expression": 0.8115
+        },
+        "mood": {
+          "valence": -0.7807,
+          "arousal": 0.7031
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7021,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.2725,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 33,
+      "tick": 33,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0029,
+          "sorrow": 0.2771,
+          "fear": 0.7013,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.0,
+          "expression": 0.8098
+        },
+        "mood": {
+          "valence": -0.7768,
+          "arousal": 0.6962
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7013,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.2222,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 34,
+      "tick": 34,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0022,
+          "sorrow": 0.2635,
+          "fear": 0.7006,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.0,
+          "expression": 0.8081
+        },
+        "mood": {
+          "valence": -0.7728,
+          "arousal": 0.6899
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7006,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.1718,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 35,
+      "tick": 35,
+      "input_pattern": "neutral",
+      "input": {
+        "text": "うん、そうだね",
+        "emotion": "neutral",
+        "intent": "question",
+        "emotion_valence": 0.0
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.0,
+          "anger": 0.0017,
+          "sorrow": 0.252,
+          "fear": 0.7001,
+          "surprise": 0.0,
+          "love": 0.0,
+          "fun": 0.0
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.0,
+          "expression": 0.8065
+        },
+        "mood": {
+          "valence": -0.7687,
+          "arousal": 0.6841
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "fear",
+        "dominant_emotion_value": 0.7001,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 1.0,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.289,
+        "anxiety_baseline": 0.126,
+        "empathy_bias": 0.476
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.1214,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "neutral",
+        "relationship_delta": 0.0,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 36,
+      "tick": 36,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.8802,
+          "anger": 0.0013,
+          "sorrow": 0.2422,
+          "fear": 0.6996,
+          "surprise": 0.0,
+          "love": 0.031,
+          "fun": 0.0273
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.02,
+          "expression": 0.8049
+        },
+        "mood": {
+          "valence": -0.7534,
+          "arousal": 0.6789
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.8802,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.967,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0099,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.5,
+        "caution_bias": 0.2857,
+        "anxiety_baseline": 0.125,
+        "empathy_bias": 0.4644
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 5.1134,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 37,
+      "tick": 37,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.001,
+          "sorrow": 0.2339,
+          "fear": 0.6993,
+          "surprise": 0.0,
+          "love": 0.0583,
+          "fun": 0.0486
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.04,
+          "expression": 0.8164
+        },
+        "mood": {
+          "valence": -0.7163,
+          "arousal": 0.7012
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.934,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0198,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4976,
+        "caution_bias": 0.2824,
+        "anxiety_baseline": 0.124,
+        "empathy_bias": 0.4529
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 4.9781,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 38,
+      "tick": 38,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0008,
+          "sorrow": 0.2269,
+          "fear": 0.6986,
+          "surprise": 0.0,
+          "love": 0.0826,
+          "fun": 0.0653
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.06,
+          "expression": 0.8274
+        },
+        "mood": {
+          "valence": -0.6809,
+          "arousal": 0.7214
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.901,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0297,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4834,
+        "caution_bias": 0.2791,
+        "anxiety_baseline": 0.123,
+        "empathy_bias": 0.4413
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 4.847,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 39,
+      "tick": 39,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0006,
+          "sorrow": 0.2209,
+          "fear": 0.6955,
+          "surprise": 0.0,
+          "love": 0.104,
+          "fun": 0.0783
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.08,
+          "expression": 0.8379
+        },
+        "mood": {
+          "valence": -0.6472,
+          "arousal": 0.7395
+        },
+        "fear_level": 0.32,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.868,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0396,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4692,
+        "caution_bias": 0.2758,
+        "anxiety_baseline": 0.122,
+        "empathy_bias": 0.4298
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 4.7207,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 40,
+      "tick": 40,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0004,
+          "sorrow": 0.2158,
+          "fear": 0.6906,
+          "surprise": 0.0,
+          "love": 0.1229,
+          "fun": 0.0884
+        },
+        "drives": {
+          "social": 0.09,
+          "curiosity": 0.1,
+          "expression": 0.8481
+        },
+        "mood": {
+          "valence": -0.6151,
+          "arousal": 0.7558
+        },
+        "fear_level": 0.23,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.835,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0495,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.455,
+        "caution_bias": 0.2725,
+        "anxiety_baseline": 0.121,
+        "empathy_bias": 0.4182
+      },
+      "policy": {
+        "policy_label": "沈黙する",
+        "score": 3.5006,
+        "rationale": "感情が揺れている"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 41,
+      "tick": 41,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0003,
+          "sorrow": 0.1903,
+          "fear": 0.6444,
+          "surprise": 0.0,
+          "love": 0.1397,
+          "fun": 0.0963
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.12,
+          "expression": 0.8579
+        },
+        "mood": {
+          "valence": -0.5824,
+          "arousal": 0.7704
+        },
+        "fear_level": 0.23,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.802,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0594,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4409,
+        "caution_bias": 0.2692,
+        "anxiety_baseline": 0.1201,
+        "empathy_bias": 0.4067
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 2.5668,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 42,
+      "tick": 42,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0003,
+          "sorrow": 0.1686,
+          "fear": 0.605,
+          "surprise": 0.0,
+          "love": 0.1545,
+          "fun": 0.1025
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.14,
+          "expression": 0.8672
+        },
+        "mood": {
+          "valence": -0.5497,
+          "arousal": 0.7837
+        },
+        "fear_level": 0.23,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.769,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0693,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4267,
+        "caution_bias": 0.2659,
+        "anxiety_baseline": 0.1191,
+        "empathy_bias": 0.3951
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 2.4809,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 43,
+      "tick": 43,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0002,
+          "sorrow": 0.1503,
+          "fear": 0.5711,
+          "surprise": 0.0,
+          "love": 0.1677,
+          "fun": 0.1073
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.16,
+          "expression": 0.8762
+        },
+        "mood": {
+          "valence": -0.5174,
+          "arousal": 0.7955
+        },
+        "fear_level": 0.1832,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.736,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0792,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.4125,
+        "caution_bias": 0.2626,
+        "anxiety_baseline": 0.1181,
+        "empathy_bias": 0.3836
+      },
+      "policy": {
+        "policy_label": "共感する",
+        "score": 2.3939,
+        "rationale": "相手の気持ちに寄り添う"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 44,
+      "tick": 44,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0002,
+          "sorrow": 0.1276,
+          "fear": 0.5284,
+          "surprise": 0.0,
+          "love": 0.1793,
+          "fun": 0.1111
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.18,
+          "expression": 0.8849
+        },
+        "mood": {
+          "valence": -0.4851,
+          "arousal": 0.8062
+        },
+        "fear_level": 0.1811,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.703,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.0891,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3983,
+        "caution_bias": 0.2593,
+        "anxiety_baseline": 0.1171,
+        "empathy_bias": 0.372
+      },
+      "policy": {
+        "policy_label": "感想を述べる",
+        "score": 2.406,
+        "rationale": "自分の考えや感情を表現する"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 45,
+      "tick": 45,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0001,
+          "sorrow": 0.1084,
+          "fear": 0.4917,
+          "surprise": 0.0,
+          "love": 0.1895,
+          "fun": 0.1141
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.2,
+          "expression": 0.8932
+        },
+        "mood": {
+          "valence": -0.4532,
+          "arousal": 0.8159
+        },
+        "fear_level": 0.179,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.67,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.099,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3841,
+        "caution_bias": 0.256,
+        "anxiety_baseline": 0.1161,
+        "empathy_bias": 0.3605
+      },
+      "policy": {
+        "policy_label": "感想を述べる",
+        "score": 2.4237,
+        "rationale": "自分の考えや感情を表現する"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 46,
+      "tick": 46,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0001,
+          "sorrow": 0.092,
+          "fear": 0.46,
+          "surprise": 0.0,
+          "love": 0.1986,
+          "fun": 0.1163
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.22,
+          "expression": 0.9011
+        },
+        "mood": {
+          "valence": -0.422,
+          "arousal": 0.8245
+        },
+        "fear_level": 0.1769,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.637,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.1089,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3699,
+        "caution_bias": 0.2527,
+        "anxiety_baseline": 0.1151,
+        "empathy_bias": 0.3489
+      },
+      "policy": {
+        "policy_label": "感想を述べる",
+        "score": 2.4458,
+        "rationale": "自分の考えや感情を表現する"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 47,
+      "tick": 47,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0001,
+          "sorrow": 0.0781,
+          "fear": 0.4322,
+          "surprise": 0.0,
+          "love": 0.2066,
+          "fun": 0.1181
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.24,
+          "expression": 0.9088
+        },
+        "mood": {
+          "valence": -0.3917,
+          "arousal": 0.8323
+        },
+        "fear_level": 0.1748,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.604,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.1188,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3557,
+        "caution_bias": 0.2494,
+        "anxiety_baseline": 0.1141,
+        "empathy_bias": 0.3374
+      },
+      "policy": {
+        "policy_label": "感想を述べる",
+        "score": 2.4766,
+        "rationale": "自分の考えや感情を表現する"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 48,
+      "tick": 48,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0001,
+          "sorrow": 0.0663,
+          "fear": 0.4075,
+          "surprise": 0.0,
+          "love": 0.2137,
+          "fun": 0.1195
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.26,
+          "expression": 0.9161
+        },
+        "mood": {
+          "valence": -0.3626,
+          "arousal": 0.8393
+        },
+        "fear_level": 0.1727,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.571,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.1287,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3415,
+        "caution_bias": 0.2461,
+        "anxiety_baseline": 0.1131,
+        "empathy_bias": 0.3258
+      },
+      "policy": {
+        "policy_label": "感想を述べる",
+        "score": 2.496,
+        "rationale": "自分の考えや感情を表現する"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 49,
+      "tick": 49,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0,
+          "sorrow": 0.0563,
+          "fear": 0.3853,
+          "surprise": 0.0,
+          "love": 0.22,
+          "fun": 0.1206
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.28,
+          "expression": 0.9232
+        },
+        "mood": {
+          "valence": -0.3346,
+          "arousal": 0.8457
+        },
+        "fear_level": 0.1706,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.538,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.1386,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3273,
+        "caution_bias": 0.2428,
+        "anxiety_baseline": 0.1121,
+        "empathy_bias": 0.3143
+      },
+      "policy": {
+        "policy_label": "感想を述べる",
+        "score": 2.5166,
+        "rationale": "自分の考えや感情を表現する"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    },
+    {
+      "turn": 50,
+      "tick": 50,
+      "input_pattern": "positive",
+      "input": {
+        "text": "ありがとう、嬉しいよ",
+        "emotion": "happy",
+        "intent": "expression",
+        "emotion_valence": 0.7
+      },
+      "psyche_state": {
+        "emotions": {
+          "joy": 0.9025,
+          "anger": 0.0,
+          "sorrow": 0.0478,
+          "fear": 0.3651,
+          "surprise": 0.0,
+          "love": 0.2256,
+          "fun": 0.1215
+        },
+        "drives": {
+          "social": 0.0,
+          "curiosity": 0.3,
+          "expression": 0.93
+        },
+        "mood": {
+          "valence": -0.3078,
+          "arousal": 0.8513
+        },
+        "fear_level": 0.17,
+        "dominant_emotion": "joy",
+        "dominant_emotion_value": 0.9025,
+        "loss_aversion": 0.3
+      },
+      "responsibility": {
+        "total_weight": 0.505,
+        "accumulated_harm": 0.63,
+        "accumulated_confidence": 0.1485,
+        "pending_decisions": 0
+      },
+      "responsibility_influence": {
+        "fear_amplification": 0.3131,
+        "caution_bias": 0.2395,
+        "anxiety_baseline": 0.1111,
+        "empathy_bias": 0.3027
+      },
+      "policy": {
+        "policy_label": "感想を述べる",
+        "score": 2.5381,
+        "rationale": "自分の考えや感情を表現する"
+      },
+      "outcome_applied": {
+        "user_reaction": "positive",
+        "relationship_delta": 0.1,
+        "expectation_gap": 0.0
+      }
+    }
+  ]
+}

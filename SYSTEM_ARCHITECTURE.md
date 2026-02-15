@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-02-14
-総コード行数: ~89,424行
-総テスト数: 3,087テスト
+更新日: 2026-02-16
+総コード行数: ~91,908行
+総テスト数: 3,189テスト
 
 ---
 
@@ -66,11 +66,11 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 57 | 43,719 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 56 | 40,437 | 自動テストコード |
+| psyche/ | 58 | 45,278 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 57 | 41,462 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | ルート | 6 | 2,195 | コアシステム |
-| **合計** | **133** | **89,006** | |
+| **合計** | **135** | **91,590** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -93,6 +93,7 @@
 | 13a | policy_candidate_expansion.py | 1,388 | 86 | 判断 | ポリシー候補拡張（8断面×10軸、内面反映経路の増設） |
 | 13b | memory_system_integration.py | 1,132 | 93 | 記憶 | 記憶系統統合（episodic↔long_term↔binding正規化、重複並立・競合併存・出所多様性） |
 | 13c | other_model_real_feed.py | 1,063 | 102 | 内省 | 他者モデルリアルフィード統合（8観測断片抽出・正規化・競合併存・鮮度管理・安全弁） |
+| 13d | text_dialogue_input.py | 1,559 | 102 | 入力 | テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -2345,6 +2346,72 @@ TendencyAwareness (傾向の自己認知):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### 4.7.4c テキスト対話入力経路
+
+```
+テキスト対話入力経路 実装仕様 (text_dialogue_input.py: 1,559行 / 102テスト):
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  思想:                                                          │
+│    現在の入力は画面知覚経路に依存しやすく、対話情報の流入機会    │
+│    が限定される。テキスト対話を独立した入力経路として追加する。  │
+│    既存入力経路を無効化しない。入力経路の追加を評価機構や行動    │
+│    決定機構へ拡張しない。単一入力経路への恒常固定を生まない。   │
+│                                                                 │
+│  Enum定義 (6種):                                                │
+│    InputRouteType: TEXT / SCREEN / API / UNKNOWN                │
+│    InputFreshness: FRESH / RECENT / AGING / STALE / FADED       │
+│    NormalizationStatus: RAW / NORMALIZED / FRAGMENT / EMPTY     │
+│    ContextLinkStatus: LINKED / PARTIAL / UNLINKED / BROKEN      │
+│    DuplicateStatus: UNIQUE / DUPLICATE / NEAR_DUPLICATE /       │
+│      SUPPRESSED                                                  │
+│    RouteConflictStatus: NONE / PARALLEL / SINGLE_LINE_RISK      │
+│                                                                 │
+│  データ構造 (11種):                                              │
+│    InputUnit          - 正規化済み入力単位                       │
+│    ContextLink        - 文脈連結情報（継続入力の接続）           │
+│    DuplicateRecord    - 重複判定情報（可逆的抑制）               │
+│    RouteConflict      - 同時入力競合（排除せず保持）             │
+│    ReceiveHistoryEntry - 受信履歴（生成・変化・減衰）            │
+│    SuppressionHistoryEntry - 再投入抑制履歴（可逆）              │
+│    DecayHistoryEntry  - 希薄化履歴                               │
+│    TextDialogueConfig - 設定パラメータ（14項目）                 │
+│    TextDialogueState  - 全体状態（17フィールド）                 │
+│    HandoffResult      - process()の出力（8フィールド）           │
+│                                                                 │
+│  処理パイプライン (6段 + 安全弁):                                │
+│    1. receive_input → InputUnit生成                              │
+│    2. normalize_unit → 表記ゆれ・空入力・断片→共通単位           │
+│    3. attach_context → 単発/継続区別、直前対話接続               │
+│    4. align_to_percept_format → 経路差吸収（意味解釈なし）       │
+│    5. detect_duplicates → 同一内容抑制、異内容並立保持           │
+│    6. prepare_handoff → 受け渡し結果構築                         │
+│    + apply_freshness_decay → 時間減衰                            │
+│    + suppress_recent_adoption → 自己強化ループ防止               │
+│    + ensure_format_diversity → 短文/長文片側支配防止             │
+│    + restore_multi_route → 単一経路支配→複線復元                 │
+│    + check_empty_streak → 空入力連続→保留（経路停止なし）        │
+│    + filter_circular_reference → 同サイクル再受信防止            │
+│                                                                 │
+│  統合: merge_with_percept()                                      │
+│    テキスト入力をPercept形式と同列統合（優先固定なし）           │
+│    経路識別情報を_route_infoとして下流参照可能に保持             │
+│    既存のemotion/intent判断を維持（本機能は判断しない）          │
+│                                                                 │
+│  orchestrator配線:                                              │
+│    Phase 25b: text_dialogue_processor（外部からprocess()呼出）   │
+│    process_text_input(): brain.pyからの呼出口                    │
+│    save/load v10: text_dialogue_state フィールド追加 (32項目)    │
+│    enrichment #17: 【記憶・内省】に「入力経路」行追加            │
+│    systems: 41→42                                               │
+│                                                                 │
+│  brain.py配線:                                                   │
+│    think_text(): テキスト入力のみの非ストリーミング版            │
+│    think_streaming_text(): テキスト入力のみのストリーミング版    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 #### 4.7.5 自発的内的動機
 
 ```
@@ -3235,6 +3302,7 @@ psyche/
 ├── other_agent_model.py        (1603行) - 他者モデル（他者状態の仮説的推測）
 ├── other_model_input_supply.py  (308行) - 他者モデル入力供給（external_context / reaction_log 生成）
 ├── other_model_real_feed.py  (1,481行) - 他者モデルリアルフィード統合（8観測断片・10段パイプライン・安全弁）
+├── text_dialogue_input.py   (1,559行) - テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁）
 ├── emotional_memory_binding.py (1708行) - 感情記憶の紐づけ（中長期感情痕跡）
 ├── intrinsic_motivation.py    (1752行) - 自発的内的動機（感情・傾向由来の内的推進力）
 ├── responsibility.py              (480行)  - 責任記録・評価
@@ -3288,6 +3356,7 @@ tests/
 ├── test_other_agent_model.py    (1205行)
 ├── test_other_model_input_supply.py (330行)
 ├── test_other_model_real_feed.py (1,006行)
+├── test_text_dialogue_input.py  (1,025行)
 ├── test_emotional_memory_binding.py (1142行)
 ├── test_intrinsic_motivation.py (1157行)
 ├── test_tone.py                   (592行)
@@ -3450,7 +3519,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ② | ポリシー候補拡張 ✅完了 | 低 | ① | policy_candidate_expansion.py (1,388行/86テスト) 8断面×10軸。orchestrator Phase 30b、save/load v7 |
 | ③ | 記憶系統統合 ✅完了 | 中 | ① | memory_system_integration.py (1,132行/93テスト) 3系統正規化・重複並立・競合併存。orchestrator Phase 21b、save/load v8 |
 | ④ | 他者モデルへのリアルフィード ✅完了 | 中 | ③ | other_model_real_feed.py (1,063行/102テスト) 8観測断片・10段パイプライン。orchestrator Phase 25a、save/load v9 |
-| ⑤ | 入力経路拡充（テキスト対話） | 中〜高 | ①〜④ | main.pyループ構造変更、対話パス追加 |
+| ⑤ | 入力経路拡充（テキスト対話） ✅完了 | 中〜高 | ①〜④ | text_dialogue_input.py (1,559行/102テスト) 6段パイプライン・経路多様性。orchestrator Phase 25b、save/load v10。brain.py think_text/think_streaming_text追加 |
 | ⑥ | 自発性の追加 | 高 | ①〜⑤ | orchestratorティックモデル変更、外部入力なしの起動 |
 | ⑦ | value_orientation 実運用検証 | 低 | ⑥ | 長期運用データでの変化観測 |
 
@@ -3499,10 +3568,12 @@ other_model_real_feed.py (1,063行/102テスト)
 - 競合観測は排除せず並立保持、単一解釈収束時は holdback から補充
 - orchestrator Phase 25a統合、save/load v9（31フィールド）、enrichment #16
 
-#### ⑤ 入力経路拡充
-- 現在は画面キャプチャ→反応の一方向のみ
-- テキスト対話（チャット入力）のパスを main.py に追加
-- src/api.py の POST /respond との統合も検討
+#### ⑤ 入力経路拡充 ✅完了
+- text_dialogue_input.py (1,559行/102テスト)
+- 6段パイプライン: 受信→正規化→文脈付与→既存形式整合→重複調整→受け渡し
+- 安全弁: 空入力連続→保留、単一経路支配→複線復元、形式多様性維持、循環参照防止、自己強化ループ防止
+- orchestrator Phase 25b、save/load v10 (32フィールド)、enrichment #17、systems 41→42
+- brain.py: think_text() / think_streaming_text() 追加（テキスト入力のみの思考経路）
 
 #### ⑥ 自発性の追加
 - 現在は受動ループのみ（外部入力→反応）
@@ -3516,4 +3587,4 @@ other_model_real_feed.py (1,063行/102テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~89,424行 / テスト数: 3,087*
+*総コード行数: ~91,908行 / テスト数: 3,189*

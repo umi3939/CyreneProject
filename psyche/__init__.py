@@ -1059,6 +1059,45 @@ from .other_model_input_supply import (
     get_input_supply_summary,
 )
 
+# Text Dialogue Input (テキスト対話入力経路)
+from .text_dialogue_input import (
+    InputRouteType,
+    InputFreshness,
+    NormalizationStatus,
+    ContextLinkStatus,
+    DuplicateStatus,
+    RouteConflictStatus,
+    InputUnit,
+    ContextLink,
+    DuplicateRecord,
+    RouteConflict,
+    ReceiveHistoryEntry,
+    SuppressionHistoryEntry,
+    DecayHistoryEntry,
+    TextDialogueConfig,
+    TextDialogueState,
+    HandoffResult,
+    receive_input,
+    normalize_unit,
+    attach_context,
+    align_to_percept_format,
+    detect_duplicates,
+    prepare_handoff,
+    apply_freshness_decay,
+    decay_receive_history,
+    decay_suppression_history,
+    suppress_recent_adoption,
+    check_empty_streak,
+    detect_single_route_dominance,
+    ensure_format_diversity,
+    restore_multi_route,
+    filter_circular_reference,
+    TextDialogueProcessor,
+    merge_with_percept,
+    get_text_dialogue_summary,
+    create_text_dialogue_processor,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1442,6 +1481,20 @@ __all__ = [
     "PolicyCandidateExpander",
     "create_policy_expander", "create_expansion_config",
     "extract_all_fragments", "get_expansion_summary", "get_expansion_summary_text",
+    # Text Dialogue Input (テキスト対話入力経路)
+    "InputRouteType", "InputFreshness", "NormalizationStatus",
+    "ContextLinkStatus", "DuplicateStatus", "RouteConflictStatus",
+    "InputUnit", "ContextLink", "DuplicateRecord", "RouteConflict",
+    "ReceiveHistoryEntry", "SuppressionHistoryEntry", "DecayHistoryEntry",
+    "TextDialogueConfig", "TextDialogueState", "HandoffResult",
+    "receive_input", "normalize_unit", "attach_context",
+    "align_to_percept_format", "detect_duplicates", "prepare_handoff",
+    "apply_freshness_decay", "decay_receive_history", "decay_suppression_history",
+    "suppress_recent_adoption", "check_empty_streak",
+    "detect_single_route_dominance", "ensure_format_diversity",
+    "restore_multi_route", "filter_circular_reference",
+    "TextDialogueProcessor", "merge_with_percept",
+    "get_text_dialogue_summary", "create_text_dialogue_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

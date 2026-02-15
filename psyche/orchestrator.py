@@ -331,6 +331,13 @@ from .other_model_real_feed import (
     enhance_context_with_feed,
     get_real_feed_summary,
 )
+from .text_dialogue_input import (
+    TextDialogueProcessor,
+    TextDialogueState,
+    HandoffResult as TextHandoffResult,
+    create_text_dialogue_processor,
+    get_text_dialogue_summary,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -533,6 +540,10 @@ class PsycheOrchestrator:
         self._last_feed_result: Optional[FeedResult] = None
         self._last_integration_result: Optional[IntegrationResult] = None
 
+        # ── Text dialogue input ──
+        self._text_dialogue_processor = create_text_dialogue_processor()
+        self._last_text_handoff: Optional[TextHandoffResult] = None
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -541,7 +552,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=41",
+            "systems=42",
             fear.value, fear.dominant_fear,
         )
 
@@ -566,6 +577,31 @@ class PsycheOrchestrator:
         次回の Phase 21 (emotional_memory_binding) で使用される。
         """
         self._last_recalled_memories = memories
+
+    def process_text_input(
+        self,
+        text: str,
+        sender_id: str = "",
+        conversation_id: str = "",
+    ) -> Optional[TextHandoffResult]:
+        """テキスト対話入力を処理する（brain.pyから呼出）。
+
+        既存の画面知覚経路と同列で統合前段へ接続する。
+        """
+        from .text_dialogue_input import InputRouteType
+        try:
+            self._last_text_handoff = self._text_dialogue_processor.process(
+                text=text,
+                route_type=InputRouteType.TEXT,
+                sender_id=sender_id,
+                conversation_id=conversation_id,
+                existing_percept=self._last_percept,
+                tick_count=self._tick_count,
+            )
+            return self._last_text_handoff
+        except Exception as e:
+            logger.debug("Text dialogue input processing failed: %s", e)
+            return None
 
     # ── Phase 1-7: Every-tick update ──────────────────────────────
 
@@ -957,6 +993,10 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Real feed processing skipped: %s", e)
 
+        # Phase 25b: text_dialogue_input — テキスト対話入力経路処理
+        # (orchestrator外部からtext入力が供給された場合のみ実行)
+        # Processor自体は常時利用可能。外部からprocess()を直接呼ぶ形式。
+
         # Phase 25: other_agent_model — 他者モデル仮説更新 (入力供給経由)
         try:
             # 入力供給更新: percept / STM / dynamics / psyche から計算
@@ -1262,6 +1302,16 @@ class PsycheOrchestrator:
                 feed_text = get_real_feed_summary(self._real_feed_processor)
                 if feed_text and "inactive" not in feed_text:
                     memory_lines.append(f"観測フィード: {feed_text}")
+            except Exception:
+                pass
+        # #17 text_dialogue_input
+        if self._text_dialogue_processor is not None:
+            try:
+                tdi_text = get_text_dialogue_summary(
+                    self._text_dialogue_processor.state
+                )
+                if tdi_text and "待機中" not in tdi_text:
+                    memory_lines.append(f"入力経路: {tdi_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -1636,7 +1686,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 9,
+            "version": 10,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1675,6 +1725,8 @@ class PsycheOrchestrator:
             "memory_integration_state": self._memory_integrator.state.to_dict() if self._memory_integrator else {},
             # Version 9 fields
             "real_feed_state": self._real_feed_processor.state.to_dict() if self._real_feed_processor else {},
+            # Version 10 fields
+            "text_dialogue_state": self._text_dialogue_processor.state.to_dict() if self._text_dialogue_processor else {},
         }
 
         save_path.write_text(
@@ -1777,6 +1829,10 @@ class PsycheOrchestrator:
             # Version 9+ fields
             if data.get("real_feed_state"):
                 self._real_feed_processor._state = RealFeedState.from_dict(data["real_feed_state"])
+
+            # Version 10+ fields
+            if data.get("text_dialogue_state"):
+                self._text_dialogue_processor._state = TextDialogueState.from_dict(data["text_dialogue_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

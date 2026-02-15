@@ -25,6 +25,7 @@ from psyche.memory_link import recall_with_mood
 from psyche.perception import parse_percept
 from psyche.expression import render_expression
 from psyche.silence_hesitation import is_silence_policy
+from psyche.text_dialogue_input import merge_with_percept
 from src.llm_wrapper import llm_call, llm_call_with_image, VISION_SYSTEM_PROMPT
 
 from src.logging_config import configure_logging
@@ -492,6 +493,204 @@ class CyreneBrain:
             logger.error(f"Think streaming failed: {e}")
             import traceback
             traceback.print_exc()
+            yield "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
+
+
+    async def think_text(
+        self,
+        user_text: str,
+        sender_id: str = "",
+        conversation_id: str = "",
+    ) -> Optional[str]:
+        """テキスト対話入力経路による思考（非ストリーミング版）。
+
+        画面知覚なしでテキスト入力のみから応答を生成する。
+        Returns None if psyche decides silence.
+        """
+        try:
+            # Phase 1: parse_percept (with LLM enrichment)
+            percept = await parse_percept(
+                user_text,
+                llm_call_fn=llm_call,
+                state=self._orchestrator.psyche,
+            )
+
+            # Phase 2: text dialogue input processing
+            handoff = self._orchestrator.process_text_input(
+                text=user_text,
+                sender_id=sender_id,
+                conversation_id=conversation_id,
+            )
+
+            # Phase 3: psyche update
+            now = time.monotonic()
+            delta = now - self._last_psyche_update
+            self._last_psyche_update = now
+            self._orchestrator.post_response_update(percept, delta, "text")
+
+            # Phase 4: recall
+            recall_query = user_text
+            if self._last_response:
+                recall_query += " " + self._last_response
+            recall_percept = Percept(text=recall_query)
+            memories = await recall_with_mood(
+                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+            )
+            self._orchestrator.set_recalled_memories(memories)
+
+            # Phase 5: policy
+            policy = self._orchestrator.select_policy_dict(
+                percept, memories or [], "text"
+            )
+
+            # Phase 6: silence check
+            if is_silence_policy(policy):
+                logger.debug("Psyche chose silence (text input)")
+                return None
+
+            # Phase 7: expression
+            self._last_emotion = percept.emotion or "neutral"
+            enrichment = self._orchestrator.get_prompt_enrichment("text")
+            expr_result = await render_expression(
+                state=self._orchestrator.psyche,
+                policy=policy,
+                memory_snippet=memories or [],
+                persona=self._persona_dict,
+                llm_call_fn=llm_call,
+                screen_context=user_text,
+                recent_history=self._conversation_log[-5:],
+                psyche_enrichment=enrichment,
+            )
+            full_text = expr_result.get("text", "")
+            meta = expr_result.get("meta", {})
+
+            if not full_text:
+                return None
+
+            if meta.get("emotion"):
+                self._last_emotion = meta["emotion"]
+
+            self._conversation_log.append(f"[ユーザー] {user_text}")
+            self._conversation_log.append(f"[キュレネ] {full_text}")
+            self._last_response = full_text
+            return full_text
+
+        except Exception as e:
+            logger.error(f"Think text failed: {e}")
+            return "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
+
+    async def think_streaming_text(
+        self,
+        user_text: str,
+        sender_id: str = "",
+        conversation_id: str = "",
+    ) -> AsyncGenerator[str, None]:
+        """テキスト対話入力経路による思考（ストリーミング版）。
+
+        画面知覚なしでテキスト入力のみから応答を生成する。
+        Yields complete sentences.
+        """
+        self._turn_count += 1
+
+        try:
+            # Phase 1: parse_percept
+            percept = await parse_percept(
+                user_text,
+                llm_call_fn=llm_call,
+                state=self._orchestrator.psyche,
+            )
+
+            # Phase 2: text dialogue input processing
+            handoff = self._orchestrator.process_text_input(
+                text=user_text,
+                sender_id=sender_id,
+                conversation_id=conversation_id,
+            )
+
+            # Phase 3: psyche update
+            now = time.monotonic()
+            delta = now - self._last_psyche_update
+            self._last_psyche_update = now
+            self._orchestrator.post_response_update(percept, delta, "text")
+
+            # Phase 4: recall
+            recall_query = user_text
+            if self._last_response:
+                recall_query += " " + self._last_response
+            recall_percept = Percept(text=recall_query)
+            memories = await recall_with_mood(
+                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+            )
+            self._orchestrator.set_recalled_memories(memories)
+
+            # Phase 5: policy
+            policy = self._orchestrator.select_policy_dict(
+                percept, memories or [], "text"
+            )
+
+            # Phase 6: silence check
+            if is_silence_policy(policy):
+                logger.debug("Psyche chose silence (text input)")
+                return
+
+            # Phase 7: expression
+            self._last_emotion = percept.emotion or "neutral"
+            enrichment = self._orchestrator.get_prompt_enrichment("text")
+            expr_result = await render_expression(
+                state=self._orchestrator.psyche,
+                policy=policy,
+                memory_snippet=memories or [],
+                persona=self._persona_dict,
+                llm_call_fn=llm_call,
+                screen_context=user_text,
+                recent_history=self._conversation_log[-5:],
+                psyche_enrichment=enrichment,
+            )
+            full_text = expr_result.get("text", "")
+            meta = expr_result.get("meta", {})
+
+            if not full_text:
+                return
+
+            if meta.get("emotion"):
+                self._last_emotion = meta["emotion"]
+
+            # Log
+            self._conversation_log.append(f"[ユーザー] {user_text}")
+            self._conversation_log.append(f"[キュレネ] {full_text}")
+            self._last_response = full_text
+
+            # Phase 8: sentence split + yield
+            sentences = []
+            current = ""
+            for i, char in enumerate(full_text):
+                current += char
+                if char in "。！？!?♪♥♡★☆\n":
+                    sentence = current.strip()
+                    if sentence:
+                        sentences.append(sentence)
+                    current = ""
+                elif char == 'w':
+                    next_char = full_text[i + 1] if i + 1 < len(full_text) else None
+                    if next_char != 'w':
+                        pre_w = current.rstrip('w')
+                        if pre_w and not pre_w[-1].isascii():
+                            sentence = current.strip()
+                            if sentence:
+                                sentences.append(sentence)
+                            current = ""
+            if current.strip():
+                sentences.append(current.strip())
+
+            for sentence in sentences:
+                yield sentence
+
+            # Phase 9: periodic memory save
+            if self._turn_count % 5 == 0:
+                await self.summarize_and_save()
+
+        except Exception as e:
+            logger.error(f"Think streaming text failed: {e}")
             yield "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
 
 

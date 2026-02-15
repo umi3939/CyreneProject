@@ -389,8 +389,8 @@ class PsycheOrchestrator:
         continuity = ContinuityState(memory_count=memory_count)
         projection = ProjectionState(
             goals=[{
-                "id": "entertain",
-                "description": "視聴者を楽しませる",
+                "id": "engage",
+                "description": "対話相手と関わる",
                 "progress": 0.1,
                 "status": "active",
             }],
@@ -706,7 +706,7 @@ class PsycheOrchestrator:
             except Exception as e:
                 logger.debug("STM-emotion coupling skipped: %s", e)
 
-        # Phase 3: attachment — 視聴者ボンド更新
+        # Phase 3: attachment — 対話相手ボンド更新
         if self._psyche.attachment is not None:
             valence = abs(percept.emotion_valence)
             event_type = "positive" if percept.emotion_valence >= 0 else "negative"
@@ -1130,7 +1130,7 @@ class PsycheOrchestrator:
         Args:
             percept: 知覚入力（Gemini応答からのエモーションタグ等）
             delta_time: 前回更新からの経過秒
-            user_id: 視聴者ID
+            user_id: 対話相手ID
         """
         self._tick_count += 1
 
@@ -1641,7 +1641,7 @@ class PsycheOrchestrator:
         Args:
             percept: 知覚入力
             recalled_memories: 記憶検索結果
-            user_id: 視聴者ID
+            user_id: 対話相手ID
 
         Returns:
             【行動方針候補】セクションのテキスト

@@ -1,8 +1,8 @@
 {
   "goals": [
     {
-      "id": "entertain",
-      "description": "視聴者を楽しませる",
+      "id": "engage",
+      "description": "対話相手と関わる",
       "progress": 0.1,
       "status": "active"
     },

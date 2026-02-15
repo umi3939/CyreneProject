@@ -277,7 +277,7 @@ Psyche初期化詳細:
 │   3. ContinuityState作成:                                       │
 │      - memory_count: len(memories)                              │
 │   4. ProjectionState作成:                                       │
-│      - goals: [{id: "entertain", description: "視聴者を楽しませる"}]│
+│      - goals: [{id: "engage", description: "対話相手と関わる"}]    │
 │   5. compute_fear_index() で恐怖指数計算                        │
 │   6. PsycheState組み立て                                        │
 └─────────────────────────────────────────────────────────────────┘
@@ -3444,7 +3444,7 @@ tests/
 | 2 | エピソード記憶（自伝的記憶） | 「あのとき何が起き、どう感じたか」を個別の出来事として保持する構造。short_term_memoryは残留のみ、long_term_dynamicsは統計のみで、個別体験の蓄積がない | short_term_memory, self_narrative | 完了 |
 | 3 | 内省の消費層 | introspection_trace, self_narrative, identity_coherenceの観測結果を「読んで自分について語る」層。内省は生成されるが消費先がない | introspection_trace, self_narrative, identity_coherence | 完了 |
 | 4 | 予期・期待の形成 | 過去の傾向や経験から「次に何が起きそうか」を予測する構造。時間的連続性は過去方向のみで、未来方向の投射が弱い | repeated_tendency, temporal_self_difference, self_narrative | 完了 |
-| 5 | 他者モデル | 「相手（視聴者）がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 完了 |
+| 5 | 他者モデル | 「相手がどう感じているか」の推測構造。自己と他者の境界が構造として存在しない | context_sensitivity, self_model | 完了 |
 | 6 | 感情記憶の紐づけ | 特定の記憶に感情が染み付く仕組み。stm_emotion_couplingは短期の連動のみ | stm_emotion_coupling, short_term_memory | 完了 |
 | 7 | 自発的内的動機 | 感情や傾向から欲求が湧き上がる構造。goal系は候補生成と選択の仕組みだが「なぜそれをしたいか」の動機源がない | proto_goal_vector, repeated_tendency, multi_emotion | 完了 |
 | 8 | 他者モデル入力供給 | other_agent_modelのexternal_context/reaction_logが常にNoneだった問題を解消。STM・dynamics・psyche状態から入力を生成しorchestrator経由で供給 | other_agent_model, short_term_memory, orchestrator | 完了 |

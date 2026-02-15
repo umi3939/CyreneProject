@@ -33,7 +33,7 @@
 │         ▼                                                      │            │
 │   ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐         │
 │   │  vision   │───→│   brain   │───→│  psyche   │───→│   voice   │         │
-│   │  (393行)  │    │  (912行)  │    │(47,051行) │    │  (437行)  │         │
+│   │  (393行)  │    │  (941行)  │    │(47,051行) │    │  (437行)  │         │
 │   └───────────┘    └───────────┘    └───────────┘    └───────────┘         │
 │         │                │                │                │                │
 │    dxcam/YOLO       Gemini API      心理処理        Style-Bert-VITS2       │
@@ -41,7 +41,7 @@
 │                                                                             │
 │                    ┌───────────┐                                            │
 │                    │   main    │ ← メインループ制御                         │
-│                    │  (307行)  │                                            │
+│                    │  (299行)  │                                            │
 │                    └───────────┘                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -141,10 +141,10 @@
 
 | ファイル | 行数 | 主要クラス/関数 | 説明 |
 |---------|------|----------------|------|
-| brain.py | 912 | CyreneBrain | 2-call思考生成（perception+expression, psyche enrichment, save/load, LLM parse_percept, think_text/think_spontaneous） |
+| brain.py | 941 | CyreneBrain | 2-call思考生成（perception+expression, psyche enrichment, save/load, LLM parse_percept, think_text/think_spontaneous, PIL直接受渡し, fear_level公開, policy suggestions透明化） |
 | voice.py | 437 | VoiceClient | Style-Bert-VITS2連携 |
 | vision.py | 393 | GameCapture, HybridEye | 画面キャプチャ・分析 |
-| main.py | 307 | main(), speak_sentences(), start_text_listener() | メインループ制御（3経路同列: テキスト→画面→自発） |
+| main.py | 299 | main(), speak_sentences(), start_text_listener() | メインループ制御（3経路同列: テキスト→画面→自発, fear_level表示, PIL直接渡し） |
 
 ### 2.4 補助モジュール (src/)
 

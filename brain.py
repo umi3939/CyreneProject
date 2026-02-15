@@ -193,8 +193,8 @@ class CyreneBrain:
             else:
                 logger.warning("Empty summary from Gemini parse")
 
-            # Clear log after successful save
-            self._conversation_log.clear()
+            # Reset conversation context after successful save
+            self.reset_memory()
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse summary JSON: {e}")
@@ -224,6 +224,24 @@ class CyreneBrain:
     def last_emotion(self) -> str:
         return self._last_emotion
 
+    @property
+    def fear_level(self) -> float:
+        """Current aggregate fear level (0.0-1.0) from the 4-pillar system."""
+        return self._orchestrator.fear_level
+
+    def _log_policy_suggestions(
+        self, percept, memories: list, user_id: str
+    ) -> None:
+        """Log policy suggestions for internal decision transparency."""
+        try:
+            suggestions = self._orchestrator.get_policy_suggestions(
+                percept, memories or [], user_id
+            )
+            if suggestions:
+                logger.debug("Policy suggestions:\n%s", suggestions)
+        except Exception:
+            pass
+
     def save_state(self) -> None:
         """Save orchestrator psyche state for next session."""
         self._orchestrator.save()
@@ -240,25 +258,28 @@ class CyreneBrain:
 
     async def think(
         self,
-        image_path: str,
-        vision_summary: str = ""
+        image_path: str = "",
+        vision_summary: str = "",
+        image: Optional[Image.Image] = None,
     ) -> Optional[str]:
         """
         2-call structure (non-streaming version).
         Returns None if psyche decides silence.
 
         Args:
-            image_path: Path to JPEG image file.
+            image_path: Path to JPEG image file (used if image is None).
             vision_summary: Formatted sensor data from HybridEye (YOLO + OCR).
+            image: PIL Image directly (preferred over image_path).
 
         Returns:
             Generated text in Cyrene's voice, or None for silence.
         """
         try:
-            image_file = Path(image_path)
-            if not image_file.exists():
-                raise FileNotFoundError(f"Image not found: {image_path}")
-            image = Image.open(image_file)
+            if image is None:
+                image_file = Path(image_path)
+                if not image_file.exists():
+                    raise FileNotFoundError(f"Image not found: {image_path}")
+                image = Image.open(image_file)
 
             # Phase 1: Perception
             perception_prompt = "この画面の内容を客観的に記述してください。"
@@ -299,6 +320,7 @@ class CyreneBrain:
             policy = self._orchestrator.select_policy_dict(
                 percept, memories or [], "viewer"
             )
+            self._log_policy_suggestions(percept, memories, "viewer")
 
             # Phase 6: Silence check
             if is_silence_policy(policy):
@@ -336,8 +358,9 @@ class CyreneBrain:
 
     async def think_streaming(
         self,
-        image_path: str,
-        vision_summary: str = ""
+        image_path: str = "",
+        vision_summary: str = "",
+        image: Optional[Image.Image] = None,
     ) -> AsyncGenerator[str, None]:
         """
         2-call structure: perception → psyche → expression.
@@ -358,11 +381,12 @@ class CyreneBrain:
         self._turn_count += 1
 
         try:
-            # Load image
-            image_file = Path(image_path)
-            if not image_file.exists():
-                raise FileNotFoundError(f"Image not found: {image_path}")
-            image = Image.open(image_file)
+            # Load image (direct PIL Image preferred over file path)
+            if image is None:
+                image_file = Path(image_path)
+                if not image_file.exists():
+                    raise FileNotFoundError(f"Image not found: {image_path}")
+                image = Image.open(image_file)
 
             # === Phase 1: Gemini perception call ===
             perception_prompt = "この画面の内容を客観的に記述してください。"
@@ -409,6 +433,7 @@ class CyreneBrain:
             policy = self._orchestrator.select_policy_dict(
                 percept, memories or [], "viewer"
             )
+            self._log_policy_suggestions(percept, memories, "viewer")
             logger.debug(
                 f"Policy: {policy.get('policy_label', '?')} "
                 f"(score={policy.get('_score', 0):.2f})"
@@ -541,6 +566,7 @@ class CyreneBrain:
             policy = self._orchestrator.select_policy_dict(
                 percept, memories or [], "text"
             )
+            self._log_policy_suggestions(percept, memories, "text")
 
             # Phase 6: silence check
             if is_silence_policy(policy):
@@ -626,6 +652,7 @@ class CyreneBrain:
             policy = self._orchestrator.select_policy_dict(
                 percept, memories or [], "text"
             )
+            self._log_policy_suggestions(percept, memories, "text")
 
             # Phase 6: silence check
             if is_silence_policy(policy):
@@ -736,6 +763,7 @@ class CyreneBrain:
             policy = self._orchestrator.select_policy_dict(
                 percept, memories or [], "internal"
             )
+            self._log_policy_suggestions(percept, memories, "internal")
 
             # Silence check
             if is_silence_policy(policy):
@@ -819,6 +847,7 @@ class CyreneBrain:
             policy = self._orchestrator.select_policy_dict(
                 percept, memories or [], "internal"
             )
+            self._log_policy_suggestions(percept, memories, "internal")
 
             # Silence check
             if is_silence_policy(policy):

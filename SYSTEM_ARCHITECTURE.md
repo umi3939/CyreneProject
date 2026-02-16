@@ -3648,6 +3648,11 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑤ | 入力経路拡充（テキスト対話） ✅完了 | 中〜高 | ①〜④ | text_dialogue_input.py (1,559行/102テスト) 6段パイプライン・経路多様性。orchestrator Phase 25b、save/load v10 (34フィールド)。brain.py think_text/think_streaming_text追加 |
 | ⑥ | 自発性の追加 ✅完了 | 高 | ①〜⑤ | spontaneous_activation.py (1,549行/84テスト) 8断面交差・5段パイプライン。orchestrator check_spontaneous_activation()、save/load v11 (35フィールド)。brain.py think_spontaneous/think_streaming_spontaneous追加 |
 | ⑦ | value_orientation 実運用検証 ✅完了 | 低 | ⑥ | value_orientation_validation.py (1,211行/88テスト) 8断面・6段パイプライン。orchestrator Phase 26b、save/load v12 (36フィールド)。Phase 26のバグ修正（update_orientation引数不正） |
+| ⑧ | value_orientation未接続関数の接続 | 低 | ⑦ | 実装済み4関数（generate_decision_signal, update_from_decision, generate_responsibility_signal, apply_orientation_to_candidates）をorchestratorに接続。設計書不要（既存コードの接続） |
+| ⑨ | 記憶の忘却と固定化 | 低 | なし | 重要記憶の固定化と不要記憶の自然消滅。既存memory系への拡張。判断パイプラインに触れない |
+| ⑩ | 経験からの学習（行動結果フィードバック） | 中 | ⑧ | 行動→結果→次回判断への反映経路。フィードバックループを閉じる。⑧の接続が前提 |
+| ⑪ | 他者モデルの対話学習 | 中 | ⑩ | 対話経験から他者の特性を学習・更新。⑩のフィードバックパターンを利用 |
+| ⑫ | 感情調整戦略 | 中〜高 | ⑨⑩ | 感情状態の認識と調整経路。感情処理パイプラインに影響するため最後 |
 
 ### 9.2 各項目の詳細
 
@@ -3718,6 +3723,37 @@ value_orientation_validation.py (1,211行/88テスト)
 - 検証出力は報告情報形式のみ（判断・評価・行動決定を直接起動しない）
 - orchestrator Phase 26b統合、save/load v12（36フィールド）、enrichment #19、systems 44
 - Phase 26バグ修正: update_orientation()の引数不正（signal_type/signal_value → emotion_signal）
+
+#### ⑧ value_orientation未接続関数の接続
+- value_orientation.pyに実装済みだがorchestratorから呼ばれていない4関数を接続
+- generate_decision_signal() / update_from_decision(): select_policy_dict後にポリシー選択結果を価値軸へフィードバック
+- generate_responsibility_signal(): Phase 26で責任シグナルも価値軸更新に反映
+- apply_orientation_to_candidates(): Phase 30-35の候補スコアに価値軸バイアスを適用
+- 設計書不要（既存実装済みコードの接続のみ）
+
+#### ⑨ 記憶の忘却と固定化
+- 記憶の自然消滅プロセス: 参照されない記憶が時間経過で希薄化→消滅
+- 重要記憶の固定化: 繰り返し参照・感情結合の強い記憶が長期保持対象へ昇格
+- 既存のepisodic_memory / emotional_memory_binding / memory_system_integrationへの拡張
+- 判断パイプラインに直接影響しないため低リスク
+
+#### ⑩ 経験からの学習（行動結果フィードバック）
+- 行動（ポリシー選択）→ 相手の反応観測 → 結果評価 → 次回判断への反映
+- value_orientationのdecision_signal入力を活用してフィードバックループを閉じる
+- ⑧で接続したupdate_from_decision経路の上に構築
+- 「何を選んだか」だけでなく「選んだ結果どうなったか」を学習する
+
+#### ⑪ 他者モデルの対話学習
+- 対話の蓄積から他者の反応パターン・特性を学習
+- other_model_real_feedの観測データを長期的に統合
+- ⑩のフィードバックパターンを他者モデルに適用
+- 他者の反応予測精度の向上
+
+#### ⑫ 感情調整戦略
+- 自分の感情状態を認識し、調整しようとする経路
+- 感情の認知的再評価（reappraisal）に相当する仕組み
+- 感情処理パイプライン（Phase 1-2）に影響するため最もリスクが高い
+- ①②の記憶・学習基盤が前提
 
 ---
 

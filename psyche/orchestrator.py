@@ -354,6 +354,16 @@ from .text_dialogue_input import (
     get_text_dialogue_summary,
 )
 
+# Memory forgetting & fixation
+from .memory_forgetting_fixation import (
+    MemoryForgettingFixationProcessor,
+    ForgettingFixationState,
+    ForgettingFixationInputs,
+    ForgettingFixationResult,
+    create_forgetting_fixation_processor,
+    get_forgetting_fixation_summary,
+)
+
 # Spontaneous activation
 from .spontaneous_activation import (
     SpontaneousActivationProcessor,
@@ -577,6 +587,10 @@ class PsycheOrchestrator:
         self._last_vo_validation: Optional[VOValidationResult] = None
         self._state_for_vo_validation_last_time: float = 0.0
 
+        # ── Memory forgetting & fixation ──
+        self._forgetting_fixation_processor = create_forgetting_fixation_processor()
+        self._last_forgetting_fixation: Optional[ForgettingFixationResult] = None
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -585,7 +599,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=44",
+            "systems=45",
             fear.value, fear.dominant_fear,
         )
 
@@ -992,6 +1006,15 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Memory integration skipped: %s", e)
 
+        # Phase 21c: memory_forgetting_fixation — 記憶の忘却と固定化
+        try:
+            ff_inputs = self._build_forgetting_fixation_inputs()
+            self._last_forgetting_fixation = (
+                self._forgetting_fixation_processor.process(ff_inputs)
+            )
+        except Exception as e:
+            logger.debug("Memory forgetting/fixation skipped: %s", e)
+
         # Phase 22: introspection_trace — 内省ログ生成
         try:
             resp_influence = self._responsibility_mgr.get_influence(user_id)
@@ -1393,6 +1416,16 @@ class PsycheOrchestrator:
                     memory_lines.append(f"入力経路: {tdi_text}")
             except Exception:
                 pass
+        # #20 memory_forgetting_fixation
+        if self._forgetting_fixation_processor is not None:
+            try:
+                ff_text = get_forgetting_fixation_summary(
+                    self._forgetting_fixation_processor.state
+                )
+                if ff_text and "待機中" not in ff_text:
+                    memory_lines.append(f"記憶流動: {ff_text}")
+            except Exception:
+                pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -1767,6 +1800,115 @@ class PsycheOrchestrator:
             elapsed_since_last=elapsed,
         )
 
+    def _build_forgetting_fixation_inputs(self) -> ForgettingFixationInputs:
+        """記憶の忘却と固定化に必要な8断面の入力を構築する。"""
+        p = self._psyche
+
+        # 1. 記憶参照頻度断面 / 2. 再利用間隔断面 — エピソード・結合・長期
+        ep_entries: list[dict] = []
+        if self._last_episodes is not None:
+            entries = getattr(self._last_episodes, 'entries', [])
+            if entries:
+                for e in entries:
+                    ep_entries.append({
+                        "id": getattr(e, 'id', getattr(e, 'episode_id', '')),
+                        "emotional_valence": getattr(e, 'emotional_valence', 0.0),
+                    })
+
+        bind_entries: list[dict] = []
+        if self._last_bindings is not None:
+            traces = getattr(self._last_bindings, 'traces', [])
+            if traces:
+                for t in traces:
+                    bind_entries.append({
+                        "id": getattr(t, 'id', getattr(t, 'binding_id', '')),
+                        "freshness": getattr(t, 'freshness', 0.0),
+                    })
+
+        lt_entries: list[dict] = []
+        if self._last_recalled_memories:
+            for m in self._last_recalled_memories:
+                mid = m.get("id", m.get("memory_id", ""))
+                if mid:
+                    lt_entries.append({
+                        "id": mid,
+                        "emotional_valence": m.get("emotional_valence", 0.0),
+                    })
+
+        # 3. 時系列断面
+        tick = self._tick_count
+
+        # 4. 競合系列断面
+        active_count = 0
+        dominant_id = ""
+        if self._forgetting_fixation_processor:
+            state = self._forgetting_fixation_processor.state
+            active_count = len(state.series_index)
+            if state.series_index:
+                dominant = max(state.series_index, key=lambda s: s.reference_count)
+                dominant_id = dominant.source_id
+
+        # 5. 感情連結断面
+        bind_count = len(bind_entries)
+        avg_freshness = 0.0
+        if bind_entries:
+            avg_freshness = sum(b.get("freshness", 0.0) for b in bind_entries) / len(bind_entries)
+
+        # 6. 文脈連結断面
+        ctx_continuity = 0.0
+        ctx_density = 0.0
+        try:
+            ctx_snapshot = supply_context(self._input_supply)
+            ctx_continuity = ctx_snapshot.continuity
+            ctx_density = ctx_snapshot.density
+        except Exception:
+            pass
+
+        # 7. 保護状態断面 — scoped_goalのメモリIDを保護
+        protected: list[str] = []
+        if self._scoped_goal is not None:
+            goal_mem = getattr(self._scoped_goal, 'source_memory_id', '')
+            if goal_mem:
+                protected.append(goal_mem)
+
+        # 8. 固定化兆候断面 — 直近で繰り返し参照されたID
+        repeated_ids: list[str] = []
+        if self._forgetting_fixation_processor:
+            rh = self._forgetting_fixation_processor.state.reference_history
+            if len(rh) >= 5:
+                from collections import Counter
+                recent = [r.get("source_id", "") for r in rh[-10:]]
+                counts = Counter(recent)
+                repeated_ids = [sid for sid, cnt in counts.items() if cnt >= 3 and sid]
+
+        invisible_alt = 0
+        if self._forgetting_fixation_processor:
+            invisible_alt = sum(
+                1 for s in self._forgetting_fixation_processor.state.series_index
+                if s.forgetting_stage == "invisible"
+            )
+
+        return ForgettingFixationInputs(
+            episode_entries=ep_entries,
+            binding_entries=bind_entries,
+            long_term_entries=lt_entries,
+            reuse_history=dict(self._forgetting_fixation_processor.state.reuse_history)
+            if self._forgetting_fixation_processor else {},
+            tick_count=tick,
+            elapsed_since_last=0.0,
+            active_series_count=active_count,
+            dominant_series_id=dominant_id,
+            emotion_valence=p.mood.valence,
+            emotion_arousal=p.mood.arousal,
+            binding_count=bind_count,
+            average_binding_freshness=avg_freshness,
+            context_continuity=ctx_continuity,
+            context_density=ctx_density,
+            protected_ids=protected,
+            repeated_reference_ids=repeated_ids,
+            invisible_alternative_count=invisible_alt,
+        )
+
     def select_policy_dict(
         self,
         percept: Percept,
@@ -1896,7 +2038,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 12,
+            "version": 13,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -1941,6 +2083,8 @@ class PsycheOrchestrator:
             "spontaneous_state": self._spontaneous_processor.state.to_dict() if self._spontaneous_processor else {},
             # Version 12 fields
             "vo_validation_state": self._vo_validator.state.to_dict() if self._vo_validator else {},
+            # Version 13 fields
+            "forgetting_fixation_state": self._forgetting_fixation_processor.state.to_dict() if self._forgetting_fixation_processor else {},
         }
 
         save_path.write_text(
@@ -2055,6 +2199,10 @@ class PsycheOrchestrator:
             # Version 12+ fields
             if data.get("vo_validation_state"):
                 self._vo_validator._state = VOValidationState.from_dict(data["vo_validation_state"])
+
+            # Version 13+ fields
+            if data.get("forgetting_fixation_state"):
+                self._forgetting_fixation_processor._state = ForgettingFixationState.from_dict(data["forgetting_fixation_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

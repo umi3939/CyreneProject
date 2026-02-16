@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-17
-総コード行数: ~97,424行
-総テスト数: 3,361テスト
+総コード行数: ~99,758行
+総テスト数: 3,446テスト
 
 ---
 
@@ -66,12 +66,12 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 60 | 48,401 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 58 | 42,274 | 自動テストコード |
+| psyche/ | 61 | 49,631 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 60 | 44,417 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | tools/ | 2 | 418 | 長期シミュレーション等 |
 | ルート | 6 | 2,580 | コアシステム |
-| **合計** | **139** | **94,978** | |
+| **合計** | **143** | **99,758** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -97,6 +97,7 @@
 | 13d | text_dialogue_input.py | 1,559 | 102 | 入力 | テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁） |
 | 13e | spontaneous_activation.py | 1,549 | 84 | 起動 | 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁） |
 | 13f | value_orientation_validation.py | 1,211 | 88 | 検証 | 価値方向性実運用検証（8断面・6段パイプライン・差分並立・安全弁） |
+| 13g | memory_forgetting_fixation.py | 1,052 | 85 | 記憶 | 記憶の忘却と固定化（8断面・6段パイプライン・段階忘却・復帰経路・安全弁） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -136,7 +137,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 2,034 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 44システム, save/load v12(36項目永続化), enrichment(5セクション), select_policy_dict含む） |
+| 41 | orchestrator.py | 2,212 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 45システム, save/load v13(37項目永続化), enrichment(5セクション), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3649,7 +3650,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑥ | 自発性の追加 ✅完了 | 高 | ①〜⑤ | spontaneous_activation.py (1,549行/84テスト) 8断面交差・5段パイプライン。orchestrator check_spontaneous_activation()、save/load v11 (35フィールド)。brain.py think_spontaneous/think_streaming_spontaneous追加 |
 | ⑦ | value_orientation 実運用検証 ✅完了 | 低 | ⑥ | value_orientation_validation.py (1,211行/88テスト) 8断面・6段パイプライン。orchestrator Phase 26b、save/load v12 (36フィールド)。Phase 26のバグ修正（update_orientation引数不正） |
 | ⑧ | value_orientation未接続関数の接続 ✅完了 | 低 | ⑦ | 実装済み4関数をorchestratorに接続: Phase 26に責任シグナル追加、Phase 35bに価値軸バイアス適用、select_policy_dict後にupdate_from_decision |
-| ⑨ | 記憶の忘却と固定化 | 低 | なし | 重要記憶の固定化と不要記憶の自然消滅。既存memory系への拡張。判断パイプラインに触れない |
+| ⑨ | 記憶の忘却と固定化 ✅完了 | 低 | なし | memory_forgetting_fixation.py (1,052行/85テスト) 8断面・6段パイプライン・段階忘却・復帰経路。orchestrator Phase 21c、save/load v13 (37フィールド) |
 | ⑩ | 経験からの学習（行動結果フィードバック） | 中 | ⑧ | 行動→結果→次回判断への反映経路。フィードバックループを閉じる。⑧の接続が前提 |
 | ⑪ | 他者モデルの対話学習 | 中 | ⑩ | 対話経験から他者の特性を学習・更新。⑩のフィードバックパターンを利用 |
 | ⑫ | 感情調整戦略 | 中〜高 | ⑨⑩ | 感情状態の認識と調整経路。感情処理パイプラインに影響するため最後 |
@@ -3731,11 +3732,14 @@ value_orientation_validation.py (1,211行/88テスト)
 - apply_orientation_to_candidates(): Phase 35b として候補スコアに価値軸バイアスを適用
 - 設計書不要（既存実装済みコードの接続のみ）
 
-#### ⑨ 記憶の忘却と固定化
-- 記憶の自然消滅プロセス: 参照されない記憶が時間経過で希薄化→消滅
-- 重要記憶の固定化: 繰り返し参照・感情結合の強い記憶が長期保持対象へ昇格
-- 既存のepisodic_memory / emotional_memory_binding / memory_system_integrationへの拡張
-- 判断パイプラインに直接影響しないため低リスク
+#### ⑨ 記憶の忘却と固定化 ✅完了
+- memory_forgetting_fixation.py: 1,052行 / 85テスト
+- 8断面入力: 記憶参照頻度、再利用間隔、時系列、競合系列、感情連結、文脈連結、保護状態、固定化兆候
+- 6段パイプライン: 忘却候補抽出→固定化兆候抽出→候補整列→競合保持→段階忘却情報化→受け渡し準備
+- 段階忘却: ACTIVE→WEAKENING→FADING→NEAR_INVISIBLE→INVISIBLE（可逆）
+- 固定化レベル: NONE→MILD→MODERATE→STRONG（交差断面閾値）
+- 安全弁: 収束偏向警告→代替系列補充、過密化→進行緩和、自己強化ループ防止
+- orchestrator Phase 21c、save/load v13 (37フィールド)、enrichment #20
 
 #### ⑩ 経験からの学習（行動結果フィードバック）
 - 行動（ポリシー選択）→ 相手の反応観測 → 結果評価 → 次回判断への反映
@@ -3758,4 +3762,4 @@ value_orientation_validation.py (1,211行/88テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~97,424行 / テスト数: 3,361*
+*総コード行数: ~99,758行 / テスト数: 3,446*

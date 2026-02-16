@@ -3648,7 +3648,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑤ | 入力経路拡充（テキスト対話） ✅完了 | 中〜高 | ①〜④ | text_dialogue_input.py (1,559行/102テスト) 6段パイプライン・経路多様性。orchestrator Phase 25b、save/load v10 (34フィールド)。brain.py think_text/think_streaming_text追加 |
 | ⑥ | 自発性の追加 ✅完了 | 高 | ①〜⑤ | spontaneous_activation.py (1,549行/84テスト) 8断面交差・5段パイプライン。orchestrator check_spontaneous_activation()、save/load v11 (35フィールド)。brain.py think_spontaneous/think_streaming_spontaneous追加 |
 | ⑦ | value_orientation 実運用検証 ✅完了 | 低 | ⑥ | value_orientation_validation.py (1,211行/88テスト) 8断面・6段パイプライン。orchestrator Phase 26b、save/load v12 (36フィールド)。Phase 26のバグ修正（update_orientation引数不正） |
-| ⑧ | value_orientation未接続関数の接続 | 低 | ⑦ | 実装済み4関数（generate_decision_signal, update_from_decision, generate_responsibility_signal, apply_orientation_to_candidates）をorchestratorに接続。設計書不要（既存コードの接続） |
+| ⑧ | value_orientation未接続関数の接続 ✅完了 | 低 | ⑦ | 実装済み4関数をorchestratorに接続: Phase 26に責任シグナル追加、Phase 35bに価値軸バイアス適用、select_policy_dict後にupdate_from_decision |
 | ⑨ | 記憶の忘却と固定化 | 低 | なし | 重要記憶の固定化と不要記憶の自然消滅。既存memory系への拡張。判断パイプラインに触れない |
 | ⑩ | 経験からの学習（行動結果フィードバック） | 中 | ⑧ | 行動→結果→次回判断への反映経路。フィードバックループを閉じる。⑧の接続が前提 |
 | ⑪ | 他者モデルの対話学習 | 中 | ⑩ | 対話経験から他者の特性を学習・更新。⑩のフィードバックパターンを利用 |
@@ -3724,11 +3724,11 @@ value_orientation_validation.py (1,211行/88テスト)
 - orchestrator Phase 26b統合、save/load v12（36フィールド）、enrichment #19、systems 44
 - Phase 26バグ修正: update_orientation()の引数不正（signal_type/signal_value → emotion_signal）
 
-#### ⑧ value_orientation未接続関数の接続
+#### ⑧ value_orientation未接続関数の接続 ✅完了
 - value_orientation.pyに実装済みだがorchestratorから呼ばれていない4関数を接続
-- generate_decision_signal() / update_from_decision(): select_policy_dict後にポリシー選択結果を価値軸へフィードバック
-- generate_responsibility_signal(): Phase 26で責任シグナルも価値軸更新に反映
-- apply_orientation_to_candidates(): Phase 30-35の候補スコアに価値軸バイアスを適用
+- update_from_decision(): select_policy_dict後にポリシー選択結果を価値軸へフィードバック（超高慣性の微小更新）
+- generate_responsibility_signal(): Phase 26で感情に加え責任シグナルも価値軸更新に反映
+- apply_orientation_to_candidates(): Phase 35b として候補スコアに価値軸バイアスを適用
 - 設計書不要（既存実装済みコードの接続のみ）
 
 #### ⑨ 記憶の忘却と固定化

@@ -135,7 +135,10 @@ from .value_orientation import (
     ValueOrientation,
     create_orientation,
     update_orientation,
+    update_from_decision,
     generate_emotion_signal,
+    generate_responsibility_signal,
+    apply_orientation_to_candidates,
     get_orientation_summary,
 )
 
@@ -1081,9 +1084,14 @@ class PsycheOrchestrator:
         # Phase 26: value_orientation — 価値指向更新（遅い変化）
         try:
             emo_signal = generate_emotion_signal(self._psyche.emotions)
+            resp_influence_for_vo = self._responsibility_mgr.get_influence(user_id)
+            resp_signal = generate_responsibility_signal(
+                total_weight=resp_influence_for_vo.caution_bias,
+            )
             self._value_orientation = update_orientation(
                 orientation=self._value_orientation,
                 emotion_signal=emo_signal if emo_signal else None,
+                responsibility_signal=resp_signal if resp_signal else None,
             )
         except Exception as e:
             logger.debug("Value orientation skipped: %s", e)
@@ -1521,6 +1529,15 @@ class PsycheOrchestrator:
         except Exception:
             pass
 
+        # Phase 35b: value_orientation — 価値軸バイアス適用
+        try:
+            candidates = apply_orientation_to_candidates(
+                candidates=candidates,
+                orientation=self._value_orientation,
+            )
+        except Exception:
+            pass
+
         # Cache Phase 30-35 results for enrichment
         self._last_decision_bias = decision_bias
         self._last_tone_mod = tone_mod
@@ -1759,7 +1776,20 @@ class PsycheOrchestrator:
         """最終選択されたポリシーをdictで返す（expression.py用）。"""
         candidates, _ = self._generate_final_candidates(percept, recalled_memories, user_id)
         resp_influence = self._responsibility_mgr.get_influence(user_id)
-        return select_policy(candidates, self._psyche, resp_influence)
+        policy = select_policy(candidates, self._psyche, resp_influence)
+
+        # 選択結果を価値軸にフィードバック（超高慣性の微小更新）
+        try:
+            policy_label = policy.get("policy_label", "")
+            if policy_label:
+                self._value_orientation = update_from_decision(
+                    orientation=self._value_orientation,
+                    policy_label=policy_label,
+                )
+        except Exception:
+            pass
+
+        return policy
 
     def get_policy_suggestions(
         self,

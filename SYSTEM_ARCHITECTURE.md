@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-02-16
-総コード行数: ~94,978行
-総テスト数: 3,273テスト
+更新日: 2026-02-17
+総コード行数: ~97,424行
+総テスト数: 3,361テスト
 
 ---
 
@@ -33,7 +33,7 @@
 │         ▼                                                      │            │
 │   ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐         │
 │   │  vision   │───→│   brain   │───→│  psyche   │───→│   voice   │         │
-│   │  (393行)  │    │  (941行)  │    │(47,051行) │    │  (437行)  │         │
+│   │  (393行)  │    │  (941行)  │    │(48,401行) │    │  (437行)  │         │
 │   └───────────┘    └───────────┘    └───────────┘    └───────────┘         │
 │         │                │                │                │                │
 │    dxcam/YOLO       Gemini API      心理処理        Style-Bert-VITS2       │
@@ -66,7 +66,7 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 59 | 47,051 | 心理システム本体（orchestrator.py含む） |
+| psyche/ | 60 | 48,401 | 心理システム本体（orchestrator.py含む） |
 | tests/ | 58 | 42,274 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | tools/ | 2 | 418 | 長期シミュレーション等 |
@@ -96,6 +96,7 @@
 | 13c | other_model_real_feed.py | 1,481 | 102 | 内省 | 他者モデルリアルフィード統合（8観測断片抽出・正規化・競合併存・鮮度管理・安全弁） |
 | 13d | text_dialogue_input.py | 1,559 | 102 | 入力 | テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁） |
 | 13e | spontaneous_activation.py | 1,549 | 84 | 起動 | 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁） |
+| 13f | value_orientation_validation.py | 1,211 | 88 | 検証 | 価値方向性実運用検証（8断面・6段パイプライン・差分並立・安全弁） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -135,7 +136,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 1,895 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 43システム, save/load v11(35項目永続化), enrichment(5セクション), select_policy_dict含む） |
+| 41 | orchestrator.py | 2,034 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 44システム, save/load v12(36項目永続化), enrichment(5セクション), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -2481,6 +2482,58 @@ TendencyAwareness (傾向の自己認知):
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### 4.7.4b 価値方向性実運用検証
+
+```
+価値方向性実運用検証 実装仕様 (value_orientation_validation.py: 1,211行 / 88テスト):
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  思想:                                                          │
+│    価値方向性の変化が実運用でどのように現れるかを継続観測する。  │
+│    価値方向性そのものを変更しない。検証結果を判断確定へ接続しない│
+│    評価軸を単一化して出力傾向を矯正しない。観測結果による直接    │
+│    介入を行わない。                                              │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  8断面入力:                                                      │
+│    VALUE_ORIENTATION    価値方向性断面                            │
+│    ACTION_CANDIDATES    行動候補断面                              │
+│    SELECTION_HISTORY    選択履歴断面                              │
+│    CONTEXT              文脈断面                                  │
+│    EMOTION_TRANSITION   感情推移断面                              │
+│    MEMORY_REFERENCE     記憶参照断面                              │
+│    RESPONSIBILITY       責任断面                                  │
+│    TIME_ELAPSED         時間経過断面                              │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  6段パイプライン:                                                │
+│    1. 観測対象抽出（8断面から観測記録を生成）                     │
+│    2. 観測単位正規化（共通検証記述へ統一、断面差保持）           │
+│    3. 時系列整列（単回/継続分離、鮮度更新）                     │
+│    4. 差分記述化（不一致・収束・再分岐を並立記録）              │
+│    5. 検証出力化（報告情報形式のみ、判断起動しない）            │
+│    6. 受け渡し準備（安全弁チェック+クリーンアップ）             │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  内部保持:                                                       │
+│    観測記録集合、検証記述単位、時系列索引、差分履歴、             │
+│    再分岐履歴、観測鮮度状態、保留観測履歴、希薄化履歴           │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  安全弁:                                                        │
+│    - 収束偏向時の代替系列補充（複線記述へ復帰）                 │
+│    - 観測欠落時の保留再評価（検証経路停止回避）                 │
+│    - 断面横断の混在参照維持（特定断面支配防止）                 │
+│    - 鮮度減衰と希薄化（単回検証結果の恒久化防止）              │
+│                                                                 │
+│  ═══════════════════════════════════════════════════════════════ │
+│  orchestrator統合:                                               │
+│    Phase 26b: _build_vo_validation_inputs → process              │
+│    save/load v12 (36フィールド)、enrichment #19、systems 44      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 #### 4.7.5 自発的内的動機
 
 ```
@@ -3373,6 +3426,7 @@ psyche/
 ├── other_model_real_feed.py  (1,481行) - 他者モデルリアルフィード統合（8観測断片・10段パイプライン・安全弁）
 ├── text_dialogue_input.py   (1,559行) - テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁）
 ├── spontaneous_activation.py (1,549行) - 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁）
+├── value_orientation_validation.py (1,211行) - 価値方向性実運用検証（8断面・6段パイプライン・差分並立・安全弁）
 ├── emotional_memory_binding.py (1708行) - 感情記憶の紐づけ（中長期感情痕跡）
 ├── intrinsic_motivation.py    (1752行) - 自発的内的動機（感情・傾向由来の内的推進力）
 ├── responsibility.py              (480行)  - 責任記録・評価
@@ -3428,6 +3482,7 @@ tests/
 ├── test_other_model_real_feed.py (1,006行)
 ├── test_text_dialogue_input.py  (1,025行)
 ├── test_spontaneous_activation.py (812行)
+├── test_value_orientation_validation.py (1,039行)
 ├── test_emotional_memory_binding.py (1142行)
 ├── test_intrinsic_motivation.py (1157行)
 ├── test_tone.py                   (592行)
@@ -3571,7 +3626,7 @@ Phase 30-35 の判断バイアス群は `_generate_final_candidates()` で計算
 | tick配線（入出力） | 35/35 ✅ |
 | 設計→実装 | 39/39 ✅ |
 | 実装→設計 | 53/53 ✅ （11件は統合設計書内に記述） |
-| save/load | 30/30 ✅ （v6で完了、v11で35フィールド） |
+| save/load | 30/30 ✅ （v6で完了、v12で36フィールド） |
 | prompt enrichment | 全項目配線完了 ✅ |
 | 命名不整合 | ✅ 解消済み |
 
@@ -3592,7 +3647,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ④ | 他者モデルへのリアルフィード ✅完了 | 中 | ③ | other_model_real_feed.py (1,481行/102テスト) 8観測断片・10段パイプライン。orchestrator Phase 25a、save/load v9 (33フィールド) |
 | ⑤ | 入力経路拡充（テキスト対話） ✅完了 | 中〜高 | ①〜④ | text_dialogue_input.py (1,559行/102テスト) 6段パイプライン・経路多様性。orchestrator Phase 25b、save/load v10 (34フィールド)。brain.py think_text/think_streaming_text追加 |
 | ⑥ | 自発性の追加 ✅完了 | 高 | ①〜⑤ | spontaneous_activation.py (1,549行/84テスト) 8断面交差・5段パイプライン。orchestrator check_spontaneous_activation()、save/load v11 (35フィールド)。brain.py think_spontaneous/think_streaming_spontaneous追加 |
-| ⑦ | value_orientation 実運用検証 | 低 | ⑥ | 長期運用データでの変化観測 |
+| ⑦ | value_orientation 実運用検証 ✅完了 | 低 | ⑥ | value_orientation_validation.py (1,211行/88テスト) 8断面・6段パイプライン。orchestrator Phase 26b、save/load v12 (36フィールド)。Phase 26のバグ修正（update_orientation引数不正） |
 
 ### 9.2 各項目の詳細
 
@@ -3654,11 +3709,17 @@ spontaneous_activation.py (1,549行/84テスト)
 - orchestrator check_spontaneous_activation()、save/load v11 (35フィールド)、enrichment #18、systems 42→43
 - brain.py: think_spontaneous() / think_streaming_spontaneous() 追加（外部入力なし時の自発思考経路）
 
-#### ⑦ value_orientation 実運用検証
-- ±5%（超高慣性）の価値軸変化を実運用で観測
-- tools/long_term_sim.py と実運用データの両方で検証
+#### ⑦ value_orientation 実運用検証 ✅完了
+value_orientation_validation.py (1,211行/88テスト)
+- 8断面入力（価値方向性/行動候補/選択履歴/文脈/感情推移/記憶参照/責任/時間経過）
+- 6段パイプライン: 観測対象抽出→観測単位正規化→時系列整列→差分記述化→検証出力化→受け渡し準備
+- 差分は不一致・収束・再分岐を並立記録（単線的結論化を回避）
+- 安全弁: 収束偏向→代替系列補充、観測欠落→保留再評価、断面支配→混在参照復元
+- 検証出力は報告情報形式のみ（判断・評価・行動決定を直接起動しない）
+- orchestrator Phase 26b統合、save/load v12（36フィールド）、enrichment #19、systems 44
+- Phase 26バグ修正: update_orientation()の引数不正（signal_type/signal_value → emotion_signal）
 
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~94,978行 / テスト数: 3,273*
+*総コード行数: ~97,424行 / テスト数: 3,361*

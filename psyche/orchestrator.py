@@ -383,6 +383,16 @@ from .spontaneous_activation import (
     get_spontaneous_summary,
 )
 
+# Other model dialogue learning
+from .other_model_dialogue_learning import (
+    DialogueLearningProcessor,
+    DialogueLearningState,
+    DialogueLearningInputs,
+    DialogueLearningResult,
+    create_dialogue_learning_processor,
+    get_dialogue_learning_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -606,6 +616,10 @@ class PsycheOrchestrator:
         self._last_action_result: Optional[ActionResultObservationResult] = None
         self._last_selected_policy_label: str = ""
         self._last_selected_policy_axis: str = ""
+
+        # ── Other model dialogue learning ──
+        self._dialogue_learning_processor = create_dialogue_learning_processor()
+        self._last_dialogue_learning: Optional[DialogueLearningResult] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1104,6 +1118,16 @@ class PsycheOrchestrator:
         # (orchestrator外部からtext入力が供給された場合のみ実行)
         # Processor自体は常時利用可能。外部からprocess()を直接呼ぶ形式。
 
+        # Phase 25c: other_model_dialogue_learning — 他者観測の長期蓄積と仮説補助
+        # Phase 25a(real_feed)の結果とaction_result_observerの他者断面を入力とし、
+        # 8段パイプラインを実行する。蓄積→仮説更新→ポリシー選択が同一ティック内で
+        # 連鎖しないよう、Phase 25(other_agent_model)の前に配置する。
+        try:
+            dl_inputs = self._build_dialogue_learning_inputs(user_id)
+            self._last_dialogue_learning = self._dialogue_learning_processor.tick(dl_inputs)
+        except Exception as e:
+            logger.debug("Dialogue learning skipped: %s", e)
+
         # Phase 25: other_agent_model — 他者モデル仮説更新 (入力供給経由)
         try:
             # 入力供給更新: percept / STM / dynamics / psyche から計算
@@ -1471,6 +1495,15 @@ class PsycheOrchestrator:
                 ar_text = ar_data.get("summary_text", "")
                 if ar_text and "待機中" not in ar_text:
                     memory_lines.append(f"行動-結果: {ar_text}")
+            except Exception:
+                pass
+        # #22 other_model_dialogue_learning
+        if self._dialogue_learning_processor is not None:
+            try:
+                dl_data = self._dialogue_learning_processor.get_enrichment_data()
+                dl_text = dl_data.get("summary_text", "")
+                if dl_text and "待機中" not in dl_text:
+                    memory_lines.append(f"他者蓄積: {dl_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -2051,6 +2084,91 @@ class PsycheOrchestrator:
             current_tick=self._tick_count,
         )
 
+    def _build_dialogue_learning_inputs(self, user_id: str) -> DialogueLearningInputs:
+        """他者観測の長期蓄積に必要な8断面の入力を構築する。
+
+        Phase 25a(real_feed)の結果とaction_result_observerの他者断面を入力として使用。
+        因果帰属は行わない。時系列的隣接の記録のみ。
+        """
+        # 1. 短期観測断片集合 — real_feed の観測ユニットを変換
+        short_term_fragments: list[dict] = []
+        if self._last_feed_result is not None:
+            for unit in getattr(self._last_feed_result, "units", []):
+                short_term_fragments.append({
+                    "type": "|".join(getattr(unit, "source_types", [])) or "observation",
+                    "description": getattr(unit, "description", ""),
+                    "value": getattr(unit, "value", 0.5),
+                    "confidence": 0.5 + 0.5 * getattr(unit, "value", 0.5),
+                    "text_hint": "",
+                })
+
+        # 2. 行動-結果対の他者観測断面 — action_result_observer の enrichment から
+        action_result_other: list[dict] = []
+        if self._action_result_observer is not None:
+            try:
+                ar_data = self._action_result_observer.get_enrichment_data()
+                sec_dist = ar_data.get("section_distribution", {})
+                if "other_observation" in sec_dist:
+                    action_result_other.append({
+                        "observation_type": "other_observation",
+                        "description": "action-result other observation",
+                        "value": sec_dist["other_observation"] * 0.1,
+                        "confidence": 0.5,
+                    })
+            except Exception:
+                pass
+
+        # 3. 対話文脈断面
+        context_summary = ""
+        dialogue_state = ""
+        topic = ""
+        if self._last_percept is not None:
+            context_summary = getattr(self._last_percept, "text", "")[:100]
+            dialogue_state = getattr(self._last_percept, "intent", "unknown") or "unknown"
+            topics = getattr(self._last_percept, "topics", []) or []
+            topic = topics[0] if topics else ""
+
+        # 4. 相手識別断面
+        # user_id は orchestrator から引き渡される
+
+        # 5. 感情トーン断面
+        emotion_tone = ""
+        emotion_value = 0.0
+        if self._last_percept is not None:
+            emotion_tone = getattr(self._last_percept, "emotion", "neutral") or "neutral"
+            emotion_value = getattr(self._last_percept, "emotion_valence", 0.0)
+
+        # 6. 反応間隔断面
+        response_interval = 0.0
+
+        # 7. 話題遷移断面
+        topic_changed = False
+        previous_topic = ""
+
+        # 8. 蓄積鮮度断面
+        dl_state = self._dialogue_learning_processor.state
+        existing_count = len(dl_state.entries)
+        avg_freshness = 0.0
+        if dl_state.entries:
+            avg_freshness = sum(e.freshness for e in dl_state.entries) / len(dl_state.entries)
+
+        return DialogueLearningInputs(
+            short_term_fragments=short_term_fragments,
+            action_result_other_observations=action_result_other,
+            context_summary=context_summary,
+            dialogue_state=dialogue_state,
+            topic=topic,
+            user_id=user_id,
+            emotion_tone=emotion_tone,
+            emotion_value=emotion_value,
+            response_interval_seconds=response_interval,
+            topic_changed=topic_changed,
+            previous_topic=previous_topic,
+            existing_entry_count=existing_count,
+            average_freshness=avg_freshness,
+            current_tick=self._tick_count,
+        )
+
     def select_policy_dict(
         self,
         percept: Percept,
@@ -2184,7 +2302,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 14,
+            "version": 15,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2233,6 +2351,8 @@ class PsycheOrchestrator:
             "forgetting_fixation_state": self._forgetting_fixation_processor.state.to_dict() if self._forgetting_fixation_processor else {},
             # Version 14 fields
             "action_result_state": self._action_result_observer.state.to_dict() if self._action_result_observer else {},
+            # Version 15 fields
+            "dialogue_learning_state": self._dialogue_learning_processor.state.to_dict() if self._dialogue_learning_processor else {},
         }
 
         save_path.write_text(
@@ -2355,6 +2475,10 @@ class PsycheOrchestrator:
             # Version 14+ fields
             if data.get("action_result_state"):
                 self._action_result_observer._state = ActionResultObservationState.from_dict(data["action_result_state"])
+
+            # Version 15+ fields
+            if data.get("dialogue_learning_state"):
+                self._dialogue_learning_processor._state = DialogueLearningState.from_dict(data["dialogue_learning_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

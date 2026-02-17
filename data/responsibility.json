@@ -1,14 +1,14 @@
 {
   "viewer": {
     "total_weight": 0.0,
-    "pending_decisions": 189,
+    "pending_decisions": 807,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-18T02:21:31",
+    "last_updated": "2026-02-18T03:48:17",
     "recent_decisions": [
       {
-        "id": "06c0b6431835",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "c843fac5d5d9",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -19,8 +19,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "372cb18f6fa8",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "a7f6077ce0aa",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -31,8 +31,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "2bb692972efa",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "e30920ac329e",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -43,8 +43,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "ca3888caf76c",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "f268284cd568",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -55,8 +55,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "9803a3255a91",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "217eabf1371e",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -67,8 +67,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a368e840dd23",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "ffa25e7059fd",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -79,8 +79,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "08d420084656",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "b26223ff89fb",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -91,8 +91,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "deb79aea2a07",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "ea42f70bfa38",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -103,8 +103,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "6f2c6de53366",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "3dd1c682dc38",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -115,8 +115,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "0ee42c80a27d",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "2e35fcdabbe2",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -127,8 +127,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "dc4b8c36f07e",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "37ddb56c1743",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -139,8 +139,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "b293b1bfc36c",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "f8f6ad5a0c4b",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -151,8 +151,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "833dac6f0c95",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "ddf2c7cf8864",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "sad",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -163,8 +163,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "61a0ce9eb93a",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "d08710df15d2",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "angry",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -175,8 +175,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "fd349c8aa336",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "386aee8148b5",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "neutral",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -187,8 +187,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "f59fb1f09206",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "20619de2ceff",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -199,8 +199,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "53de00e56dea",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "fb892515acb4",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -211,8 +211,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "1a40d0174065",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "6e2e5c20807b",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -223,8 +223,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d93eac9b0b38",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "915fad5d6760",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -235,8 +235,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "4bd9a29e00b8",
-        "timestamp": "2026-02-18T02:21:31",
+        "id": "5a28935e1a4d",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -250,14 +250,50 @@
   },
   "user_a": {
     "total_weight": 0.0,
-    "pending_decisions": 1,
+    "pending_decisions": 4,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-18T02:21:32",
+    "last_updated": "2026-02-18T03:48:17",
     "recent_decisions": [
       {
         "id": "705b67a1c53a",
         "timestamp": "2026-02-18T02:21:32",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "dc654dd1541d",
+        "timestamp": "2026-02-18T03:38:51",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "17c7c3433c8e",
+        "timestamp": "2026-02-18T03:47:32",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "3dd9da8c5a64",
+        "timestamp": "2026-02-18T03:48:17",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -271,10 +307,10 @@
   },
   "user_b": {
     "total_weight": 0.0,
-    "pending_decisions": 1,
+    "pending_decisions": 4,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-18T02:21:32",
+    "last_updated": "2026-02-18T03:48:17",
     "recent_decisions": [
       {
         "id": "23678eeeb249",
@@ -285,6 +321,267 @@
         "emotional_state": "neutral",
         "fear_level": 0.0,
         "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "41ff54c2d63b",
+        "timestamp": "2026-02-18T03:38:51",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "68ec06e1f6c3",
+        "timestamp": "2026-02-18T03:47:32",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "21e7085feca1",
+        "timestamp": "2026-02-18T03:48:17",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      }
+    ]
+  },
+  "test_user": {
+    "total_weight": 0.0,
+    "pending_decisions": 1,
+    "accumulated_harm": 0.0,
+    "accumulated_confidence": 0.11216151394396638,
+    "last_updated": "2026-02-18T03:48:15",
+    "recent_decisions": [
+      {
+        "id": "e23366429e2a",
+        "timestamp": "2026-02-18T03:38:47",
+        "policy_label": "感想を述べる",
+        "policy_rationale": "自分の考えや感情を表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "369b43f202a8",
+        "timestamp": "2026-02-18T03:38:47",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": -0.04400000000000001
+      },
+      {
+        "id": "38be75c3eb27",
+        "timestamp": "2026-02-18T03:38:47",
+        "policy_label": "からかう",
+        "policy_rationale": "楽しさや親密さを表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 5,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "90b2d6dc2e9a",
+        "timestamp": "2026-02-18T03:38:47",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "2c8c1d9af882",
+        "timestamp": "2026-02-18T03:38:48",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": -0.04400000000000001
+      },
+      {
+        "id": "9a613a6c1c73",
+        "timestamp": "2026-02-18T03:38:48",
+        "policy_label": "からかう",
+        "policy_rationale": "楽しさや親密さを表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 5,
+        "evaluated": true,
+        "responsibility_delta": -0.05500000000000001
+      },
+      {
+        "id": "8756e3255c98",
+        "timestamp": "2026-02-18T03:47:30",
+        "policy_label": "感想を述べる",
+        "policy_rationale": "自分の考えや感情を表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "21f0b929ddd8",
+        "timestamp": "2026-02-18T03:47:30",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": -0.04400000000000001
+      },
+      {
+        "id": "92852fc5bd76",
+        "timestamp": "2026-02-18T03:47:30",
+        "policy_label": "からかう",
+        "policy_rationale": "楽しさや親密さを表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 5,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "730391786f46",
+        "timestamp": "2026-02-18T03:47:30",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "4471467195b1",
+        "timestamp": "2026-02-18T03:47:30",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": -0.04400000000000001
+      },
+      {
+        "id": "327cbb2d8008",
+        "timestamp": "2026-02-18T03:47:30",
+        "policy_label": "からかう",
+        "policy_rationale": "楽しさや親密さを表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 5,
+        "evaluated": true,
+        "responsibility_delta": -0.05500000000000001
+      },
+      {
+        "id": "c3dda25ea882",
+        "timestamp": "2026-02-18T03:48:15",
+        "policy_label": "感想を述べる",
+        "policy_rationale": "自分の考えや感情を表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "a9b25877ac11",
+        "timestamp": "2026-02-18T03:48:15",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": -0.04400000000000001
+      },
+      {
+        "id": "ff423fd7e6f8",
+        "timestamp": "2026-02-18T03:48:15",
+        "policy_label": "からかう",
+        "policy_rationale": "楽しさや親密さを表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 5,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "6080c78b44cc",
+        "timestamp": "2026-02-18T03:48:15",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "cb6cee5deea6",
+        "timestamp": "2026-02-18T03:48:15",
+        "policy_label": "質問で会話を広げる",
+        "policy_rationale": "好奇心を満たし、会話を続ける",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 4,
+        "evaluated": true,
+        "responsibility_delta": -0.04400000000000001
+      },
+      {
+        "id": "6c6fe0eff266",
+        "timestamp": "2026-02-18T03:48:15",
+        "policy_label": "からかう",
+        "policy_rationale": "楽しさや親密さを表現する",
+        "target_partner": "test_user",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 5,
         "evaluated": false,
         "responsibility_delta": 0.0
       }

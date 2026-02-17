@@ -393,6 +393,17 @@ from .other_model_dialogue_learning import (
     get_dialogue_learning_summary,
 )
 
+# Meta-emotion cognition
+from .meta_emotion_cognition import (
+    MetaEmotionProcessor,
+    MetaEmotionState,
+    MetaEmotionInputs,
+    MetaEmotionResult,
+    MetaEmotionConfig,
+    create_meta_emotion_processor,
+    get_meta_emotion_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -620,6 +631,10 @@ class PsycheOrchestrator:
         # ── Other model dialogue learning ──
         self._dialogue_learning_processor = create_dialogue_learning_processor()
         self._last_dialogue_learning: Optional[DialogueLearningResult] = None
+
+        # ── Meta-emotion cognition ──
+        self._meta_emotion_processor = create_meta_emotion_processor()
+        self._last_meta_emotion: Optional[MetaEmotionResult] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -922,6 +937,15 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Intrinsic motivation skipped: %s", e)
+
+        # Phase 14b: meta_emotion_cognition — メタ感情認知と変動候補生成
+        # 3ティック毎の低頻度処理帯に配置（設計書の指示通り）。
+        # 感情処理パイプラインのパラメータを一切変更しない（READ-ONLY参照のみ）。
+        try:
+            me_inputs = self._build_meta_emotion_inputs()
+            self._last_meta_emotion = self._meta_emotion_processor.tick(me_inputs)
+        except Exception as e:
+            logger.debug("Meta-emotion cognition skipped: %s", e)
 
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
@@ -1504,6 +1528,15 @@ class PsycheOrchestrator:
                 dl_text = dl_data.get("summary_text", "")
                 if dl_text and "待機中" not in dl_text:
                     memory_lines.append(f"他者蓄積: {dl_text}")
+            except Exception:
+                pass
+        # #23 meta_emotion_cognition
+        if self._meta_emotion_processor is not None:
+            try:
+                me_data = self._meta_emotion_processor.get_enrichment_data()
+                me_text = me_data.get("summary_text", "")
+                if me_text and "待機中" not in me_text:
+                    memory_lines.append(f"メタ感情: {me_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -2169,6 +2202,90 @@ class PsycheOrchestrator:
             current_tick=self._tick_count,
         )
 
+    def _build_meta_emotion_inputs(self) -> MetaEmotionInputs:
+        """メタ感情認知に必要な8断面の入力を構築する。
+
+        すべてREAD-ONLY参照。感情処理パイプラインのパラメータを変更しない。
+        """
+        # 1. 感情状態断面（感情ベクトル、ムード — READ-ONLY）
+        emotion_values = self._psyche.emotions.as_dict()
+        mood_valence = self._psyche.mood.valence
+        mood_arousal = self._psyche.mood.arousal
+
+        # 2. ダイナミクス相断面（READ-ONLY）
+        dynamics_phase = self._dynamics.phase.value if self._dynamics else "normal"
+        dynamics_peak_intensity = self._dynamics.peak_intensity if self._dynamics else 0.0
+        dynamics_accumulated_intensity = self._dynamics.accumulated_intensity if self._dynamics else 0.0
+
+        # 3. STM-感情連動結果断面（READ-ONLY）
+        coupling_continuity = 0.0
+        coupling_active_entries = 0
+        if self._last_coupling is not None:
+            coupling_continuity = self._last_coupling.context_continuity
+            coupling_active_entries = self._last_coupling.active_entry_count
+
+        # 4. 自己モデル感情記述断面（READ-ONLY）
+        # EmotionalSpread/EmotionalIntensity are enums; convert to numeric
+        self_model_spread = 0.0
+        self_model_intensity = 0.0
+        self_model_conflict = False
+        if self._last_self_view is not None:
+            emo_view = self._last_self_view.emotional
+            # spread: FOCUSED=0.2, MIXED=0.5, DIFFUSE=0.8, UNDEFINED=0.0
+            spread_map = {"focused": 0.2, "mixed": 0.5, "diffuse": 0.8, "undefined": 0.0}
+            self_model_spread = spread_map.get(emo_view.spread.value, 0.0)
+            # intensity: CALM=0.15, MODERATE=0.5, INTENSE=0.85, OVERWHELMING=1.0, UNDEFINED=0.0
+            intensity_map = {"calm": 0.15, "moderate": 0.5, "intense": 0.85, "overwhelming": 1.0, "undefined": 0.0}
+            self_model_intensity = intensity_map.get(emo_view.intensity.value, 0.0)
+            self_model_conflict = emo_view.has_coexisting_pairs
+
+        # 5. 振幅状態断面（READ-ONLY）
+        amplitude_value = self._amplitude_state.current_amplitude if self._amplitude_state else 1.0
+        amplitude_boost = self._amplitude_state.accumulated_boost if self._amplitude_state else 0.0
+
+        # 6. 対話文脈断面
+        context_summary = ""
+        dialogue_state = ""
+        if self._last_percept is not None:
+            context_summary = getattr(self._last_percept, "text", "")[:100]
+            dialogue_state = getattr(self._last_percept, "intent", "unknown") or "unknown"
+
+        # 7. 記憶参照断面
+        referenced_memory_count = 0
+        if self._last_recalled_memories is not None:
+            referenced_memory_count = len(self._last_recalled_memories)
+
+        # 8. 蓄積鮮度断面
+        me_state = self._meta_emotion_processor.state
+        existing_record_count = len(me_state.cognition_history)
+        average_freshness = 0.0
+        if me_state.cognition_history:
+            average_freshness = sum(
+                r.freshness for r in me_state.cognition_history
+            ) / len(me_state.cognition_history)
+
+        return MetaEmotionInputs(
+            emotion_values=emotion_values,
+            mood_valence=mood_valence,
+            mood_arousal=mood_arousal,
+            dynamics_phase=dynamics_phase,
+            dynamics_peak_intensity=dynamics_peak_intensity,
+            dynamics_accumulated_intensity=dynamics_accumulated_intensity,
+            coupling_continuity=coupling_continuity,
+            coupling_active_entries=coupling_active_entries,
+            self_model_spread=self_model_spread,
+            self_model_intensity=self_model_intensity,
+            self_model_conflict=self_model_conflict,
+            amplitude_value=amplitude_value,
+            amplitude_boost=amplitude_boost,
+            context_summary=context_summary,
+            dialogue_state=dialogue_state,
+            referenced_memory_count=referenced_memory_count,
+            existing_record_count=existing_record_count,
+            average_freshness=average_freshness,
+            current_tick=self._tick_count,
+        )
+
     def select_policy_dict(
         self,
         percept: Percept,
@@ -2302,7 +2419,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 15,
+            "version": 16,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2353,6 +2470,8 @@ class PsycheOrchestrator:
             "action_result_state": self._action_result_observer.state.to_dict() if self._action_result_observer else {},
             # Version 15 fields
             "dialogue_learning_state": self._dialogue_learning_processor.state.to_dict() if self._dialogue_learning_processor else {},
+            # Version 16 fields
+            "meta_emotion_state": self._meta_emotion_processor.state.to_dict() if self._meta_emotion_processor else {},
         }
 
         save_path.write_text(
@@ -2479,6 +2598,11 @@ class PsycheOrchestrator:
             # Version 15+ fields
             if data.get("dialogue_learning_state"):
                 self._dialogue_learning_processor._state = DialogueLearningState.from_dict(data["dialogue_learning_state"])
+
+            # Version 16+ fields
+            if data.get("meta_emotion_state"):
+                self._meta_emotion_processor.state = MetaEmotionState.from_dict(data["meta_emotion_state"])
+                self._meta_emotion_processor.state.apply_session_decay()
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -364,6 +364,16 @@ from .memory_forgetting_fixation import (
     get_forgetting_fixation_summary,
 )
 
+# Action-result observation
+from .action_result_observation import (
+    ActionResultObservationProcessor,
+    ActionResultObservationState,
+    ActionResultInputs,
+    ActionResultObservationResult,
+    create_action_result_processor,
+    get_action_result_summary,
+)
+
 # Spontaneous activation
 from .spontaneous_activation import (
     SpontaneousActivationProcessor,
@@ -591,6 +601,12 @@ class PsycheOrchestrator:
         self._forgetting_fixation_processor = create_forgetting_fixation_processor()
         self._last_forgetting_fixation: Optional[ForgettingFixationResult] = None
 
+        # ── Action-result observation ──
+        self._action_result_observer = create_action_result_processor()
+        self._last_action_result: Optional[ActionResultObservationResult] = None
+        self._last_selected_policy_label: str = ""
+        self._last_selected_policy_axis: str = ""
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -789,6 +805,20 @@ class PsycheOrchestrator:
 
         # Phase 7: fear recompute — 4柱リスク再計算
         self._recompute_fear()
+
+        # Phase 7a: action_result_observation — 行動記録を構成バッファへ
+        # 構成バッファへの行動記録は、ポリシー選択完了後（毎ティック処理の末尾付近）に行う。
+        # 結果記述の結合は低頻度処理帯（Phase 26c）に行い、同一周期内での即時構成を禁止する。
+        if self._last_selected_policy_label:
+            try:
+                record_inputs = ActionResultInputs(
+                    selected_policy_label=self._last_selected_policy_label,
+                    selected_policy_axis=self._last_selected_policy_axis,
+                    current_tick=self._tick_count,
+                )
+                self._action_result_observer.record_action(record_inputs)
+            except Exception as e:
+                logger.debug("Action-result record skipped: %s", e)
 
         logger.debug(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
@@ -1126,6 +1156,14 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Value orientation validation skipped: %s", e)
 
+        # Phase 26c: action_result_observation — 行動-結果対の処理
+        # 結果記述の結合は低頻度処理帯で行い、同一周期内での即時構成を禁止する。
+        try:
+            ar_inputs = self._build_action_result_inputs(user_id)
+            self._last_action_result = self._action_result_observer.process(ar_inputs)
+        except Exception as e:
+            logger.debug("Action-result observation skipped: %s", e)
+
         logger.debug(
             "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
             "episodes=%s, expectations=%s",
@@ -1424,6 +1462,15 @@ class PsycheOrchestrator:
                 )
                 if ff_text and "待機中" not in ff_text:
                     memory_lines.append(f"記憶流動: {ff_text}")
+            except Exception:
+                pass
+        # #21 action_result_observation
+        if self._action_result_observer is not None:
+            try:
+                ar_data = self._action_result_observer.get_enrichment_data()
+                ar_text = ar_data.get("summary_text", "")
+                if ar_text and "待機中" not in ar_text:
+                    memory_lines.append(f"行動-結果: {ar_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -1909,6 +1956,101 @@ class PsycheOrchestrator:
             invisible_alternative_count=invisible_alt,
         )
 
+    def _build_action_result_inputs(self, user_id: str) -> ActionResultInputs:
+        """行動-結果観測に必要な8断面の入力を構築する。"""
+        p = self._psyche
+
+        # 1. 直近行動断面 — select_policy_dict で記録されたラベル
+        policy_label = self._last_selected_policy_label
+        policy_axis = self._last_selected_policy_axis
+
+        # 2. 外部反応断面 — 直近 percept の emotion valence を外部反応として使用
+        ext_change = 0.0
+        ext_desc = ""
+        if self._last_percept is not None:
+            ext_change = abs(getattr(self._last_percept, 'emotion_valence', 0.0))
+            ext_desc = getattr(self._last_percept, 'emotion', '') or ""
+
+        # 3. 内部状態変化断面 — dynamics & motivation
+        internal_delta = 0.0
+        if self._dynamics is not None:
+            internal_delta = abs(getattr(self._dynamics, 'accumulated_intensity', 0.0))
+        motivation_delta = 0.0
+        if self._last_motives is not None:
+            motives_list = getattr(self._last_motives, 'motives', [])
+            if motives_list:
+                motivation_delta = sum(
+                    getattr(m, 'strength', 0.0) for m in motives_list
+                ) / len(motives_list)
+        direction_delta = 0.0
+        if self._value_orientation is not None:
+            axes = getattr(self._value_orientation, 'axes', {})
+            if axes:
+                direction_delta = sum(abs(v) for v in axes.values()) / len(axes)
+
+        # 4. 感情推移断面 — 前回保持の感情 vs 現在
+        emotion_after = p.emotions.as_dict() if p.emotions else {}
+        # emotion_before は直接保持していないため、空 dict (差分は module 内部で計算)
+        emotion_before: dict[str, float] = {}
+
+        # 5. 文脈断面
+        context_summary = ""
+        dialogue_state = ""
+        environment_tags: list[str] = []
+        if self._last_percept is not None:
+            context_summary = getattr(self._last_percept, 'text', '')[:100]
+            dialogue_state = getattr(self._last_percept, 'intent', 'unknown') or 'unknown'
+            environment_tags = list(
+                getattr(self._last_percept, 'topics', ()) or ()
+            )
+
+        # 6. 時間経過断面
+        ticks_since = self._tick_count
+
+        # 7. 他者観測断面
+        other_change = 0.0
+        other_desc = ""
+        if self._last_feed_result is not None:
+            fragments = getattr(self._last_feed_result, 'fragments', [])
+            if fragments:
+                other_change = sum(
+                    getattr(f, 'confidence', 0.0) for f in fragments
+                ) / len(fragments)
+                other_desc = getattr(fragments[0], 'description', '') if fragments else ""
+
+        # 8. 記憶参照断面
+        ref_ids: list[str] = []
+        if self._last_recalled_memories:
+            ref_ids = [
+                m.get("id", m.get("memory_id", ""))
+                for m in self._last_recalled_memories
+                if m.get("id") or m.get("memory_id")
+            ]
+
+        return ActionResultInputs(
+            selected_policy_label=policy_label,
+            selected_policy_axis=policy_axis,
+            selection_context_summary=context_summary,
+            action_tick=self._tick_count,
+            external_response_change=ext_change,
+            external_response_description=ext_desc,
+            internal_state_delta=internal_delta,
+            motivation_delta=motivation_delta,
+            direction_delta=direction_delta,
+            emotion_before=emotion_before,
+            emotion_after=emotion_after,
+            context_summary=context_summary,
+            dialogue_state=dialogue_state,
+            environment_tags=environment_tags,
+            ticks_since_action=ticks_since,
+            elapsed_seconds=0.0,
+            other_reaction_change=other_change,
+            other_reaction_description=other_desc,
+            referenced_memory_ids=ref_ids,
+            referenced_memory_count=len(ref_ids),
+            current_tick=self._tick_count,
+        )
+
     def select_policy_dict(
         self,
         percept: Percept,
@@ -1930,6 +2072,10 @@ class PsycheOrchestrator:
                 )
         except Exception:
             pass
+
+        # 選択されたポリシーを記録（Phase 7a で構成バッファに記録するため）
+        self._last_selected_policy_label = policy.get("policy_label", "")
+        self._last_selected_policy_axis = policy.get("_axis", "")
 
         return policy
 
@@ -2038,7 +2184,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 13,
+            "version": 14,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2085,6 +2231,8 @@ class PsycheOrchestrator:
             "vo_validation_state": self._vo_validator.state.to_dict() if self._vo_validator else {},
             # Version 13 fields
             "forgetting_fixation_state": self._forgetting_fixation_processor.state.to_dict() if self._forgetting_fixation_processor else {},
+            # Version 14 fields
+            "action_result_state": self._action_result_observer.state.to_dict() if self._action_result_observer else {},
         }
 
         save_path.write_text(
@@ -2203,6 +2351,10 @@ class PsycheOrchestrator:
             # Version 13+ fields
             if data.get("forgetting_fixation_state"):
                 self._forgetting_fixation_processor._state = ForgettingFixationState.from_dict(data["forgetting_fixation_state"])
+
+            # Version 14+ fields
+            if data.get("action_result_state"):
+                self._action_result_observer._state = ActionResultObservationState.from_dict(data["action_result_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

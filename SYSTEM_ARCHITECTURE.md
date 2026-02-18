@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-18
-総コード行数: ~109,000行
-総テスト数: 3,831テスト
+総コード行数: ~111,000行
+総テスト数: 3,946テスト
 
 ---
 
@@ -101,6 +101,7 @@
 | 13h | action_result_observation.py | 1,626 | 109 | 観測 | 行動-結果の観測と蓄積（8断面・6段パイプライン・非正誤判定・時系列隣接記録・安全弁4種） |
 | 13i | other_model_dialogue_learning.py | 1,625 | 135 | 内省 | 他者観測の長期蓄積と仮説補助（8断面・8段パイプライン・相手別分離・仮説再生成方式・安全弁4種） |
 | 13j | meta_emotion_cognition.py | 1,608 | 141 | 感情 | メタ感情認知と変動候補生成（8断面・7段パイプライン・常時等価列挙・Phase 1-2不変性保証・安全弁4種） |
+| 13k | self_action_perception.py | 395 | 114 | 知覚 | 自己行動知覚（3段パイプライン・全記録等価・テキスト非解釈・判断系非接続・brain.py通知経路） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -3657,6 +3658,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑩ | 行動-結果の観測と蓄積 ✅完了 | 中 | ⑧ | action_result_observation.py (1,626行/109テスト) 8断面・6段パイプライン・非正誤判定・時系列隣接記録。orchestrator Phase 7a/26c、save/load v14 (38フィールド) |
 | ⑪ | 他者観測の長期蓄積と仮説補助 ✅完了 | 中 | ⑩ | other_model_dialogue_learning.py (1,625行/135テスト) 8断面・8段パイプライン・相手別分離・反復非反復等重量・仮説再生成方式。orchestrator Phase 25c、save/load v15 (39フィールド) |
 | ⑫ | メタ感情認知と変動候補生成 ✅完了 | 中〜高 | ⑨⑩ | meta_emotion_cognition.py (1,608行/141テスト) 8断面・7段パイプライン・常時等価候補列挙・Phase 1-2不変性保証。orchestrator Phase 14b、save/load v16 (40フィールド) |
+| ⑬ | 自己行動知覚 ✅完了 | 低 | ⑩ | self_action_perception.py (395行/114テスト) 3段パイプライン・全記録等価・テキスト非解釈。orchestrator notify_self_output()/enrichment #24、brain.py 6メソッド通知追加、action_result output_text補完、save/load v17 (41フィールド) |
 
 ### 9.2 各項目の詳細
 
@@ -3782,7 +3784,21 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁4種: 変動候補収束防止、特徴量偏り防止、供給集中防止、蓄積偏り防止
 - orchestrator Phase 14b（3ティック毎帯、Phase 14の後）、save/load v16 (40フィールド)、enrichment #23
 
+#### ⑬ 自己行動知覚 ✅完了
+- self_action_perception.py: 395行 / 114テスト
+- 構造的欠落の補完: Geminiの応答テキストがpsycheにフィードバックされない欠落を解消
+- 3段パイプライン: 受領保持→行動結果補完→参照情報受渡
+- 受領保持: 応答テキスト+ポリシーラベル+ティック+タイムスタンプの対を時系列蓄積（上限押し出し）
+- 行動結果補完: action_result_observationの入力に「実際の出力テキスト」(output_text)を追加
+- 参照情報受渡: enrichmentセクション追加 + 内省系モジュールへのREAD-ONLY参照
+- 全記録等価: 重み・スコア・優先度なし。テキスト非解釈（生テキスト保持）
+- 判断系への非接続: ポリシー選択・バイアス計算・安定化弁への直接入力経路を禁止
+- Phase 1-2不変性: 感情パイプラインのパラメータを変更しない
+- brain.py: 6つのthinkメソッド全てにnotify_self_output()呼び出し追加（代弁コール完了後）
+- orchestrator: notify_self_output()（set_recalled_memoriesパターン）、enrichment #24、save/load v17 (41フィールド)
+- 討論結果: A-2推奨（工学的自我の根本要件、自己参照の閉合）
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~109,000行 / テスト数: 3,831*
+*総コード行数: ~111,000行 / テスト数: 3,946*

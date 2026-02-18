@@ -1140,6 +1140,17 @@ from .spontaneous_activation import (
     create_spontaneous_processor,
 )
 
+# Self-Action Perception (自己行動知覚)
+from .self_action_perception import (
+    RecordStatus,
+    SelfActionRecord,
+    SelfActionPerceptionState,
+    SelfActionPerceptionConfig,
+    SelfActionPerceptionRecorder,
+    get_self_action_summary,
+    create_self_action_perception_recorder,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1557,6 +1568,11 @@ __all__ = [
     "apply_spontaneous_freshness_decay", "decay_unadopted_history",
     "SpontaneousActivationProcessor",
     "get_spontaneous_summary", "create_spontaneous_processor",
+    # Self-Action Perception (自己行動知覚)
+    "RecordStatus", "SelfActionRecord",
+    "SelfActionPerceptionState", "SelfActionPerceptionConfig",
+    "SelfActionPerceptionRecorder",
+    "get_self_action_summary", "create_self_action_perception_recorder",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

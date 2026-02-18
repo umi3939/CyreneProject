@@ -404,6 +404,16 @@ from .meta_emotion_cognition import (
     get_meta_emotion_summary,
 )
 
+# Self-action perception
+from .self_action_perception import (
+    SelfActionPerceptionRecorder,
+    SelfActionPerceptionState,
+    SelfActionPerceptionConfig,
+    SelfActionRecord,
+    create_self_action_perception_recorder,
+    get_self_action_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -638,6 +648,9 @@ class PsycheOrchestrator:
         self._meta_emotion_processor = create_meta_emotion_processor()
         self._last_meta_emotion: Optional[MetaEmotionResult] = None
 
+        # ── Self-action perception ──
+        self._self_action_recorder = create_self_action_perception_recorder()
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -671,6 +684,28 @@ class PsycheOrchestrator:
         次回の Phase 21 (emotional_memory_binding) で使用される。
         """
         self._last_recalled_memories = memories
+
+    def notify_self_output(
+        self,
+        response_text: str,
+        policy_label: str = "",
+    ) -> None:
+        """brain.py から代弁コール完了後の出力テキストを受け取る。
+
+        自己行動知覚モジュールへの通知インターフェース。
+        set_recalled_memories と同型の接続構造。
+        沈黙選択時（出力テキストなし）は呼び出さない。
+        """
+        if not response_text:
+            return
+        try:
+            self._self_action_recorder.receive_response(
+                response_text=response_text,
+                policy_label=policy_label,
+                tick=self._tick_count,
+            )
+        except Exception as e:
+            logger.debug("Self-action perception notification failed: %s", e)
 
     def process_text_input(
         self,
@@ -1694,6 +1729,15 @@ class PsycheOrchestrator:
                     memory_lines.append(f"メタ感情: {me_text}")
             except Exception:
                 pass
+        # #24 self_action_perception
+        if self._self_action_recorder is not None:
+            try:
+                sa_data = self._self_action_recorder.get_enrichment_data()
+                sa_text = sa_data.get("summary_text", "")
+                if sa_text and "待機中" not in sa_text:
+                    memory_lines.append(f"自己行動: {sa_text}")
+            except Exception:
+                pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -2302,6 +2346,11 @@ class PsycheOrchestrator:
                 if m.get("id") or m.get("memory_id")
             ]
 
+        # 9. テキスト断面（自己行動知覚から供給）
+        sa_output_text = ""
+        if self._self_action_recorder is not None:
+            sa_output_text = self._self_action_recorder.get_text_for_action_result()
+
         return ActionResultInputs(
             selected_policy_label=policy_label,
             selected_policy_axis=policy_axis,
@@ -2323,6 +2372,7 @@ class PsycheOrchestrator:
             other_reaction_description=other_desc,
             referenced_memory_ids=ref_ids,
             referenced_memory_count=len(ref_ids),
+            output_text=sa_output_text,
             current_tick=self._tick_count,
         )
 
@@ -2628,7 +2678,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 16,
+            "version": 17,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2681,6 +2731,8 @@ class PsycheOrchestrator:
             "dialogue_learning_state": self._dialogue_learning_processor.state.to_dict() if self._dialogue_learning_processor else {},
             # Version 16 fields
             "meta_emotion_state": self._meta_emotion_processor.state.to_dict() if self._meta_emotion_processor else {},
+            # Version 17 fields
+            "self_action_perception_state": self._self_action_recorder.state.to_dict() if self._self_action_recorder else {},
         }
 
         save_path.write_text(
@@ -2812,6 +2864,10 @@ class PsycheOrchestrator:
             if data.get("meta_emotion_state"):
                 self._meta_emotion_processor.state = MetaEmotionState.from_dict(data["meta_emotion_state"])
                 self._meta_emotion_processor.state.apply_session_decay()
+
+            # Version 17+ fields
+            if data.get("self_action_perception_state"):
+                self._self_action_recorder.state = SelfActionPerceptionState.from_dict(data["self_action_perception_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -350,6 +350,14 @@ class CyreneBrain:
                 self._last_emotion = meta["emotion"]
 
             self._last_response = full_text
+
+            # Notify self-action perception
+            if full_text:
+                self._orchestrator.notify_self_output(
+                    response_text=full_text,
+                    policy_label=policy.get("policy_label", ""),
+                )
+
             return full_text
 
         except Exception as e:
@@ -478,6 +486,13 @@ class CyreneBrain:
             self._conversation_log.append(f"[キュレネ] {full_text}")
             self._last_response = full_text
 
+            # Notify self-action perception
+            if full_text:
+                self._orchestrator.notify_self_output(
+                    response_text=full_text,
+                    policy_label=policy.get("policy_label", ""),
+                )
+
             # === Phase 8: Split into sentences + yield ===
             sentences = []
             current = ""
@@ -598,6 +613,14 @@ class CyreneBrain:
             self._conversation_log.append(f"[ユーザー] {user_text}")
             self._conversation_log.append(f"[キュレネ] {full_text}")
             self._last_response = full_text
+
+            # Notify self-action perception
+            if full_text:
+                self._orchestrator.notify_self_output(
+                    response_text=full_text,
+                    policy_label=policy.get("policy_label", ""),
+                )
+
             return full_text
 
         except Exception as e:
@@ -685,6 +708,13 @@ class CyreneBrain:
             self._conversation_log.append(f"[ユーザー] {user_text}")
             self._conversation_log.append(f"[キュレネ] {full_text}")
             self._last_response = full_text
+
+            # Notify self-action perception
+            if full_text:
+                self._orchestrator.notify_self_output(
+                    response_text=full_text,
+                    policy_label=policy.get("policy_label", ""),
+                )
 
             # Phase 8: sentence split + yield
             sentences = []
@@ -794,6 +824,14 @@ class CyreneBrain:
 
             self._conversation_log.append(f"[キュレネ/自発] {full_text}")
             self._last_response = full_text
+
+            # Notify self-action perception
+            if full_text:
+                self._orchestrator.notify_self_output(
+                    response_text=full_text,
+                    policy_label=policy.get("policy_label", ""),
+                )
+
             return full_text
 
         except Exception as e:
@@ -878,6 +916,13 @@ class CyreneBrain:
 
             self._conversation_log.append(f"[キュレネ/自発] {full_text}")
             self._last_response = full_text
+
+            # Notify self-action perception
+            if full_text:
+                self._orchestrator.notify_self_output(
+                    response_text=full_text,
+                    policy_label=policy.get("policy_label", ""),
+                )
 
             # Sentence split + yield
             sentences = []

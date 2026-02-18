@@ -396,6 +396,10 @@ class ActionResultInputs:
     referenced_memory_ids: list[str] = field(default_factory=list)
     referenced_memory_count: int = 0
 
+    # 9. テキスト断面（自己行動知覚から供給される出力テキスト情報）
+    # 既存の8断面と同列であり、優先順位を持たない
+    output_text: str = ""
+
     # メタデータ
     current_tick: int = 0
 

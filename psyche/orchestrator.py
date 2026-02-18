@@ -1379,20 +1379,47 @@ class PsycheOrchestrator:
                 active_pairs = self._action_result_observer.get_active_pairs()
                 expectations = getattr(self._last_expectations, 'expectations', ())
                 if active_pairs and expectations:
-                    # 差分記録: 予期の内容と行動-結果対のパターンの並存記録
+                    # 差分記録: 予期の内容と行動-結果対のパターンの多断面並存記録
                     diff_records = []
                     for exp in expectations:
                         exp_desc = getattr(exp, 'description', '')
                         exp_source = getattr(exp, 'source_type', None)
                         source_val = exp_source.value if exp_source else 'unknown'
+                        exp_basis_raw = getattr(exp, 'basis', None)
+                        basis_val = exp_basis_raw.value if exp_basis_raw else 'unknown'
+                        exp_strength_raw = getattr(exp, 'strength', None)
+                        if isinstance(exp_strength_raw, (int, float)):
+                            strength_val = float(exp_strength_raw)
+                        elif hasattr(exp_strength_raw, 'value'):
+                            strength_val = exp_strength_raw.value
+                        else:
+                            strength_val = 'unknown'
                         for pair in active_pairs[:5]:  # 直近5対のみ照合
                             pair_pattern = pair.pattern_key or ''
+                            # 結果断面キー一覧
+                            result_section_keys = []
+                            try:
+                                for sec in pair.result.sections:
+                                    sec_key = getattr(sec, 'section', '')
+                                    if sec_key:
+                                        result_section_keys.append(sec_key)
+                            except Exception:
+                                pass
                             diff_records.append({
-                                "expectation_desc": exp_desc[:60],
-                                "expectation_source": source_val,
-                                "action_pattern": pair_pattern,
-                                "action_policy": pair.action.policy_label,
-                                "tick": self._tick_count,
+                                "expectation": {
+                                    "description": exp_desc[:60],
+                                    "source_type": source_val,
+                                    "basis": basis_val,
+                                    "strength": strength_val,
+                                },
+                                "action": {
+                                    "policy_label": pair.action.policy_label,
+                                    "pattern_key": pair_pattern,
+                                },
+                                "result_sections": result_section_keys,
+                                "context": {
+                                    "tick": self._tick_count,
+                                },
                             })
                     # 差分記録を保持（上限付き）
                     if not hasattr(self, '_expectation_action_diff_log'):
@@ -1482,6 +1509,28 @@ class PsycheOrchestrator:
         # Phase 27-29: every 10 ticks
         if self._tick_count % 10 == 0:
             self._run_every_10_ticks(user_id)
+
+    # ── Expectation diff accessor ────────────────────────────────
+
+    def get_expectation_diff_summary(self) -> dict:
+        """予期差分記録の読み取り専用サマリを返す。
+
+        情報の変換・評価・選別を行わない。
+        記録されている内容をそのまま構造化して返す。
+        """
+        log = self._expectation_action_diff_log
+        total = len(log)
+        recent = log[-5:] if total > 0 else []
+        # 断面別記述キー一覧（どの断面で差分が記述されているか）
+        section_keys: set[str] = set()
+        for rec in log:
+            for key in rec.get("result_sections", []):
+                section_keys.add(key)
+        return {
+            "total_count": total,
+            "recent_records": recent,
+            "section_keys": sorted(section_keys),
+        }
 
     # ── Prompt enrichment ─────────────────────────────────────────
 
@@ -1738,6 +1787,23 @@ class PsycheOrchestrator:
                     memory_lines.append(f"自己行動: {sa_text}")
             except Exception:
                 pass
+        # #25 expectation_action_diff
+        try:
+            diff_summary = self.get_expectation_diff_summary()
+            diff_total = diff_summary["total_count"]
+            if diff_total > 0:
+                diff_parts = [f"予期差分記録: {diff_total}件"]
+                for rec in diff_summary["recent_records"]:
+                    exp_info = rec.get("expectation", {})
+                    act_info = rec.get("action", {})
+                    desc = exp_info.get("description", "")[:30]
+                    pattern = act_info.get("pattern_key", "")
+                    diff_parts.append(
+                        f"  [{desc}] - [{pattern}]"
+                    )
+                memory_lines.append("\n".join(diff_parts))
+        except Exception:
+            pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -2678,7 +2744,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 17,
+            "version": 18,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2733,6 +2799,8 @@ class PsycheOrchestrator:
             "meta_emotion_state": self._meta_emotion_processor.state.to_dict() if self._meta_emotion_processor else {},
             # Version 17 fields
             "self_action_perception_state": self._self_action_recorder.state.to_dict() if self._self_action_recorder else {},
+            # Version 18 fields
+            "expectation_action_diff_log": self._expectation_action_diff_log,
         }
 
         save_path.write_text(
@@ -2868,6 +2936,10 @@ class PsycheOrchestrator:
             # Version 17+ fields
             if data.get("self_action_perception_state"):
                 self._self_action_recorder.state = SelfActionPerceptionState.from_dict(data["self_action_perception_state"])
+
+            # Version 18+ fields
+            if data.get("expectation_action_diff_log"):
+                self._expectation_action_diff_log = data["expectation_action_diff_log"]
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -141,7 +141,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 2,212 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 45システム, save/load v13(37項目永続化), enrichment(5セクション), select_policy_dict含む） |
+| 41 | orchestrator.py | 2,949 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 45システム, save/load v18(42項目永続化), enrichment(5セクション/25項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3659,6 +3659,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑪ | 他者観測の長期蓄積と仮説補助 ✅完了 | 中 | ⑩ | other_model_dialogue_learning.py (1,625行/135テスト) 8断面・8段パイプライン・相手別分離・反復非反復等重量・仮説再生成方式。orchestrator Phase 25c、save/load v15 (39フィールド) |
 | ⑫ | メタ感情認知と変動候補生成 ✅完了 | 中〜高 | ⑨⑩ | meta_emotion_cognition.py (1,608行/141テスト) 8断面・7段パイプライン・常時等価候補列挙・Phase 1-2不変性保証。orchestrator Phase 14b、save/load v16 (40フィールド) |
 | ⑬ | 自己行動知覚 ✅完了 | 低 | ⑩ | self_action_perception.py (395行/114テスト) 3段パイプライン・全記録等価・テキスト非解釈。orchestrator notify_self_output()/enrichment #24、brain.py 6メソッド通知追加、action_result output_text補完、save/load v17 (41フィールド) |
+| ⑭ | 予期差分の参照経路拡張 ✅完了 | 低 | ⑩⑬ | 新モジュールなし（orchestrator.py拡張のみ）。Phase 26d差分記録の多断面化（予期/行動/結果/文脈の4断面）、get_expectation_diff_summary()アクセサ、enrichment #25、save/load v18 (42フィールド) |
 
 ### 9.2 各項目の詳細
 
@@ -3797,6 +3798,17 @@ value_orientation_validation.py (1,211行/88テスト)
 - brain.py: 6つのthinkメソッド全てにnotify_self_output()呼び出し追加（代弁コール完了後）
 - orchestrator: notify_self_output()（set_recalled_memoriesパターン）、enrichment #24、save/load v17 (41フィールド)
 - 討論結果: A-2推奨（工学的自我の根本要件、自己参照の閉合）
+
+#### ⑭ 予期差分の参照経路拡張 ✅完了
+- 新モジュールなし — orchestrator.py の既存 Phase 26d を拡張
+- 既存の `_expectation_action_diff_log` が「蓄積されるのみでどこにも届かない」状態を解消
+- Phase 26d差分記録の多断面化: 予期断面（内容記述/生成源/基盤/強度）、行動断面（ポリシーラベル/パターンキー）、結果断面（利用可能な結果断面キー一覧）、文脈断面（tick）
+- get_expectation_diff_summary() アクセサ: 総件数・直近記録・断面キー一覧を読み取り専用で返す（変換・評価・選別なし）
+- enrichment #25: 記憶・内省セクションに予期差分記録の等価列挙を追加（強調禁止）
+- save/load v18 (42フィールド): diff_logリスト全体を1フィールドで永続化
+- フィードバック経路の3重遮断: 差分記録→予期形成、差分記録→行動-結果観測、差分記録→ポリシー選択の接続を禁止
+- 新奇性バイアス防止: 記録選別禁止、enrichment強調禁止、アクセサフィルタリング非搭載
+- 討論結果: B-4条件付き推奨（既存diff_logの参照経路追加として）
 
 ---
 

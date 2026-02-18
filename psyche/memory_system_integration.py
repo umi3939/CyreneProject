@@ -49,6 +49,7 @@ class MemorySource(Enum):
     EPISODIC = "episodic"            # 自己観測由来の出来事記録
     LONG_TERM = "long_term"          # 長期要約由来の圧縮記録
     BINDING = "binding"              # 感情記憶の紐づけ
+    ACTION_RESULT = "action_result"  # 行動-結果対由来の選択-観測記録
 
 
 # ── Temporal Phase ──────────────────────────────────────────
@@ -659,6 +660,87 @@ def normalize_bindings(
     return units
 
 
+def normalize_action_results(
+    action_result_pairs: Optional[list[dict[str, Any]]],
+    context: IntegrationContext,
+    config: IntegrationConfig,
+) -> list[UnifiedMemoryUnit]:
+    """行動-結果対 → 共通記述単位。
+
+    行動-結果対はエピソード記憶とは異なる抽象度の情報を保持する。
+    エピソード記憶は「何が起きたか」の出来事単位の記録であり、
+    行動-結果対は「何を選択した後にどのような変化が隣接したか」の選択-観測対である。
+    二重記録の消去は行わず、同一経験の異なる視点として並立保持する。
+    """
+    units: list[UnifiedMemoryUnit] = []
+    if not action_result_pairs:
+        return units
+
+    for pair_data in action_result_pairs:
+        pair_id = pair_data.get("pair_id", "")
+        if not pair_id:
+            continue
+
+        # 行動記述からサマリを構成
+        action = pair_data.get("action", {})
+        result = pair_data.get("result", {})
+        policy_label = action.get("policy_label", "")
+        context_str = action.get("selection_context", "")
+        summary = f"action:{policy_label}"
+        if context_str:
+            summary += f" context:{context_str[:50]}"
+
+        # 結果の断面記述からトピックを抽出
+        topics: list[str] = []
+        if policy_label:
+            topics.append(policy_label)
+        sections = result.get("sections", [])
+        for sec in sections[:3]:
+            sec_name = sec.get("section", "")
+            if sec_name:
+                topics.append(sec_name)
+
+        # 感情差分（結果にemotion_diffがあれば）
+        emotion_diff = result.get("emotion_diff", {})
+        emotional_valence = 0.0
+        emotional_label = ""
+        if emotion_diff:
+            vals = list(emotion_diff.values())
+            if vals:
+                emotional_valence = sum(vals) / len(vals)
+                max_key = max(emotion_diff, key=lambda k: abs(emotion_diff[k]))
+                emotional_label = max_key
+
+        freshness = pair_data.get("freshness", 0.5)
+        ts = pair_data.get("creation_time", 0.0)
+        ref_count = pair_data.get("reference_count", 0)
+
+        phase = _determine_temporal_phase(ts, context.current_time, config)
+        unit_id = _make_unit_id("action_result", pair_id)
+
+        relevance = _compute_relevance(topics, emotional_valence, context)
+
+        units.append(UnifiedMemoryUnit(
+            unit_id=unit_id,
+            source=MemorySource.ACTION_RESULT,
+            source_id=pair_id,
+            summary=summary,
+            topics=topics,
+            temporal_phase=phase,
+            timestamp=ts,
+            certainty=0.5,  # 行動-結果対は時系列隣接であり因果確定ではない
+            relevance=relevance,
+            reuse_count=ref_count,
+            freshness=freshness if isinstance(freshness, (int, float)) else 0.5,
+            emotional_valence=emotional_valence,
+            emotional_label=emotional_label,
+            importance=0.35,  # 行動-結果対は参照補助的
+            original_data={"source": "action_result", "pair_id": pair_id},
+        ))
+
+    return units
+
+
 # ── Relevance Computation ───────────────────────────────────
 
 def _compute_relevance(
@@ -960,6 +1042,7 @@ class MemorySystemIntegrator:
         long_term_memories: Optional[list[dict[str, Any]]] = None,
         bindings: Any = None,
         context: Optional[IntegrationContext] = None,
+        action_result_pairs: Optional[list[dict[str, Any]]] = None,
     ) -> IntegrationResult:
         """記憶を統合して参照候補を生成する。
 
@@ -971,6 +1054,7 @@ class MemorySystemIntegrator:
             long_term_memories: MemoryManager recall結果 (長期要約由来)
             bindings: BindingStore (感情記憶結合)
             context: 現在の文脈情報
+            action_result_pairs: 行動-結果対の辞書リスト（選択-観測記録）
 
         Returns:
             IntegrationResult: 統合済み参照候補
@@ -983,8 +1067,9 @@ class MemorySystemIntegrator:
         episodic_units = normalize_episodic(episodes, ctx, config)
         long_term_units = normalize_long_term(long_term_memories, ctx, config)
         binding_units = normalize_bindings(bindings, ctx, config)
+        ar_units = normalize_action_results(action_result_pairs, ctx, config)
 
-        all_units = episodic_units + long_term_units + binding_units
+        all_units = episodic_units + long_term_units + binding_units + ar_units
 
         if not all_units:
             return IntegrationResult()

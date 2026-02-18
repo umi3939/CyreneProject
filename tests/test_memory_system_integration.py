@@ -46,7 +46,10 @@ class TestMemorySource:
         assert MemorySource.BINDING.value == "binding"
 
     def test_all_members(self):
-        assert len(MemorySource) == 3
+        assert len(MemorySource) == 4
+
+    def test_action_result_source(self):
+        assert MemorySource.ACTION_RESULT.value == "action_result"
 
 
 class TestTemporalPhase:

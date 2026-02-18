@@ -242,6 +242,7 @@ class ForgettingFixationInputs:
     episode_entries: list[dict[str, Any]] = field(default_factory=list)
     binding_entries: list[dict[str, Any]] = field(default_factory=list)
     long_term_entries: list[dict[str, Any]] = field(default_factory=list)
+    action_result_entries: list[dict[str, Any]] = field(default_factory=list)
 
     # 2. 再利用間隔断面
     reuse_history: dict[str, int] = field(default_factory=dict)

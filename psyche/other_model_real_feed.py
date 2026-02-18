@@ -1336,6 +1336,17 @@ class RealFeedProcessor:
             holdback_count=len(self._state.holdback),
         )
 
+    def inject_external_fragments(self, fragments: list[ObservationFragment]) -> None:
+        """外部モジュール（action_result等）からの観測断片を注入する。
+
+        行動-結果観測で得られた他者反応の時系列的隣接記録を、
+        他者モデルの観測断片の一種として追加する。因果帰属は行わない。
+        """
+        if not fragments:
+            return
+        self._state.fragments.extend(fragments)
+        self._trim_fragments()
+
     def _trim_fragments(self) -> None:
         """typeごとの断片数を制限する。"""
         cfg = self._state.config

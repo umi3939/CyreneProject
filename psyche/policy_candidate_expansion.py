@@ -481,6 +481,14 @@ class CrossSectionInputs:
     motive_count: int = 0
     expectation_count: int = 0
     vector_count: int = 0
+    # 行動-結果経験断面（参照情報形式）
+    action_result_active_count: int = 0
+    action_result_pattern_distribution: dict[str, int] = field(default_factory=dict)
+    action_result_convergence_warning: bool = False
+    # メタ感情変動候補断面（感情の推移特徴に基づく変動可能性の情報）
+    meta_emotion_candidate_count: int = 0
+    meta_emotion_pattern_count: int = 0
+    meta_emotion_supply_strength: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -510,6 +518,12 @@ class CrossSectionInputs:
             "motive_count": self.motive_count,
             "expectation_count": self.expectation_count,
             "vector_count": self.vector_count,
+            "action_result_active_count": self.action_result_active_count,
+            "action_result_pattern_distribution": dict(self.action_result_pattern_distribution),
+            "action_result_convergence_warning": self.action_result_convergence_warning,
+            "meta_emotion_candidate_count": self.meta_emotion_candidate_count,
+            "meta_emotion_pattern_count": self.meta_emotion_pattern_count,
+            "meta_emotion_supply_strength": self.meta_emotion_supply_strength,
         }
 
     @classmethod
@@ -541,6 +555,12 @@ class CrossSectionInputs:
             motive_count=data.get("motive_count", 0),
             expectation_count=data.get("expectation_count", 0),
             vector_count=data.get("vector_count", 0),
+            action_result_active_count=data.get("action_result_active_count", 0),
+            action_result_pattern_distribution=data.get("action_result_pattern_distribution", {}),
+            action_result_convergence_warning=data.get("action_result_convergence_warning", False),
+            meta_emotion_candidate_count=data.get("meta_emotion_candidate_count", 0),
+            meta_emotion_pattern_count=data.get("meta_emotion_pattern_count", 0),
+            meta_emotion_supply_strength=data.get("meta_emotion_supply_strength", 0.0),
         )
 
 

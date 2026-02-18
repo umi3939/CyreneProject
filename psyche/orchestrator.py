@@ -627,6 +627,8 @@ class PsycheOrchestrator:
         self._last_action_result: Optional[ActionResultObservationResult] = None
         self._last_selected_policy_label: str = ""
         self._last_selected_policy_axis: str = ""
+        self._last_emotion_for_action_result: dict[str, float] = {}
+        self._expectation_action_diff_log: list[dict] = []
 
         # ── Other model dialogue learning ──
         self._dialogue_learning_processor = create_dialogue_learning_processor()
@@ -1065,11 +1067,23 @@ class PsycheOrchestrator:
                 current_time=time.time(),
                 tick_count=self._tick_count,
             )
+            # [H] action_result → memory_system_integration 新系統認識
+            # 行動-結果対を新たな系統として認識可能にする。
+            # 二重記録の消去は行わず、同一経験の異なる視点として並立保持する。
+            ar_pair_dicts: Optional[list[dict]] = None
+            if self._action_result_observer is not None:
+                try:
+                    active = self._action_result_observer.get_active_pairs()
+                    if active:
+                        ar_pair_dicts = [p.to_dict() for p in active]
+                except Exception:
+                    pass
             self._last_integration_result = self._memory_integrator.integrate(
                 episodes=self._last_episodes,
                 long_term_memories=self._last_recalled_memories,
                 bindings=self._last_bindings,
                 context=int_ctx,
+                action_result_pairs=ar_pair_dicts,
             )
         except Exception as e:
             logger.debug("Memory integration skipped: %s", e)
@@ -1135,6 +1149,39 @@ class PsycheOrchestrator:
                 integration_result=self._last_integration_result,
                 tick_count=self._tick_count,
             )
+            # [D] action_result → other_model_real_feed 時系列隣接記録供給
+            # 「この行動の後にこの他者反応が観測された」という時系列的隣接の記録を供給。
+            # 因果帰属は行わない。他者の反応は他者自身の内部状態にも依存する。
+            if self._action_result_observer is not None:
+                try:
+                    from .other_model_real_feed import (
+                        ObservationFragment as RealFeedFragment,
+                        ObservationFragmentType as RealFeedFragmentType,
+                    )
+                    active_pairs = self._action_result_observer.get_active_pairs()
+                    external_frags = []
+                    for pair in active_pairs[:3]:  # 直近3対のみ
+                        # 他者観測断面があれば断片として供給
+                        if pair.result and pair.result.sections:
+                            other_secs = [
+                                s for s in pair.result.sections
+                                if s.section == "other_observation"
+                            ]
+                            for sec in other_secs[:1]:
+                                frag = RealFeedFragment(
+                                    type=RealFeedFragmentType.RECENT_HISTORY,
+                                    source_description=(
+                                        f"action_result: {pair.action.policy_label} "
+                                        f"-> {sec.description[:40]}"
+                                    ),
+                                    value=max(0.0, min(1.0, sec.value)),
+                                    text_hint=f"temporal_adjacency:{pair.pair_id[:8]}",
+                                )
+                                external_frags.append(frag)
+                    if external_frags:
+                        self._real_feed_processor.inject_external_fragments(external_frags)
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug("Real feed processing skipped: %s", e)
 
@@ -1171,6 +1218,44 @@ class PsycheOrchestrator:
             if self._last_feed_result is not None:
                 ctx = enhance_context_with_feed(ctx, self._last_feed_result)
 
+            # [G] dialogue_learning → input_supply 長期蓄積補足
+            # 蓄積記述の概要を、既存の文脈生成処理を上書きするのではなく、
+            # 長期蓄積由来の補足情報として追加する。
+            if self._dialogue_learning_processor is not None:
+                try:
+                    dl_data = self._dialogue_learning_processor.get_enrichment_data()
+                    dl_active = dl_data.get("active_count", 0)
+                    dl_rep = dl_data.get("repetition_active", 0)
+                    dl_non_rep = dl_data.get("non_repetition_active", 0)
+                    if dl_active > 0:
+                        # 長期蓄積の存在を密度・連続性に微弱に反映
+                        density_supplement = min(0.1, dl_active * 0.01)
+                        continuity_supplement = min(0.05, dl_rep * 0.01)
+                        ctx.density = min(1.0, ctx.density + density_supplement)
+                        ctx.continuity = min(1.0, ctx.continuity + continuity_supplement)
+                except Exception:
+                    pass
+
+            # [F] dialogue_learning → other_agent_model 仮説重み分布
+            # 蓄積記述から、特定の対話文脈において仮説候補間の相対的重みが
+            # どのように分布するかを記述した情報を提供する。
+            # 分布は常に複数の仮説候補を含み、単一候補に収束しない。
+            # contextに仮説材料情報を付加（duck typing属性として追加）
+            if self._dialogue_learning_processor is not None and self._last_dialogue_learning is not None:
+                try:
+                    dl_data = self._dialogue_learning_processor.get_enrichment_data()
+                    materials = dl_data.get("material_count", 0)
+                    rep_active = dl_data.get("repetition_active", 0)
+                    non_rep_active = dl_data.get("non_repetition_active", 0)
+                    supply_str = dl_data.get("supply_strength", 0.0)
+                    if materials > 0:
+                        # 仮説材料分布を参照情報として付加
+                        # weight: 蓄積由来情報の相対的比重を微弱に上方修正
+                        weight_boost = min(0.1, materials * 0.005) * supply_str
+                        ctx.weight = min(1.0, ctx.weight + weight_boost)
+                except Exception:
+                    pass
+
             rlog = supply_reaction_log(self._input_supply)
 
             self._last_other_model = observe_other_from_chain(
@@ -1189,11 +1274,47 @@ class PsycheOrchestrator:
             resp_signal = generate_responsibility_signal(
                 total_weight=resp_influence_for_vo.caution_bias,
             )
+            # [A] action_result → value_orientation シグナル供給
+            # 蓄積された行動-結果対の情報を微弱なシグナルとして供給。
+            # シグナル強度は既存シグナル（emo_signal, resp_signal）を超えない上限を持つ。
+            ar_signal: Optional[dict[str, float]] = None
+            if self._action_result_observer is not None and self._last_action_result is not None:
+                try:
+                    ar_data = self._action_result_observer.get_enrichment_data()
+                    ar_pattern = ar_data.get("pattern_distribution", {})
+                    supply_strength = ar_data.get("signal_supply_strength", 1.0)
+                    if ar_pattern and supply_strength > 0.0:
+                        # パターン分布から微弱なシグナルを生成
+                        # 既存シグナルの強度上限: emo/respシグナルの最大値を超えない
+                        existing_max = 0.0
+                        for sig in [emo_signal, resp_signal]:
+                            if sig:
+                                for v in sig.values():
+                                    existing_max = max(existing_max, abs(v))
+                        cap = max(0.01, existing_max * 0.5)  # 既存の50%以下に制限
+                        ar_signal = {}
+                        total = sum(ar_pattern.values()) or 1
+                        # パターン多様性をdim_a-e方向のシグナルに変換
+                        diversity = len(ar_pattern) / max(1, total)
+                        base_strength = diversity * supply_strength * cap
+                        for i, dim in enumerate(["a", "b", "c", "d", "e"]):
+                            # 微弱な双方向的情報。最適化方向を指示しない
+                            ar_signal[dim] = base_strength * (0.5 - (i * 0.1))
+                except Exception:
+                    pass
+
             self._value_orientation = update_orientation(
                 orientation=self._value_orientation,
                 emotion_signal=emo_signal if emo_signal else None,
                 responsibility_signal=resp_signal if resp_signal else None,
             )
+            # action_result由来シグナルを分離供給（3番目のシグナルとして追加）
+            # update_orientationは3信号を平均するため、別途供給して影響を微弱に保つ
+            if ar_signal:
+                self._value_orientation = update_orientation(
+                    orientation=self._value_orientation,
+                    decision_signal=ar_signal,
+                )
         except Exception as e:
             logger.debug("Value orientation skipped: %s", e)
 
@@ -1211,6 +1332,40 @@ class PsycheOrchestrator:
             self._last_action_result = self._action_result_observer.process(ar_inputs)
         except Exception as e:
             logger.debug("Action-result observation skipped: %s", e)
+
+        # Phase 26d: [C] action_result → expectation_formation 差分照合
+        # 蓄積された行動-結果対と予期情報との差分を記録する。
+        # 照合結果は「差分の認知」として記録にとどめる。
+        # 予期が「当たった/外れた」という評価はしない。
+        # 照合結果を判断系に直接接続しない。
+        try:
+            if (self._last_expectations is not None
+                    and self._action_result_observer is not None):
+                active_pairs = self._action_result_observer.get_active_pairs()
+                expectations = getattr(self._last_expectations, 'expectations', ())
+                if active_pairs and expectations:
+                    # 差分記録: 予期の内容と行動-結果対のパターンの並存記録
+                    diff_records = []
+                    for exp in expectations:
+                        exp_desc = getattr(exp, 'description', '')
+                        exp_source = getattr(exp, 'source_type', None)
+                        source_val = exp_source.value if exp_source else 'unknown'
+                        for pair in active_pairs[:5]:  # 直近5対のみ照合
+                            pair_pattern = pair.pattern_key or ''
+                            diff_records.append({
+                                "expectation_desc": exp_desc[:60],
+                                "expectation_source": source_val,
+                                "action_pattern": pair_pattern,
+                                "action_policy": pair.action.policy_label,
+                                "tick": self._tick_count,
+                            })
+                    # 差分記録を保持（上限付き）
+                    if not hasattr(self, '_expectation_action_diff_log'):
+                        self._expectation_action_diff_log: list[dict] = []
+                    self._expectation_action_diff_log.extend(diff_records)
+                    self._expectation_action_diff_log = self._expectation_action_diff_log[-50:]
+        except Exception as e:
+            logger.debug("Expectation-action diff skipped: %s", e)
 
         logger.debug(
             "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
@@ -1783,6 +1938,36 @@ class PsycheOrchestrator:
             vectors = getattr(self._vector_gen.state, 'vectors', [])
             vector_count = len(vectors) if vectors else 0
 
+        # [B] action_result → policy_candidate_expansion 参照情報供給
+        # 蓄積された行動-結果対の情報を候補生成時の参照情報として提供する。
+        # 「スコア加算」ではなく「こういう経験がある」という情報形式。
+        ar_active_count = 0
+        ar_pattern_dist: dict[str, int] = {}
+        ar_convergence_warning = False
+        if self._action_result_observer is not None:
+            try:
+                ar_data = self._action_result_observer.get_enrichment_data()
+                ar_active_count = ar_data.get("active_count", 0)
+                ar_pattern_dist = ar_data.get("pattern_distribution", {})
+                ar_convergence_warning = ar_data.get("pattern_convergence_warning", False)
+            except Exception:
+                pass
+
+        # [E] meta_emotion → policy_candidate_expansion 変動候補断面供給
+        # 変動候補群をポリシー候補拡張モジュールの新たな断面として供給する。
+        # 既存の感情断面とは別の断面として、感情の推移特徴に基づく変動可能性の情報。
+        me_candidate_count = 0
+        me_pattern_count = 0
+        me_supply_strength = 0.0
+        if self._meta_emotion_processor is not None:
+            try:
+                me_data = self._meta_emotion_processor.get_enrichment_data()
+                me_candidate_count = me_data.get("candidate_count", 0)
+                me_pattern_count = me_data.get("active_pattern_count", 0)
+                me_supply_strength = me_data.get("supply_strength", 0.0)
+            except Exception:
+                pass
+
         return CrossSectionInputs(
             emotions=emotions,
             mood_valence=p.mood.valence,
@@ -1810,6 +1995,12 @@ class PsycheOrchestrator:
             motive_count=motive_count,
             expectation_count=expectation_count,
             vector_count=vector_count,
+            action_result_active_count=ar_active_count,
+            action_result_pattern_distribution=ar_pattern_dist,
+            action_result_convergence_warning=ar_convergence_warning,
+            meta_emotion_candidate_count=me_candidate_count,
+            meta_emotion_pattern_count=me_pattern_count,
+            meta_emotion_supply_strength=me_supply_strength,
         )
 
     def _build_vo_validation_inputs(self, user_id: str) -> VOValidationInputs:
@@ -1979,8 +2170,8 @@ class PsycheOrchestrator:
 
         # 7. 保護状態断面 — scoped_goalのメモリIDを保護
         protected: list[str] = []
-        if self._scoped_goal is not None:
-            goal_mem = getattr(self._scoped_goal, 'source_memory_id', '')
+        if self._scoped_goal_sys is not None:
+            goal_mem = getattr(self._scoped_goal_sys, 'source_memory_id', '')
             if goal_mem:
                 protected.append(goal_mem)
 
@@ -2001,10 +2192,27 @@ class PsycheOrchestrator:
                 if s.forgetting_stage == "invisible"
             )
 
+        # [I] action_result → memory_forgetting_fixation 忘却対象登録
+        # 行動-結果対の鮮度状態を既存の記憶鮮度構造と互換性のある形式で供給する。
+        ar_ff_entries: list[dict] = []
+        if self._action_result_observer is not None:
+            try:
+                ar_freshness_info = self._action_result_observer.get_freshness_compatible_info()
+                for info in ar_freshness_info:
+                    ar_ff_entries.append({
+                        "id": info.get("id", ""),
+                        "freshness": info.get("freshness", 0.0),
+                        "freshness_stage": info.get("freshness_stage", "active"),
+                        "status": info.get("status", ""),
+                    })
+            except Exception:
+                pass
+
         return ForgettingFixationInputs(
             episode_entries=ep_entries,
             binding_entries=bind_entries,
             long_term_entries=lt_entries,
+            action_result_entries=ar_ff_entries,
             reuse_history=dict(self._forgetting_fixation_processor.state.reuse_history)
             if self._forgetting_fixation_processor else {},
             tick_count=tick,
@@ -2056,8 +2264,9 @@ class PsycheOrchestrator:
 
         # 4. 感情推移断面 — 前回保持の感情 vs 現在
         emotion_after = p.emotions.as_dict() if p.emotions else {}
-        # emotion_before は直接保持していないため、空 dict (差分は module 内部で計算)
-        emotion_before: dict[str, float] = {}
+        emotion_before = dict(self._last_emotion_for_action_result)
+        # 次回用に現在の感情を保持
+        self._last_emotion_for_action_result = dict(emotion_after)
 
         # 5. 文脈断面
         context_summary = ""

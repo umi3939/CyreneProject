@@ -429,6 +429,16 @@ from .temporal_cognition import (
     create_temporal_cognition,
 )
 
+# Multi-path recall (記憶の多経路想起)
+from .multi_path_recall import (
+    MultiPathRecallProcessor,
+    MultiPathRecallState,
+    EmotionSnapshot as RecallEmotionSnapshot,
+    ContextSnapshot as RecallContextSnapshot,
+    TemporalSnapshot as RecallTemporalSnapshot,
+    create_multi_path_recall,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -671,6 +681,9 @@ class PsycheOrchestrator:
 
         # ── Temporal cognition (時間認知構造) ──
         self._temporal_cognition = create_temporal_cognition()
+
+        # ── Multi-path recall (記憶の多経路想起) ──
+        self._multi_path_recall = create_multi_path_recall()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1199,6 +1212,74 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Memory forgetting/fixation skipped: %s", e)
+
+        # Phase 21d: multi_path_recall — 記憶の多経路想起
+        try:
+            # unified_units: memory_system_integrationの結果候補
+            recall_units: list = []
+            if self._last_integration_result is not None:
+                recall_units = list(self._last_integration_result.candidates)
+
+            # emotion_snapshot
+            emo_snap = RecallEmotionSnapshot()
+            try:
+                active_emos = get_active_emotions(self._psyche.emotions)
+                dominant_label = ""
+                dominant_intensity = 0.0
+                for emo_name, emo_val in active_emos:
+                    if emo_val > dominant_intensity:
+                        dominant_intensity = emo_val
+                        dominant_label = emo_name
+                emo_snap = RecallEmotionSnapshot(
+                    emotions={name: val for name, val in active_emos},
+                    mood_valence=self._psyche.emotions.mood,
+                    dominant_emotion=dominant_label,
+                )
+            except Exception:
+                pass
+
+            # context_snapshot
+            ctx_snap = RecallContextSnapshot(current_time=time.time())
+            try:
+                if self._last_percept is not None:
+                    ctx_snap = RecallContextSnapshot(
+                        topics=list(getattr(self._last_percept, "topics", []) or []),
+                        percept_text=getattr(self._last_percept, "text", "") or "",
+                        current_time=time.time(),
+                    )
+            except Exception:
+                pass
+
+            # temporal_snapshot
+            temp_snap = RecallTemporalSnapshot(tick_count=self._tick_count)
+            try:
+                if self._temporal_cognition is not None:
+                    tc_data = self._temporal_cognition.get_enrichment_data()
+                    temp_snap = RecallTemporalSnapshot(
+                        snapshot=tc_data.get("sections", {}),
+                        tick_count=self._tick_count,
+                    )
+            except Exception:
+                pass
+
+            # binding_store
+            binding_store = self._last_bindings
+
+            # forgetting_state
+            forgetting_state = None
+            if self._forgetting_fixation_processor is not None:
+                forgetting_state = self._forgetting_fixation_processor.state
+
+            self._multi_path_recall.recall_all_paths(
+                unified_units=recall_units,
+                binding_store=binding_store,
+                forgetting_state=forgetting_state,
+                emotion_snapshot=emo_snap,
+                context_snapshot=ctx_snap,
+                temporal_snapshot=temp_snap,
+            )
+        except Exception as e:
+            logger.debug("Multi-path recall skipped: %s", e)
 
         # Phase 22: introspection_trace — 内省ログ生成
         try:
@@ -1921,6 +2002,25 @@ class PsycheOrchestrator:
                         if label or snippet:
                             memory_lines.append(
                                 f"  [{label}] - [{snippet}]"
+                            )
+            except Exception:
+                pass
+        # #28 multi_path_recall — 経路ラベル付き候補の等価列挙
+        if self._multi_path_recall is not None:
+            try:
+                mpr_data = self._multi_path_recall.get_enrichment_data()
+                mpr_text = mpr_data.get("summary_text", "")
+                if mpr_text and "待機中" not in mpr_text:
+                    memory_lines.append(f"多経路想起: {mpr_text}")
+                # 経路ラベル付き候補を等価に列挙
+                mpr_entries = mpr_data.get("entries", [])
+                if mpr_entries:
+                    for entry in mpr_entries:
+                        path_label = entry.get("path", "")
+                        summary = entry.get("summary", "")[:40]
+                        if path_label or summary:
+                            memory_lines.append(
+                                f"  [{path_label}] {summary}"
                             )
             except Exception:
                 pass
@@ -2864,7 +2964,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 20,
+            "version": 21,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2925,6 +3025,8 @@ class PsycheOrchestrator:
             "intent_action_gap_state": self._intent_action_gap_recorder.state.to_dict() if self._intent_action_gap_recorder else {},
             # Version 20 fields
             "temporal_cognition_state": self._temporal_cognition.state.to_dict() if self._temporal_cognition else {},
+            # Version 21 fields
+            "multi_path_recall_state": self._multi_path_recall.state.to_dict() if self._multi_path_recall else {},
         }
 
         save_path.write_text(
@@ -3072,6 +3174,10 @@ class PsycheOrchestrator:
             # Version 20+ fields
             if data.get("temporal_cognition_state"):
                 self._temporal_cognition.state = TemporalCognitionState.from_dict(data["temporal_cognition_state"])
+
+            # Version 21+ fields
+            if data.get("multi_path_recall_state"):
+                self._multi_path_recall.state = MultiPathRecallState.from_dict(data["multi_path_recall_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

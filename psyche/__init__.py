@@ -1181,6 +1181,21 @@ from .temporal_cognition import (
     DENSITY_LABELS,
 )
 
+# Multi-Path Recall (記憶の多経路想起)
+from .multi_path_recall import (
+    RecallPathLabel,
+    RecallCandidate,
+    PathStatistics,
+    EmotionSnapshot as RecallEmotionSnapshot,
+    ContextSnapshot as RecallContextSnapshot,
+    TemporalSnapshot as RecallTemporalSnapshot,
+    MultiPathRecallState,
+    MultiPathRecallConfig,
+    MultiPathRecallProcessor,
+    get_recall_summary,
+    create_multi_path_recall,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1617,6 +1632,11 @@ __all__ = [
     "SECTION_EMOTION_FREQUENCY", "SECTION_NARRATIVE_INTERVAL",
     "SECTION_EXTERNAL_INPUT_INTERVAL", "SECTION_OVERALL_ELAPSED",
     "SECTION_LABELS", "DENSITY_LABELS",
+    # Multi-Path Recall (記憶の多経路想起)
+    "RecallPathLabel", "RecallCandidate", "PathStatistics",
+    "RecallEmotionSnapshot", "RecallContextSnapshot", "RecallTemporalSnapshot",
+    "MultiPathRecallState", "MultiPathRecallConfig", "MultiPathRecallProcessor",
+    "get_recall_summary", "create_multi_path_recall",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

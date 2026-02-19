@@ -422,6 +422,13 @@ from .intent_action_gap import (
     get_gap_summary,
 )
 
+# Temporal cognition (時間認知構造)
+from .temporal_cognition import (
+    TemporalCognitionProcessor,
+    TemporalCognitionState,
+    create_temporal_cognition,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -662,6 +669,9 @@ class PsycheOrchestrator:
         # ── Intent-action gap (意図-行動間の乖離認知) ──
         self._intent_action_gap_recorder = create_intent_action_gap_recorder()
 
+        # ── Temporal cognition (時間認知構造) ──
+        self._temporal_cognition = create_temporal_cognition()
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -897,6 +907,17 @@ class PsycheOrchestrator:
             except Exception as e:
                 logger.debug("Action-result record skipped: %s", e)
 
+        # Phase 7b: temporal_cognition — 経過記録の蓄積（毎ティック）
+        # 既存のティック数ベース処理を変更しない。出力は参照情報のみ。
+        try:
+            self._temporal_cognition.accumulate_elapsed(
+                tick=self._tick_count,
+                delta_time=delta_time,
+                timestamp=time.time(),
+            )
+        except Exception as e:
+            logger.debug("Temporal cognition accumulate skipped: %s", e)
+
         logger.debug(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
             "dynamics=%s (accumulated=%.2f)",
@@ -994,6 +1015,42 @@ class PsycheOrchestrator:
             self._last_meta_emotion = self._meta_emotion_processor.tick(me_inputs)
         except Exception as e:
             logger.debug("Meta-emotion cognition skipped: %s", e)
+
+        # Phase 14c: temporal_cognition — 多断面特徴量の記述（3ティック毎）
+        # 各モジュールからの統計参照はREAD-ONLYアクセサのみ使用。
+        # 出力が他モジュールの処理パラメータを変更する経路を作らない。
+        try:
+            # エピソード記憶のタイムスタンプ（READ-ONLY）
+            ep_timestamps: list[float] = []
+            try:
+                if self._last_episodes is not None and self._last_episodes.has_episodes:
+                    ep_timestamps = [ep.timestamp for ep in self._last_episodes.episodes]
+            except Exception:
+                pass
+
+            # 感情変動回数: dynamics の phase_turn_count を参照（READ-ONLY）
+            emotion_change_count = 0
+            try:
+                if self._dynamics is not None:
+                    emotion_change_count = self._dynamics.phase_turn_count
+            except Exception:
+                pass
+
+            # 自己物語断片のタイムスタンプ（READ-ONLY）
+            narr_timestamps: list[float] = []
+            try:
+                if self._last_narrative is not None and self._last_narrative.has_fragments:
+                    narr_timestamps = [f.timestamp for f in self._last_narrative.fragments]
+            except Exception:
+                pass
+
+            self._temporal_cognition.describe_features(
+                episodic_timestamps=ep_timestamps or None,
+                emotion_change_count=emotion_change_count,
+                narrative_timestamps=narr_timestamps or None,
+            )
+        except Exception as e:
+            logger.debug("Temporal cognition describe skipped: %s", e)
 
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
@@ -1524,6 +1581,12 @@ class PsycheOrchestrator:
         # Notify spontaneous processor of external input
         self._spontaneous_processor.notify_external_input()
 
+        # Notify temporal cognition of external input arrival
+        try:
+            self._temporal_cognition.notify_external_input(timestamp=time.time())
+        except Exception as e:
+            logger.debug("Temporal cognition external input notify skipped: %s", e)
+
         # Phase 1-7: every tick
         self._run_every_tick(percept, delta_time, user_id)
 
@@ -1652,6 +1715,15 @@ class PsycheOrchestrator:
             ltd_summary = get_observer_summary(self._dynamics_observer)
             if ltd_summary:
                 self_lines.append(f"長期傾向: {ltd_summary}")
+        # #27 temporal_cognition — 時間的特徴量の等価列挙（強調禁止）
+        if self._temporal_cognition is not None:
+            try:
+                tc_data = self._temporal_cognition.get_enrichment_data()
+                tc_text = tc_data.get("summary_text", "")
+                if tc_text and "待機中" not in tc_text:
+                    self_lines.append(f"時間認知: {tc_text}")
+            except Exception:
+                pass
         if len(self_lines) > 1:
             sections.append("\n".join(self_lines))
 
@@ -2792,7 +2864,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 19,
+            "version": 20,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2851,6 +2923,8 @@ class PsycheOrchestrator:
             "expectation_action_diff_log": self._expectation_action_diff_log,
             # Version 19 fields
             "intent_action_gap_state": self._intent_action_gap_recorder.state.to_dict() if self._intent_action_gap_recorder else {},
+            # Version 20 fields
+            "temporal_cognition_state": self._temporal_cognition.state.to_dict() if self._temporal_cognition else {},
         }
 
         save_path.write_text(
@@ -2994,6 +3068,10 @@ class PsycheOrchestrator:
             # Version 19+ fields
             if data.get("intent_action_gap_state"):
                 self._intent_action_gap_recorder.state = IntentActionGapState.from_dict(data["intent_action_gap_state"])
+
+            # Version 20+ fields
+            if data.get("temporal_cognition_state"):
+                self._temporal_cognition.state = TemporalCognitionState.from_dict(data["temporal_cognition_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

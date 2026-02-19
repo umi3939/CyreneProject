@@ -1161,6 +1161,26 @@ from .intent_action_gap import (
     create_intent_action_gap_recorder,
 )
 
+# Temporal Cognition (時間認知構造)
+from .temporal_cognition import (
+    DensityLevel,
+    ElapsedRecord,
+    TemporalCognitionState,
+    TemporalCognitionConfig,
+    TemporalCognitionProcessor,
+    get_temporal_summary,
+    create_temporal_cognition,
+    SECTION_ORDER,
+    SECTION_ACTIVITY_DENSITY,
+    SECTION_MEMORY_INTERVAL,
+    SECTION_EMOTION_FREQUENCY,
+    SECTION_NARRATIVE_INTERVAL,
+    SECTION_EXTERNAL_INPUT_INTERVAL,
+    SECTION_OVERALL_ELAPSED,
+    SECTION_LABELS,
+    DENSITY_LABELS,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1587,6 +1607,16 @@ __all__ = [
     "GapRecord", "IntentActionGapState", "IntentActionGapConfig",
     "IntentActionGapRecorder",
     "get_gap_summary", "create_intent_action_gap_recorder",
+    # Temporal Cognition (時間認知構造)
+    "DensityLevel", "ElapsedRecord",
+    "TemporalCognitionState", "TemporalCognitionConfig",
+    "TemporalCognitionProcessor",
+    "get_temporal_summary", "create_temporal_cognition",
+    "SECTION_ORDER",
+    "SECTION_ACTIVITY_DENSITY", "SECTION_MEMORY_INTERVAL",
+    "SECTION_EMOTION_FREQUENCY", "SECTION_NARRATIVE_INTERVAL",
+    "SECTION_EXTERNAL_INPUT_INTERVAL", "SECTION_OVERALL_ELAPSED",
+    "SECTION_LABELS", "DENSITY_LABELS",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

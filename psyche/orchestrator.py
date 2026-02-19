@@ -414,6 +414,14 @@ from .self_action_perception import (
     get_self_action_summary,
 )
 
+# Intent-action gap (意図-行動間の乖離認知)
+from .intent_action_gap import (
+    IntentActionGapRecorder,
+    IntentActionGapState,
+    create_intent_action_gap_recorder,
+    get_gap_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -650,6 +658,9 @@ class PsycheOrchestrator:
 
         # ── Self-action perception ──
         self._self_action_recorder = create_self_action_perception_recorder()
+
+        # ── Intent-action gap (意図-行動間の乖離認知) ──
+        self._intent_action_gap_recorder = create_intent_action_gap_recorder()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1429,6 +1440,24 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Expectation-action diff skipped: %s", e)
 
+        # Phase 26e: intent_action_gap — 意図-行動間の乖離認知
+        # 自己行動知覚(notify_self_output)の後の帯で、自己行動記録の最新記録と
+        # ポリシー選択情報を入力として処理を呼び出す。
+        # 乖離記録→ポリシー選択(Phase 30-35)への接続禁止。
+        # 乖離記録→行動-結果観測への接続禁止。
+        # 乖離記録→予期形成への接続禁止。
+        try:
+            latest_action = self._self_action_recorder.get_latest_record()
+            if latest_action is not None:
+                self._intent_action_gap_recorder.process_action_record(
+                    response_text=latest_action.response_text,
+                    policy_label=latest_action.policy_label,
+                    tick=latest_action.tick,
+                    context_info=self._last_selected_policy_axis or "",
+                )
+        except Exception as e:
+            logger.debug("Intent-action gap skipped: %s", e)
+
         logger.debug(
             "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
             "episodes=%s, expectations=%s",
@@ -1804,6 +1833,25 @@ class PsycheOrchestrator:
                 memory_lines.append("\n".join(diff_parts))
         except Exception:
             pass
+        # #26 intent_action_gap — 意図-行動対の等価列挙（強調禁止）
+        if self._intent_action_gap_recorder is not None:
+            try:
+                gap_data = self._intent_action_gap_recorder.get_enrichment_data()
+                gap_text = gap_data.get("summary_text", "")
+                if gap_text and "待機中" not in gap_text:
+                    memory_lines.append(f"意図-行動対: {gap_text}")
+                # 直近記録をポリシーラベルとテキスト断片の対として等価に列挙
+                recent_entries = gap_data.get("recent_entries", [])
+                if recent_entries:
+                    for entry in recent_entries:
+                        label = entry.get("policy_label", "")
+                        snippet = entry.get("text_snippet", "")[:40]
+                        if label or snippet:
+                            memory_lines.append(
+                                f"  [{label}] - [{snippet}]"
+                            )
+            except Exception:
+                pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -2744,7 +2792,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 18,
+            "version": 19,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -2801,6 +2849,8 @@ class PsycheOrchestrator:
             "self_action_perception_state": self._self_action_recorder.state.to_dict() if self._self_action_recorder else {},
             # Version 18 fields
             "expectation_action_diff_log": self._expectation_action_diff_log,
+            # Version 19 fields
+            "intent_action_gap_state": self._intent_action_gap_recorder.state.to_dict() if self._intent_action_gap_recorder else {},
         }
 
         save_path.write_text(
@@ -2940,6 +2990,10 @@ class PsycheOrchestrator:
             # Version 18+ fields
             if data.get("expectation_action_diff_log"):
                 self._expectation_action_diff_log = data["expectation_action_diff_log"]
+
+            # Version 19+ fields
+            if data.get("intent_action_gap_state"):
+                self._intent_action_gap_recorder.state = IntentActionGapState.from_dict(data["intent_action_gap_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

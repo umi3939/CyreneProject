@@ -1151,6 +1151,16 @@ from .self_action_perception import (
     create_self_action_perception_recorder,
 )
 
+# Intent-Action Gap (意図-行動間の乖離認知)
+from .intent_action_gap import (
+    GapRecord,
+    IntentActionGapState,
+    IntentActionGapConfig,
+    IntentActionGapRecorder,
+    get_gap_summary,
+    create_intent_action_gap_recorder,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1573,6 +1583,10 @@ __all__ = [
     "SelfActionPerceptionState", "SelfActionPerceptionConfig",
     "SelfActionPerceptionRecorder",
     "get_self_action_summary", "create_self_action_perception_recorder",
+    # Intent-Action Gap (意図-行動間の乖離認知)
+    "GapRecord", "IntentActionGapState", "IntentActionGapConfig",
+    "IntentActionGapRecorder",
+    "get_gap_summary", "create_intent_action_gap_recorder",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

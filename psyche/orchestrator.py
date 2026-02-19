@@ -439,6 +439,26 @@ from .multi_path_recall import (
     create_multi_path_recall,
 )
 
+# Introspection cross-section (内省断面間の横断的記述)
+from .introspection_cross_section import (
+    IntrospectionCrossSectionProcessor,
+    IntrospectionCrossSectionState,
+    create_introspection_cross_section,
+    SECTION_SELF_MODEL as ICS_SELF_MODEL,
+    SECTION_TEMPORAL_SELF_DIFFERENCE as ICS_TEMPORAL_DIFF,
+    SECTION_IDENTITY_COHERENCE as ICS_IDENTITY_COHERENCE,
+    SECTION_SELF_NARRATIVE as ICS_SELF_NARRATIVE,
+    SECTION_INTROSPECTION_CONSUMPTION as ICS_INTROSPECTION_CONSUMPTION,
+    SECTION_META_EMOTION_COGNITION as ICS_META_EMOTION,
+)
+
+# Perceptual context (知覚入力の内部文脈化)
+from .perceptual_context import (
+    PerceptualContextProcessor,
+    PerceptualContextState,
+    create_perceptual_context,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -685,6 +705,12 @@ class PsycheOrchestrator:
         # ── Multi-path recall (記憶の多経路想起) ──
         self._multi_path_recall = create_multi_path_recall()
 
+        # ── Introspection cross-section (内省断面間の横断的記述) ──
+        self._introspection_cross_section = create_introspection_cross_section()
+
+        # ── Perceptual context (知覚入力の内部文脈化) ──
+        self._perceptual_context = create_perceptual_context()
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -693,7 +719,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=45",
+            "systems=47",
             fear.value, fear.dominant_fear,
         )
 
@@ -931,6 +957,20 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Temporal cognition accumulate skipped: %s", e)
 
+        # Phase 7c: perceptual_context — 知覚サマリの蓄積（毎ティック）
+        # Perceptの4要素(emotion, intent, topics, emotion_valence)を蓄積する。
+        # 出力は参照情報としてのみ流れ、判断・評価を含まない。
+        try:
+            self._perceptual_context.accumulate_summary(
+                emotion=percept.emotion or "neutral",
+                intent=percept.intent or "unknown",
+                topics=list(getattr(percept, 'topics', ()) or ()),
+                emotion_valence=percept.emotion_valence,
+                tick=self._tick_count,
+            )
+        except Exception as e:
+            logger.debug("Perceptual context accumulate skipped: %s", e)
+
         logger.debug(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
             "dynamics=%s (accumulated=%.2f)",
@@ -1064,6 +1104,52 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Temporal cognition describe skipped: %s", e)
+
+        # Phase 14d: introspection_cross_section — 内省断面のスナップショット構成（3ティック毎）
+        # orchestratorが持つ6モジュールのキャッシュ出力を束ねて渡す。
+        # 横断的記述 = 並置（juxtaposition）であり、統合（integration）ではない。
+        # 出力は参照情報としてのみ流れる。
+        try:
+            ics_module_outputs = {
+                ICS_SELF_MODEL: (
+                    get_self_model_summary(self._self_model_sys)
+                    if self._last_self_view else None
+                ),
+                ICS_TEMPORAL_DIFF: (
+                    get_difference_summary(self._last_diff_summary)
+                    if self._last_diff_summary else None
+                ),
+                ICS_IDENTITY_COHERENCE: (
+                    get_coherence_summary(self._last_coherence)
+                    if self._last_coherence else None
+                ),
+                ICS_SELF_NARRATIVE: (
+                    get_narrative_summary(self._last_narrative)
+                    if self._last_narrative else None
+                ),
+                ICS_INTROSPECTION_CONSUMPTION: (
+                    get_consumption_summary(self._last_consumption)
+                    if self._last_consumption else None
+                ),
+                ICS_META_EMOTION: (
+                    get_meta_emotion_summary(self._meta_emotion_processor.state)
+                    if self._last_meta_emotion else None
+                ),
+            }
+            self._introspection_cross_section.process(
+                module_outputs=ics_module_outputs,
+                tick=self._tick_count,
+            )
+        except Exception as e:
+            logger.debug("Introspection cross-section skipped: %s", e)
+
+        # Phase 14e: perceptual_context — 知覚推移特徴量の記述（3ティック毎）
+        # ウィンドウ内の既存データに基づいて4断面の段階値を記述する。
+        # 出力は参照情報としてのみ流れる。
+        try:
+            self._perceptual_context.describe_features()
+        except Exception as e:
+            logger.debug("Perceptual context describe skipped: %s", e)
 
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
@@ -1805,6 +1891,14 @@ class PsycheOrchestrator:
                     self_lines.append(f"時間認知: {tc_text}")
             except Exception:
                 pass
+        # #30 perceptual_context — 知覚推移の4断面を等価列挙（強調禁止）
+        if self._perceptual_context is not None:
+            try:
+                pc_text = self._perceptual_context.get_enrichment_text()
+                if pc_text and "待機中" not in pc_text:
+                    self_lines.append(f"知覚推移: {pc_text}")
+            except Exception:
+                pass
         if len(self_lines) > 1:
             sections.append("\n".join(self_lines))
 
@@ -2022,6 +2116,14 @@ class PsycheOrchestrator:
                             memory_lines.append(
                                 f"  [{path_label}] {summary}"
                             )
+            except Exception:
+                pass
+        # #29 introspection_cross_section — 内省断面の等価列挙（強調禁止）
+        if self._introspection_cross_section is not None:
+            try:
+                ics_text = self._introspection_cross_section.get_enrichment_text()
+                if ics_text and "待機中" not in ics_text:
+                    memory_lines.append(f"内省横断: {ics_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -2964,7 +3066,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 21,
+            "version": 22,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3027,6 +3129,9 @@ class PsycheOrchestrator:
             "temporal_cognition_state": self._temporal_cognition.state.to_dict() if self._temporal_cognition else {},
             # Version 21 fields
             "multi_path_recall_state": self._multi_path_recall.state.to_dict() if self._multi_path_recall else {},
+            # Version 22 fields
+            "introspection_cross_section_state": self._introspection_cross_section.save() if self._introspection_cross_section else {},
+            "perceptual_context_state": self._perceptual_context.state.to_dict() if self._perceptual_context else {},
         }
 
         save_path.write_text(
@@ -3178,6 +3283,12 @@ class PsycheOrchestrator:
             # Version 21+ fields
             if data.get("multi_path_recall_state"):
                 self._multi_path_recall.state = MultiPathRecallState.from_dict(data["multi_path_recall_state"])
+
+            # Version 22+ fields
+            if data.get("introspection_cross_section_state"):
+                self._introspection_cross_section.load(data["introspection_cross_section_state"])
+            if data.get("perceptual_context_state"):
+                self._perceptual_context.state = PerceptualContextState.from_dict(data["perceptual_context_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -1196,6 +1196,29 @@ from .multi_path_recall import (
     create_multi_path_recall,
 )
 
+# Introspection Cross-Section (内省断面間の横断的記述)
+from .introspection_cross_section import (
+    CrossSectionSnapshot,
+    IntrospectionCrossSectionState,
+    IntrospectionCrossSectionConfig,
+    IntrospectionCrossSectionProcessor,
+    create_introspection_cross_section,
+    SECTION_ORDER as INTROSPECTION_CS_SECTION_ORDER,
+    SECTION_LABELS as INTROSPECTION_CS_SECTION_LABELS,
+)
+
+# Perceptual Context (知覚入力の内部文脈化)
+from .perceptual_context import (
+    PerceptualSummary,
+    PerceptualContextState,
+    PerceptualContextConfig,
+    PerceptualContextProcessor,
+    create_perceptual_context,
+    get_perceptual_context_summary,
+    SECTION_ORDER as PERCEPTUAL_CTX_SECTION_ORDER,
+    SECTION_LABELS as PERCEPTUAL_CTX_SECTION_LABELS,
+)
+
 from . import attachment_manager
 from . import continuity_manager
 from . import identity_manager
@@ -1637,6 +1660,18 @@ __all__ = [
     "RecallEmotionSnapshot", "RecallContextSnapshot", "RecallTemporalSnapshot",
     "MultiPathRecallState", "MultiPathRecallConfig", "MultiPathRecallProcessor",
     "get_recall_summary", "create_multi_path_recall",
+    # Introspection Cross-Section (内省断面間の横断的記述)
+    "CrossSectionSnapshot",
+    "IntrospectionCrossSectionState", "IntrospectionCrossSectionConfig",
+    "IntrospectionCrossSectionProcessor",
+    "create_introspection_cross_section",
+    "INTROSPECTION_CS_SECTION_ORDER", "INTROSPECTION_CS_SECTION_LABELS",
+    # Perceptual Context (知覚入力の内部文脈化)
+    "PerceptualSummary",
+    "PerceptualContextState", "PerceptualContextConfig",
+    "PerceptualContextProcessor",
+    "create_perceptual_context", "get_perceptual_context_summary",
+    "PERCEPTUAL_CTX_SECTION_ORDER", "PERCEPTUAL_CTX_SECTION_LABELS",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

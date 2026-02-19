@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-18
-総コード行数: ~117,000行
-総テスト数: 4,329テスト
+総コード行数: ~121,000行
+総テスト数: 4,575テスト
 
 ---
 
@@ -66,12 +66,12 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 64 | 51,690 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 63 | 48,932 | 自動テストコード |
+| psyche/ | 66 | 53,065 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 65 | 51,320 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | tools/ | 2 | 418 | 長期シミュレーション等 |
 | ルート | 6 | 2,580 | コアシステム |
-| **合計** | **149** | **106,315** | |
+| **合計** | **153** | **110,078** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -105,6 +105,8 @@
 | 13l | intent_action_gap.py | 397 | 129 | 知覚 | 意図-行動間の乖離認知（3段パイプライン・対構成→多断面記述→蓄積参照・全記録等価・パターン抽出禁止・3経路遮断・安全弁5種） |
 | 13m | temporal_cognition.py | 617 | 149 | 知覚 | 時間認知構造（3段パイプライン・経過蓄積→6断面特徴量記述→参照提供・スライディングウィンドウ・段階値列挙型・パターン抽出禁止・4経路遮断・安全弁5種） |
 | 13n | multi_path_recall.py | 807 | 105 | 記憶 | 記憶の多経路想起（3経路想起・感情連想/文脈連想/時間近接・経路等価性・顕著性バイアス抑制・ルーミネーション防止・忘却分離・安全弁5種） |
+| 13o | introspection_cross_section.py | 729 | 130 | 内省 | 内省断面間の横断的記述（3段パイプライン・6断面並置・パターン抽出禁止・統合禁止・全断面等価・5経路遮断・安全弁5種） |
+| 13p | perceptual_context.py | 646 | 116 | 知覚 | 知覚入力の内部文脈化（3段パイプライン・4断面段階値列挙型・感情変化頻度/意図変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・4経路遮断・安全弁7種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -144,7 +146,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 3,187 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 48システム, save/load v21(45項目永続化), enrichment(5セクション/28項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 3,298 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 50システム, save/load v22(47項目永続化), enrichment(5セクション/30項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3667,6 +3669,8 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑯ | 意図-行動間の乖離認知 ✅完了 | 低 | ⑬⑮ | intent_action_gap.py (397行/129テスト) 3段パイプライン（対構成→多断面記述→蓄積参照）・全記録等価・パターン抽出禁止・3経路遮断。orchestrator Phase 26e、enrichment #26、save/load v19 (43フィールド) |
 | ⑰ | 時間認知構造 ✅完了 | 低 | なし | temporal_cognition.py (617行/149テスト) 3段パイプライン（経過蓄積→6断面特徴量記述→参照提供）・スライディングウィンドウ・段階値列挙型・4経路遮断。orchestrator Phase 7b/14c、enrichment #27、save/load v20 (44フィールド) |
 | ⑱ | 記憶の多経路想起 ✅完了 | 低 | ③⑨⑰ | multi_path_recall.py (807行/105テスト) 3経路想起（感情連想/文脈連想/時間近接）・経路等価性・顕著性バイアス抑制・ルーミネーション防止・忘却分離。orchestrator Phase 21d、enrichment #28、save/load v21 (45フィールド) |
+| ⑲ | 内省断面間の横断的記述 ✅完了 | 低 | ⑫⑯⑰ | introspection_cross_section.py (729行/130テスト) 3段パイプライン（断面値収集→スナップショット蓄積→参照受渡）・6断面並置（self_model/temporal_self_difference/identity_coherence/self_narrative/introspection_consumption/meta_emotion_cognition）・全断面等価・パターン抽出禁止・統合禁止・5経路遮断。orchestrator Phase 14d、enrichment #29、save/load v22 (47フィールド) |
+| ⑳ | 知覚入力の内部文脈化 ✅完了 | 低 | ⑰⑱ | perceptual_context.py (646行/116テスト) 3段パイプライン（知覚サマリ蓄積→4断面段階値記述→参照受渡）・感情ラベル変化頻度/意図ラベル変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・topics意味判定禁止・4経路遮断。orchestrator Phase 7c/14e、enrichment #30、save/load v22 (47フィールド) |
 
 ### 9.2 各項目の詳細
 
@@ -3882,7 +3886,40 @@ value_orientation_validation.py (1,211行/88テスト)
 - 新奇性バイアス防止: 記録選別禁止、enrichment強調禁止、アクセサフィルタリング非搭載
 - 討論結果: B-4条件付き推奨（既存diff_logの参照経路追加として）
 
+#### ⑲ 内省断面間の横断的記述 ✅完了
+
+- 設計書: design_introspection_cross_section.md
+- 討論結果: 条件付き推奨（5条件: パターン抽出禁止/全断面等価/統合禁止/対象6モジュール絞り込み/ウィンドウ制限）
+- 解析結果: 低固定化リスク（候補5件、いずれも量的制約パラメータ）
+- 実装: introspection_cross_section.py (729行/130テスト)
+- 3段パイプライン: 断面値収集→スナップショット構成・蓄積→参照情報受渡
+- 初期対象6モジュール: self_model, temporal_self_difference, identity_coherence, self_narrative, introspection_consumption, meta_emotion_cognition
+- 拡張候補（初期実装に含まず）: intent_action_gap, temporal_cognition, expectation_formation, intrinsic_motivation, continuity_strain, self_image_integration
+- スライディングウィンドウによるFIFO蓄積、全スナップショット等価
+- 安全弁5種: パターン抽出禁止/全断面等価/統合禁止/ウィンドウサイズ制限/判断系書き込み遮断
+- 経路遮断5種: →各内省系モジュール入力/→ポリシー選択/→感情パイプライン/→記憶忘却固定化/→予期形成
+- orchestrator Phase 14d（3ティック毎、6モジュールのキャッシュ出力を束ねて渡す）
+- enrichment #29: 記憶・内省セクションに内省横断スナップショットの等価列挙（強調禁止）
+- save/load v22 (47フィールド): スナップショットウィンドウ+直前スナップショット
+- self_image_integrationとの責務分離: 「統合」vs「並置」の構造的区別を明記
+
+#### ⑳ 知覚入力の内部文脈化 ✅完了
+
+- 設計書: design_perceptual_context.md
+- 討論結果: 条件付き推奨（6条件: テキスト比較禁止/topics意味判定禁止/段階値列挙型/⑱入力変更禁止/context_sensitivity自動接続禁止/型定義禁止）
+- 解析結果: 低固定化リスク（候補4件、いずれも軽微）
+- 実装: perceptual_context.py (646行/116テスト)
+- 3段パイプライン: 知覚サマリ蓄積（毎ティック）→4断面特徴量記述（3ティック毎）→参照情報受渡
+- Percept 4要素のみ参照: emotion（ラベル）, intent（ラベル）, topics（文字列リスト）, emotion_valence（数値）。text/meaningは非参照
+- 4断面: 感情ラベル変化頻度/意図ラベル変化頻度/話題重複度（文字列完全一致のみ）/感情価推移方向
+- temporal_cognitionと同じ段階値列挙型パターン。全断面等価
+- 安全弁7種: テキスト比較禁止/topics意味判定禁止/断面等価/断面間統合禁止/パターン抽出禁止/型定義禁止/enrichment強調禁止
+- 経路遮断4種: →感情パイプライン/→知覚解析/→multi_path_recall内部処理/→context_sensitivity連続性パラメータ
+- orchestrator Phase 7c（毎ティック蓄積）/Phase 14e（3ティック毎記述）
+- enrichment #30: 自己認識セクションに知覚推移の4断面等価列挙（強調禁止）
+- save/load v22 (47フィールド): 知覚サマリウィンドウ+特徴量スナップショット+直前スナップショット
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~117,000行 / テスト数: 4,329*
+*総コード行数: ~121,000行 / テスト数: 4,575*

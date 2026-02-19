@@ -1112,7 +1112,7 @@ class PsycheOrchestrator:
         try:
             ics_module_outputs = {
                 ICS_SELF_MODEL: (
-                    get_self_model_summary(self._self_model_sys)
+                    get_self_model_summary(self._last_self_view)
                     if self._last_self_view else None
                 ),
                 ICS_TEMPORAL_DIFF: (

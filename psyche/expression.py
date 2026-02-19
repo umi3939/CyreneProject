@@ -86,31 +86,39 @@ def _build_render_prompt(
     if recent_history:
         formatted_history = "\n".join(recent_history[-5:])
 
-    return f"""以下の確定済み情報に基づいてセリフをJSON形式で出力してください。
+    enrichment_section = ""
+    if psyche_enrichment:
+        enrichment_section = f"""
+═══ 内面的文脈（参照情報 — 発話の自然な色づけに使用）═══
+{psyche_enrichment}
+"""
 
-【確定済み情報（変更禁止）】
+    return f"""以下の情報に基づいてセリフをJSON形式で出力してください。【行動制約】セクションの方針に従うこと。
+
+═══ 行動制約（確定済み — 変更禁止）═══
 キャラクター名: {persona_name}
+選択された方針: {policy.get('policy_label', '共感する')}
+方針の根拠: {policy.get('rationale', '')}
 トーン: {tone}
-方針: {policy.get('policy_label', '共感する')} — {policy.get('rationale', '')}
 支配的感情: {state.dominant_emotion} ({state.dominant_emotion_value:.2f})
 全体感情: {state.emotion_summary()}
 気分: valence={state.mood.valence:.2f}, arousal={state.mood.arousal:.2f}
 喪失恐怖: {state.fear_summary()}
 
-【画面の状況】
-{screen_context or "(画面情報なし)"}
+═══ 状況 ═══
+画面の状況: {screen_context or "(画面情報なし)"}
 
-【直近の会話】
+直近の会話:
 {formatted_history or "(なし)"}
 
-【関連記憶（参考）】
+関連記憶（参考）:
 {mem_text or "(なし)"}
+{enrichment_section}
+═══ スタイル制約 ═══
+禁止パターン: {', '.join(prohibitions) if prohibitions else 'なし'}
+推奨パターン: {', '.join(recommendations) if recommendations else 'なし'}
 
-{psyche_enrichment or ""}
-【禁止パターン】{', '.join(prohibitions) if prohibitions else 'なし'}
-【推奨パターン】{', '.join(recommendations) if recommendations else 'なし'}
-
-【出力形式（JSONのみ）】
+═══ 出力形式（JSONのみ）═══
 {{"text": "セリフ（1〜2文）", "meta": {{"emotion": "感情名", "intensity": float, "action": "{policy.get('policy_label', '共感する')}"}}}}
 """
 

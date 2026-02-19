@@ -3660,6 +3660,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑫ | メタ感情認知と変動候補生成 ✅完了 | 中〜高 | ⑨⑩ | meta_emotion_cognition.py (1,608行/141テスト) 8断面・7段パイプライン・常時等価候補列挙・Phase 1-2不変性保証。orchestrator Phase 14b、save/load v16 (40フィールド) |
 | ⑬ | 自己行動知覚 ✅完了 | 低 | ⑩ | self_action_perception.py (395行/114テスト) 3段パイプライン・全記録等価・テキスト非解釈。orchestrator notify_self_output()/enrichment #24、brain.py 6メソッド通知追加、action_result output_text補完、save/load v17 (41フィールド) |
 | ⑭ | 予期差分の参照経路拡張 ✅完了 | 低 | ⑩⑬ | 新モジュールなし（orchestrator.py拡張のみ）。Phase 26d差分記録の多断面化（予期/行動/結果/文脈の4断面）、get_expectation_diff_summary()アクセサ、enrichment #25、save/load v18 (42フィールド) |
+| ⑮ | 内部状態→行動経路の接続強化 ✅完了 | 低 | ⑭ | 新モジュールなし。expression.py _build_render_prompt()を3層構造に改善（行動制約/状況/内面的文脈）、EXPRESSION_SYSTEM_PROMPT に入力読み方セクション追加、ポリシー遵守率向上のためのプロンプト構造改善 |
 
 ### 9.2 各項目の詳細
 
@@ -3798,6 +3799,19 @@ value_orientation_validation.py (1,211行/88テスト)
 - brain.py: 6つのthinkメソッド全てにnotify_self_output()呼び出し追加（代弁コール完了後）
 - orchestrator: notify_self_output()（set_recalled_memoriesパターン）、enrichment #24、save/load v17 (41フィールド)
 - 討論結果: A-2推奨（工学的自我の根本要件、自己参照の閉合）
+
+#### ⑮ 内部状態→行動経路の接続強化 ✅完了
+- 新モジュールなし — expression.py と llm_wrapper.py のプロンプトテンプレート構造改善
+- 討論結果: A-1条件付き推奨（既存Phase 30-35が既に構造的影響経路、新モジュールではなく接続強化として扱うべき）
+- expression.py `_build_render_prompt()` を3層構造に改善:
+  - 第1層「行動制約（確定済み — 変更禁止）」: ポリシーラベル/根拠/トーン/感情/気分/恐怖を構造的に配置
+  - 第2層「内面的文脈（参照情報）」: enrichment 5セクションを明示的な囲みの中に配置
+  - 第3層「状況」: 画面/会話/記憶を場面把握用に配置
+- llm_wrapper.py `EXPRESSION_SYSTEM_PROMPT` に「入力の読み方」セクション追加:
+  - 行動制約セクションの方針は確定済み・変更禁止の明示
+  - 内面的文脈は機械的読み上げ禁止・全項目言及不要の明示
+- セクション区切り線（═══）による視覚的分離
+- 既存のフォールバック処理・パース処理・禁止パターンフィルタは不変
 
 #### ⑭ 予期差分の参照経路拡張 ✅完了
 - 新モジュールなし — orchestrator.py の既存 Phase 26d を拡張

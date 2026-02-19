@@ -194,7 +194,9 @@ class TestBuildRenderPrompt:
             psyche_enrichment="",
         )
         # Should not cause errors; the empty string simply produces nothing extra
-        assert "【禁止パターン】" in prompt
+        assert "禁止パターン:" in prompt
+        # When enrichment is empty, the inner context section should not appear
+        assert "内面的文脈" not in prompt
 
     def test_includes_prohibitions_and_recommendations(self, default_state, default_policy, sample_memory, default_persona):
         prompt = _build_render_prompt(default_state, default_policy, sample_memory, default_persona)
@@ -236,7 +238,7 @@ class TestBuildRenderPrompt:
 
     def test_output_format_section_present(self, default_state, default_policy, sample_memory, default_persona):
         prompt = _build_render_prompt(default_state, default_policy, sample_memory, default_persona)
-        assert "【出力形式（JSONのみ）】" in prompt
+        assert "═══ 出力形式（JSONのみ）═══" in prompt
 
 
 # ── 2–5. _parse_expression_output ─────────────────────────────
@@ -580,7 +582,7 @@ class TestEdgeCases:
         lines = prompt.split("\n")
         memory_section_idx = None
         for i, line in enumerate(lines):
-            if "【関連記憶（参考）】" in line:
+            if "関連記憶（参考）:" in line:
                 memory_section_idx = i
                 break
         assert memory_section_idx is not None
@@ -622,7 +624,7 @@ class TestEdgeCases:
         lines = prompt.split("\n")
         history_section_idx = None
         for i, line in enumerate(lines):
-            if "【直近の会話】" in line:
+            if "直近の会話:" in line:
                 history_section_idx = i
                 break
         assert history_section_idx is not None

@@ -1003,7 +1003,7 @@ from .memory_system_integration import (
     normalize_episodic,
     normalize_long_term,
     normalize_bindings,
-    detect_duplicates,
+    detect_duplicates as detect_memory_duplicates,
     detect_conflicts,
     check_conflict_health,
 )
@@ -1081,7 +1081,7 @@ from .text_dialogue_input import (
     normalize_unit,
     attach_context,
     align_to_percept_format,
-    detect_duplicates,
+    detect_duplicates as detect_text_duplicates,
     prepare_handoff,
     apply_freshness_decay,
     decay_receive_history,
@@ -1217,6 +1217,105 @@ from .perceptual_context import (
     get_perceptual_context_summary,
     SECTION_ORDER as PERCEPTUAL_CTX_SECTION_ORDER,
     SECTION_LABELS as PERCEPTUAL_CTX_SECTION_LABELS,
+)
+
+# Value Orientation Validation (価値方向性実運用検証)
+from .value_orientation_validation import (
+    ObservationSourceType as ValidationObservationSourceType,
+    ObservationFreshness as ValidationObservationFreshness,
+    DifferentialType,
+    ValidationStatus,
+    ObservationRecord as ValidationObservationRecord,
+    ValidationDescriptionUnit,
+    DifferentialEntry,
+    TimeSeriesEntry as ValidationTimeSeriesEntry,
+    ValidationInputs,
+    ValidationState,
+    ValidationResult,
+    ValidationConfig,
+    ValueOrientationValidator,
+    get_validation_summary,
+    create_validation_processor,
+)
+
+# Memory Forgetting and Fixation (記憶の忘却と固定化)
+from .memory_forgetting_fixation import (
+    ObservationSourceType as ForgettingObservationSourceType,
+    ForgettingStage,
+    FixationLevel,
+    SeriesStatus,
+    MemorySeriesRecord,
+    ForgettingCandidate,
+    FixationSign,
+    ForgettingFixationInputs,
+    ForgettingFixationState,
+    ForgettingFixationResult,
+    ForgettingFixationConfig,
+    MemoryForgettingFixationProcessor,
+    get_forgetting_fixation_summary,
+    create_forgetting_fixation_processor,
+)
+
+# Action Result Observation (行動-結果の観測と蓄積)
+from .action_result_observation import (
+    ObservationSection,
+    FreshnessStage as ActionResultFreshnessStage,
+    PairStatus,
+    ConvergenceLevel as ActionResultConvergenceLevel,
+    SectionDescription,
+    ActionDescription,
+    ResultDescription,
+    ContextAttribution,
+    ActionResultPair,
+    SectionWeightRecord,
+    ConvergenceRecord as ActionResultConvergenceRecord,
+    ActionResultInputs,
+    ActionResultObservationState,
+    ActionResultObservationResult,
+    ActionResultConfig,
+    ActionResultObservationProcessor,
+    get_action_result_summary,
+    create_action_result_processor,
+)
+
+# Other Model Dialogue Learning (他者観測の長期蓄積と仮説補助)
+from .other_model_dialogue_learning import (
+    InputSection as DialogueLearningInputSection,
+    FreshnessStage as DialogueLearningFreshnessStage,
+    EntryStatus as DialogueLearningEntryStatus,
+    PatternType,
+    ConvergenceLevel as DialogueLearningConvergenceLevel,
+    AccumulationEntry,
+    PatternRecord,
+    HypothesisMaterial,
+    ConvergenceRecord as DialogueLearningConvergenceRecord,
+    DialogueLearningInputs,
+    DialogueLearningState,
+    DialogueLearningResult,
+    DialogueLearningConfig,
+    DialogueLearningProcessor,
+    get_dialogue_learning_summary,
+    create_dialogue_learning_processor,
+)
+
+# Meta-Emotion Cognition (メタ感情認知と変動候補生成)
+from .meta_emotion_cognition import (
+    InputSection as MetaEmotionInputSection,
+    FreshnessStage as MetaEmotionFreshnessStage,
+    RecordStatus as MetaEmotionRecordStatus,
+    ConvergenceLevel as MetaEmotionConvergenceLevel,
+    TransitionFeature,
+    SustainedPattern,
+    VariationCandidate,
+    CognitionRecord,
+    ConvergenceRecord as MetaEmotionConvergenceRecord,
+    MetaEmotionInputs,
+    MetaEmotionState,
+    MetaEmotionResult,
+    MetaEmotionConfig,
+    MetaEmotionProcessor,
+    get_meta_emotion_summary,
+    create_meta_emotion_processor,
 )
 
 from . import attachment_manager
@@ -1573,7 +1672,7 @@ __all__ = [
     "create_memory_integrator", "create_integration_config",
     "get_integration_summary", "get_integration_summary_text",
     "normalize_episodic", "normalize_long_term", "normalize_bindings",
-    "detect_duplicates", "detect_conflicts", "check_conflict_health",
+    "detect_memory_duplicates", "detect_conflicts", "check_conflict_health",
     # Other Model Real Feed (他者モデルリアルフィード統合)
     "ObservationFragmentType", "RealFeedFragmentFreshness",
     "AlignmentStatus", "ConflictStatus",
@@ -1609,7 +1708,7 @@ __all__ = [
     "ReceiveHistoryEntry", "SuppressionHistoryEntry", "DecayHistoryEntry",
     "TextDialogueConfig", "TextDialogueState", "HandoffResult",
     "receive_input", "normalize_unit", "attach_context",
-    "align_to_percept_format", "detect_duplicates", "prepare_handoff",
+    "align_to_percept_format", "detect_text_duplicates", "prepare_handoff",
     "apply_freshness_decay", "decay_receive_history", "decay_suppression_history",
     "suppress_recent_adoption", "check_empty_streak",
     "detect_single_route_dominance", "ensure_format_diversity",
@@ -1672,6 +1771,49 @@ __all__ = [
     "PerceptualContextProcessor",
     "create_perceptual_context", "get_perceptual_context_summary",
     "PERCEPTUAL_CTX_SECTION_ORDER", "PERCEPTUAL_CTX_SECTION_LABELS",
+    # Value Orientation Validation (価値方向性実運用検証)
+    "ValidationObservationSourceType", "ValidationObservationFreshness",
+    "DifferentialType", "ValidationStatus",
+    "ValidationObservationRecord", "ValidationDescriptionUnit",
+    "DifferentialEntry", "ValidationTimeSeriesEntry",
+    "ValidationInputs", "ValidationState", "ValidationResult", "ValidationConfig",
+    "ValueOrientationValidator",
+    "get_validation_summary", "create_validation_processor",
+    # Memory Forgetting and Fixation (記憶の忘却と固定化)
+    "ForgettingObservationSourceType",
+    "ForgettingStage", "FixationLevel", "SeriesStatus",
+    "MemorySeriesRecord", "ForgettingCandidate", "FixationSign",
+    "ForgettingFixationInputs", "ForgettingFixationState",
+    "ForgettingFixationResult", "ForgettingFixationConfig",
+    "MemoryForgettingFixationProcessor",
+    "get_forgetting_fixation_summary", "create_forgetting_fixation_processor",
+    # Action Result Observation (行動-結果の観測と蓄積)
+    "ObservationSection", "ActionResultFreshnessStage",
+    "PairStatus", "ActionResultConvergenceLevel",
+    "SectionDescription", "ActionDescription", "ResultDescription", "ContextAttribution",
+    "ActionResultPair", "SectionWeightRecord", "ActionResultConvergenceRecord",
+    "ActionResultInputs", "ActionResultObservationState",
+    "ActionResultObservationResult", "ActionResultConfig",
+    "ActionResultObservationProcessor",
+    "get_action_result_summary", "create_action_result_processor",
+    # Other Model Dialogue Learning (他者観測の長期蓄積と仮説補助)
+    "DialogueLearningInputSection", "DialogueLearningFreshnessStage",
+    "DialogueLearningEntryStatus", "PatternType", "DialogueLearningConvergenceLevel",
+    "AccumulationEntry", "PatternRecord", "HypothesisMaterial",
+    "DialogueLearningConvergenceRecord",
+    "DialogueLearningInputs", "DialogueLearningState",
+    "DialogueLearningResult", "DialogueLearningConfig",
+    "DialogueLearningProcessor",
+    "get_dialogue_learning_summary", "create_dialogue_learning_processor",
+    # Meta-Emotion Cognition (メタ感情認知と変動候補生成)
+    "MetaEmotionInputSection", "MetaEmotionFreshnessStage",
+    "MetaEmotionRecordStatus", "MetaEmotionConvergenceLevel",
+    "TransitionFeature", "SustainedPattern", "VariationCandidate",
+    "CognitionRecord", "MetaEmotionConvergenceRecord",
+    "MetaEmotionInputs", "MetaEmotionState",
+    "MetaEmotionResult", "MetaEmotionConfig",
+    "MetaEmotionProcessor",
+    "get_meta_emotion_summary", "create_meta_emotion_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

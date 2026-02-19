@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
@@ -36,7 +35,7 @@ from .pillars import (
 )
 
 # Core reaction pipeline
-from .reaction_with_stm import react_with_stm, CombinedReactionState
+from .reaction_with_stm import react_with_stm
 from .short_term_loop import LoopState, create_loop_state
 
 # Dynamics
@@ -44,7 +43,6 @@ from .dynamics import (
     DynamicsState,
     create_dynamics_state,
     update_dynamics,
-    get_decay_modifier,
     get_dynamics_summary,
 )
 
@@ -54,8 +52,6 @@ from .emotion_amplitude import (
     create_amplitude_state,
     update_amplitude,
     decay_amplitude,
-    compute_amplitude_from_dynamics,
-    apply_amplitude_to_emotion_deltas,
 )
 
 # Multi-emotion
@@ -63,7 +59,6 @@ from .multi_emotion import (
     MultiEmotionConfig,
     apply_independent_decay,
     get_active_emotions,
-    has_conflicting_emotions,
 )
 
 # STM-Emotion coupling
@@ -102,7 +97,6 @@ from .tone import (
     ToneConfig,
     ToneModifier,
     compute_tone_bias,
-    add_tone_to_candidates,
 )
 
 # Context sensitivity
@@ -113,7 +107,6 @@ from .context_sensitivity import (
     SensitivityBias,
     compute_sensitivity_bias,
     apply_sensitivity_to_candidates,
-    create_neutral_context,
 )
 
 # Silence / Hesitation
@@ -276,7 +269,6 @@ from .other_model_input_supply import (
 from .proto_goal_vector import (
     VectorGenerator,
     VectorState,
-    ProtoGoalVector,
     get_vector_summary,
 )
 
@@ -284,7 +276,6 @@ from .proto_goal_vector import (
 from .goal_candidates import (
     CandidateGenerator,
     CandidateState,
-    GoalCandidate,
     get_candidate_summary,
 )
 
@@ -399,7 +390,6 @@ from .meta_emotion_cognition import (
     MetaEmotionState,
     MetaEmotionInputs,
     MetaEmotionResult,
-    MetaEmotionConfig,
     create_meta_emotion_processor,
     get_meta_emotion_summary,
 )
@@ -408,8 +398,6 @@ from .meta_emotion_cognition import (
 from .self_action_perception import (
     SelfActionPerceptionRecorder,
     SelfActionPerceptionState,
-    SelfActionPerceptionConfig,
-    SelfActionRecord,
     create_self_action_perception_recorder,
     get_self_action_summary,
 )
@@ -455,7 +443,6 @@ from .introspection_cross_section import (
 # Perceptual context (知覚入力の内部文脈化)
 from .perceptual_context import (
     PerceptualContextProcessor,
-    PerceptualContextState,
     create_perceptual_context,
 )
 
@@ -719,7 +706,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "systems=47",
+            "fields=47",
             fear.value, fear.dominant_fear,
         )
 
@@ -848,7 +835,6 @@ class PsycheOrchestrator:
         )
 
         # Phase 2a: emotion_amplitude — dynamics相による振幅計算
-        amp_from_dynamics = compute_amplitude_from_dynamics(self._dynamics)
         max_emo = max(emo_dict.values()) if emo_dict else 0.0
         self._amplitude_state = update_amplitude(
             self._amplitude_state,
@@ -3131,7 +3117,7 @@ class PsycheOrchestrator:
             "multi_path_recall_state": self._multi_path_recall.state.to_dict() if self._multi_path_recall else {},
             # Version 22 fields
             "introspection_cross_section_state": self._introspection_cross_section.save() if self._introspection_cross_section else {},
-            "perceptual_context_state": self._perceptual_context.state.to_dict() if self._perceptual_context else {},
+            "perceptual_context_state": self._perceptual_context.save() if self._perceptual_context else {},
         }
 
         save_path.write_text(
@@ -3288,7 +3274,7 @@ class PsycheOrchestrator:
             if data.get("introspection_cross_section_state"):
                 self._introspection_cross_section.load(data["introspection_cross_section_state"])
             if data.get("perceptual_context_state"):
-                self._perceptual_context.state = PerceptualContextState.from_dict(data["perceptual_context_state"])
+                self._perceptual_context.load(data["perceptual_context_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

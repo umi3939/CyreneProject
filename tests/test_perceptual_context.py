@@ -424,7 +424,7 @@ class TestEnrichmentFormat:
         proc = processor_with_data
         proc.describe_features()
         text = proc.get_enrichment_text()
-        assert "知覚推移" not in text or "待機中" not in text
+        assert "待機中" not in text
         # 4断面すべてが含まれること
         for label in SECTION_LABELS.values():
             assert label in text
@@ -611,6 +611,99 @@ class TestSaveLoad:
         assert s.topics == []
         assert s.emotion_valence == 0.0
         assert s.tick == 0
+
+    def test_processor_save_method(self, processor_with_data):
+        """PerceptualContextProcessor.save() が state.to_dict() と同じ結果を返す。"""
+        proc = processor_with_data
+        proc.describe_features()
+        saved = proc.save()
+        assert saved == proc.state.to_dict()
+        assert "summaries" in saved
+        assert "snapshot" in saved
+        assert "previous_snapshot" in saved
+
+    def test_processor_load_method(self, processor_with_data):
+        """PerceptualContextProcessor.load() でデータが正しく復元される。"""
+        proc = processor_with_data
+        proc.describe_features()
+        saved = proc.save()
+
+        new_proc = PerceptualContextProcessor()
+        new_proc.load(saved)
+
+        assert len(new_proc.state.summaries) == len(proc.state.summaries)
+        assert new_proc.get_snapshot() == proc.get_snapshot()
+        assert new_proc.get_previous_snapshot() == proc.get_previous_snapshot()
+
+    def test_save_load_enrichment_text_match(self, processor_with_data):
+        """save/load後のenrichmentテキストが一致する。"""
+        proc = processor_with_data
+        proc.describe_features()
+        original_text = proc.get_enrichment_text()
+
+        saved = proc.save()
+        new_proc = PerceptualContextProcessor()
+        new_proc.load(saved)
+
+        restored_text = new_proc.get_enrichment_text()
+        assert restored_text == original_text
+
+    def test_save_load_continue_processing(self, processor_with_data):
+        """save/load後に処理を継続できる。"""
+        proc = processor_with_data
+        proc.describe_features()
+        saved = proc.save()
+
+        new_proc = PerceptualContextProcessor()
+        new_proc.load(saved)
+
+        # 復元後に新しいデータを蓄積して処理できる
+        new_proc.accumulate_summary("angry", "request", ["new_topic"], -0.7, tick=6)
+        new_proc.accumulate_summary("neutral", "sharing", ["another"], 0.1, tick=7)
+        result = new_proc.describe_features()
+        assert len(result) == 4
+
+        # previous_snapshot が更新されている
+        prev = new_proc.get_previous_snapshot()
+        assert len(prev) == 4
+
+        # enrichment も動作する
+        text = new_proc.get_enrichment_text()
+        assert "待機中" not in text
+
+        # 蓄積データが増えている
+        assert len(new_proc.state.summaries) == 7
+
+
+# =============================================================================
+# Topics None Guard Tests
+# =============================================================================
+
+class TestTopicsNoneGuard:
+    """topics=None 時の accumulate_summary の挙動テスト。"""
+
+    def test_topics_none_does_not_raise(self, processor):
+        """topics=None でも TypeError にならない。"""
+        processor.accumulate_summary("happy", "greeting", None, 0.5, tick=1)
+        assert len(processor.state.summaries) == 1
+        assert processor.state.summaries[0].topics == []
+
+    def test_topics_none_describe_features(self, processor):
+        """topics=None で蓄積した後も describe_features が正常動作する。"""
+        processor.accumulate_summary("happy", "greeting", None, 0.5, tick=1)
+        processor.accumulate_summary("sad", "question", None, -0.3, tick=2)
+        processor.accumulate_summary("neutral", "sharing", ["a"], 0.0, tick=3)
+        result = processor.describe_features()
+        assert len(result) == 4
+
+    def test_topics_none_and_normal_mixed(self, processor):
+        """topics=None と通常の topics を混在させても正常動作する。"""
+        processor.accumulate_summary("happy", "greeting", None, 0.5, tick=1)
+        processor.accumulate_summary("happy", "greeting", ["weather"], 0.5, tick=2)
+        result = processor.describe_features()
+        # None -> [] なので、[] vs ["weather"] の比較
+        # overlap=0, max=1, ratio=0.0 -> LOW
+        assert result[SECTION_TOPIC_OVERLAP] == OverlapDegree.LOW.value
 
 
 # =============================================================================

@@ -360,7 +360,7 @@ class PerceptualContextProcessor:
         summary = PerceptualSummary(
             emotion=emotion,
             intent=intent,
-            topics=list(topics),
+            topics=list(topics) if topics is not None else [],
             emotion_valence=emotion_valence,
             tick=tick,
         )
@@ -578,6 +578,20 @@ class PerceptualContextProcessor:
             "has_previous_snapshot": bool(st.previous_snapshot),
             "snapshot": dict(st.snapshot),
         }
+
+    # --- Save / Load --------------------------------------------------------
+
+    def save(self) -> dict[str, Any]:
+        """永続化用のデータを返す。"""
+        return self._state.to_dict()
+
+    def load(self, data: dict[str, Any]) -> None:
+        """永続化データから状態を復元する。"""
+        self._state = PerceptualContextState.from_dict(data)
+        logger.debug(
+            "Perceptual context state loaded: summaries=%d",
+            len(self._state.summaries),
+        )
 
 
 # =============================================================================

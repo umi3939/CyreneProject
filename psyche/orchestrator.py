@@ -446,6 +446,23 @@ from .perceptual_context import (
     create_perceptual_context,
 )
 
+# Scoring fluctuation (スコアリングの構造的揺らぎ)
+from .scoring_fluctuation import (
+    ScoringFluctuationConfig,
+    apply_scoring_fluctuation,
+    extract_stm_info,
+    get_fluctuation_summary,
+    create_fluctuation_config,
+)
+
+# Selection attribution (選択帰属)
+from .selection_attribution import (
+    SelectionAttributionRecorder,
+    SelectionAttributionState,
+    create_selection_attribution_recorder,
+    get_selection_attribution_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -697,6 +714,13 @@ class PsycheOrchestrator:
 
         # ── Perceptual context (知覚入力の内部文脈化) ──
         self._perceptual_context = create_perceptual_context()
+
+        # ── Scoring fluctuation (スコアリングの構造的揺らぎ) ──
+        self._fluctuation_config = ScoringFluctuationConfig()
+        self._last_fluctuation_select_time: float = 0.0
+
+        # ── Selection attribution (選択帰属) ──
+        self._selection_attribution_recorder = create_selection_attribution_recorder()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -2112,6 +2136,25 @@ class PsycheOrchestrator:
                     memory_lines.append(f"内省横断: {ics_text}")
             except Exception:
                 pass
+        # #31 selection_attribution — 選択事実の等価列挙（強調禁止）
+        if self._selection_attribution_recorder is not None:
+            try:
+                sa_data = self._selection_attribution_recorder.get_enrichment_data()
+                sa_text = sa_data.get("summary_text", "")
+                if sa_text and "待機中" not in sa_text:
+                    memory_lines.append(f"選択帰属: {sa_text}")
+                # 直近記録を等価に列挙（強調・選別・要約なし）
+                recent_entries = sa_data.get("recent_entries", [])
+                if recent_entries:
+                    for entry in recent_entries:
+                        label = entry.get("selected_policy_label", "")
+                        count = entry.get("candidate_count", 0)
+                        if label:
+                            memory_lines.append(
+                                f"  [{label}] 候補{count}件"
+                            )
+            except Exception:
+                pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -2256,6 +2299,25 @@ class PsycheOrchestrator:
             )
         except Exception:
             pass
+
+        # Phase 35c: scoring_fluctuation — スコアリングの構造的揺らぎ
+        # 全バイアス適用完了後の最後の加算層として、内部状態由来の揺らぎを適用
+        try:
+            now = time.time()
+            elapsed = now - self._last_fluctuation_select_time if self._last_fluctuation_select_time > 0 else 0.0
+            self._last_fluctuation_select_time = now
+
+            p = self._psyche
+            candidates = apply_scoring_fluctuation(
+                candidates=candidates,
+                emotions=p.emotions.as_dict() if p.emotions else {},
+                drives=p.drives.as_dict() if p.drives else {},
+                stm=self._loop_state.memory if self._loop_state else None,
+                elapsed_seconds=elapsed,
+                config=self._fluctuation_config,
+            )
+        except Exception as e:
+            logger.debug("Scoring fluctuation skipped: %s", e)
 
         # Cache Phase 30-35 results for enrichment
         self._last_decision_bias = decision_bias
@@ -2945,6 +3007,19 @@ class PsycheOrchestrator:
         self._last_selected_policy_label = policy.get("policy_label", "")
         self._last_selected_policy_axis = policy.get("_axis", "")
 
+        # 選択帰属: 選択事実を記録（select_policy_dict直後）
+        try:
+            candidate_labels = [
+                c.get("policy_label", "") for c in candidates
+            ]
+            self._selection_attribution_recorder.record_selection(
+                selected_policy_label=self._last_selected_policy_label,
+                candidate_labels=candidate_labels,
+                tick=self._tick_count,
+            )
+        except Exception:
+            pass
+
         return policy
 
     def get_policy_suggestions(
@@ -3052,7 +3127,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 22,
+            "version": 23,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3118,6 +3193,8 @@ class PsycheOrchestrator:
             # Version 22 fields
             "introspection_cross_section_state": self._introspection_cross_section.save() if self._introspection_cross_section else {},
             "perceptual_context_state": self._perceptual_context.save() if self._perceptual_context else {},
+            # Version 23 fields
+            "selection_attribution_state": self._selection_attribution_recorder.state.to_dict() if self._selection_attribution_recorder else {},
         }
 
         save_path.write_text(
@@ -3275,6 +3352,10 @@ class PsycheOrchestrator:
                 self._introspection_cross_section.load(data["introspection_cross_section_state"])
             if data.get("perceptual_context_state"):
                 self._perceptual_context.load(data["perceptual_context_state"])
+
+            # Version 23+ fields
+            if data.get("selection_attribution_state"):
+                self._selection_attribution_recorder.state = SelectionAttributionState.from_dict(data["selection_attribution_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

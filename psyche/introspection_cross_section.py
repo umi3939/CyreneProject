@@ -185,7 +185,8 @@ class IntrospectionCrossSectionConfig:
     """設定。"""
 
     # スライディングウィンドウの上限（安全弁4: ウィンドウサイズの制限）
-    max_snapshots: int = 10
+    # 25件: 内省の時間的奥行きを確保しつつ、上限による自然な押し出しを維持
+    max_snapshots: int = 25
 
     # 各断面の要約テキストの長さ上限（文字数）
     max_summary_length: int = 200
@@ -194,7 +195,8 @@ class IntrospectionCrossSectionConfig:
     max_enrichment_length: int = 2000
 
     # enrichmentに含めるスナップショット件数の上限
-    max_enrichment_snapshots: int = 3
+    # enrichmentには直近10件のみを出力し、残りはウィンドウ内に内部参照用として保持
+    max_enrichment_snapshots: int = 10
 
 
 # =============================================================================

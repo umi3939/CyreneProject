@@ -1323,6 +1323,33 @@ from . import continuity_manager
 from . import identity_manager
 from . import projection_manager
 
+# Selection Attribution (選択帰属)
+from .selection_attribution import (
+    SelectionRecord,
+    SelectionAttributionState,
+    SelectionAttributionConfig,
+    SelectionAttributionRecorder,
+    create_selection_attribution_recorder,
+    get_selection_attribution_summary,
+)
+
+# Scoring Fluctuation (スコアリングの構造的揺らぎ)
+from .scoring_fluctuation import (
+    ScoringFluctuationConfig,
+    apply_scoring_fluctuation,
+    extract_emotion_variability,
+    extract_stm_variability,
+    extract_drive_variability,
+    extract_elapsed_variability,
+    compose_variability,
+    limit_amplitude,
+    generate_per_policy_fluctuations,
+    apply_fluctuations_to_candidates,
+    extract_stm_info,
+    get_fluctuation_summary,
+    create_fluctuation_config,
+)
+
 # Orchestrator (全モジュール統合管理)
 from .orchestrator import PsycheOrchestrator
 
@@ -1814,6 +1841,18 @@ __all__ = [
     "MetaEmotionResult", "MetaEmotionConfig",
     "MetaEmotionProcessor",
     "get_meta_emotion_summary", "create_meta_emotion_processor",
+    # Scoring Fluctuation (スコアリングの構造的揺らぎ)
+    "ScoringFluctuationConfig",
+    "apply_scoring_fluctuation",
+    "extract_emotion_variability", "extract_stm_variability",
+    "extract_drive_variability", "extract_elapsed_variability",
+    "compose_variability", "limit_amplitude",
+    "generate_per_policy_fluctuations", "apply_fluctuations_to_candidates",
+    "extract_stm_info", "get_fluctuation_summary", "create_fluctuation_config",
+    # Selection Attribution (選択帰属)
+    "SelectionRecord", "SelectionAttributionState", "SelectionAttributionConfig",
+    "SelectionAttributionRecorder",
+    "create_selection_attribution_recorder", "get_selection_attribution_summary",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

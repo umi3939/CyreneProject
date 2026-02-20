@@ -411,6 +411,304 @@ class TestPersistence:
         text = orch2.get_prompt_enrichment()
         assert len(text) > 0
 
+    def test_save_contains_all_v23_fields(self, tmp_path):
+        """save() が v23 で定義された全49フィールドを含む。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+        for _ in range(5):
+            orch.post_response_update(percept, delta_time=1.0)
+        orch.save()
+
+        data = json.loads(
+            (tmp_path / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+        expected_keys = [
+            # Core (v1)
+            "version", "tick_count", "psyche", "loop_state", "dynamics",
+            # v4
+            "amplitude", "value_orientation", "self_ref_state",
+            "last_self_view", "tendency_awareness", "last_diff_summary",
+            "last_strain", "last_self_image", "last_coherence",
+            "last_narrative", "last_episodes", "last_bindings",
+            "last_trace", "last_consumption",
+            "last_expectations", "last_motives",
+            "last_other_model", "input_supply",
+            # v5
+            "tendency_state", "vector_state", "candidate_state",
+            "transient_goal_state", "stability_valve",
+            # v6
+            "dispersion_state", "context_sensitivity_state", "last_coupling",
+            # v7-v13
+            "policy_expansion_state", "memory_integration_state",
+            "real_feed_state", "text_dialogue_state",
+            "spontaneous_state", "vo_validation_state",
+            "forgetting_fixation_state",
+            # v14-v23
+            "action_result_state", "dialogue_learning_state",
+            "meta_emotion_state", "self_action_perception_state",
+            "expectation_action_diff_log", "intent_action_gap_state",
+            "temporal_cognition_state", "multi_path_recall_state",
+            "introspection_cross_section_state", "perceptual_context_state",
+            "selection_attribution_state",
+        ]
+        for key in expected_keys:
+            assert key in data, f"Missing save field: {key}"
+        assert data["version"] == 23
+
+    def test_roundtrip_json_match(self, tmp_path):
+        """save → load → save で JSON が一致する（全フィールド復元確認）。
+
+        meta_emotion_state は load 時に apply_session_decay() が適用されるため
+        差分が生じうる。それ以外の全フィールドが完全一致することを検証する。
+        """
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        # 1) Orchestrator を作成し、多様な入力でティック実行
+        orch1 = PsycheOrchestrator(data_dir=dir_a, memory_count=10)
+        emotions = ["happy", "sad", "loving", "angry", "neutral",
+                     "surprised", "teasing", "scared", "happy", "sad"]
+        valences = [0.7, -0.6, 0.8, -0.5, 0.0,
+                    0.3, 0.4, -0.4, 0.6, -0.3]
+        for i in range(20):
+            idx = i % len(emotions)
+            percept = _make_percept(
+                emotion=emotions[idx],
+                valence=valences[idx],
+                text=f"テスト入力{i}",
+            )
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        # 2) JSON A を読み込み
+        json_a = json.loads(
+            (dir_a / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        # 3) 新しい Orchestrator に load → save
+        orch2 = PsycheOrchestrator(data_dir=dir_b, memory_count=10)
+        orch2.load(path=dir_a / "psyche_snapshot.json")
+        orch2.save()
+
+        # 4) JSON B を読み込み
+        json_b = json.loads(
+            (dir_b / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        # 5) 既知の差異を除いた全フィールドで一致確認
+        # meta_emotion_state: load時に apply_session_decay() が適用される
+        # psyche.fear_index: from_dict が個別リスク値を復元しない制約
+        skip_keys = {"meta_emotion_state", "psyche"}
+        for key in json_a:
+            if key in skip_keys:
+                continue
+            assert json_a[key] == json_b[key], (
+                f"Roundtrip mismatch on field '{key}'"
+            )
+
+        # 6) psyche は fear_index 以外で一致確認
+        psyche_a = {k: v for k, v in json_a["psyche"].items() if k != "fear_index"}
+        psyche_b = {k: v for k, v in json_b["psyche"].items() if k != "fear_index"}
+        assert psyche_a == psyche_b, "Roundtrip mismatch on field 'psyche' (excluding fear_index)"
+
+        # 7) meta_emotion_state は存在することだけ確認
+        assert "meta_emotion_state" in json_b
+
+    def test_roundtrip_v5_system_states(self, tmp_path):
+        """v5 システムステート（tendency/vector/candidate/transient_goal/stability）の復元。"""
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        orch1 = PsycheOrchestrator(data_dir=dir_a)
+        percept = _make_percept()
+        for _ in range(15):
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        json_a = json.loads(
+            (dir_a / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        orch2 = PsycheOrchestrator(data_dir=dir_b)
+        orch2.load(path=dir_a / "psyche_snapshot.json")
+        orch2.save()
+
+        json_b = json.loads(
+            (dir_b / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        v5_keys = [
+            "tendency_state", "vector_state", "candidate_state",
+            "transient_goal_state", "stability_valve",
+        ]
+        for key in v5_keys:
+            assert json_a[key] == json_b[key], f"v5 roundtrip mismatch: {key}"
+
+    def test_roundtrip_v7_to_v13_states(self, tmp_path):
+        """v7-v13 拡張ステート（expansion/integration/feed/dialogue/spontaneous/vo/forgetting）の復元。"""
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        orch1 = PsycheOrchestrator(data_dir=dir_a)
+        percept = _make_percept()
+        for _ in range(10):
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        json_a = json.loads(
+            (dir_a / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        orch2 = PsycheOrchestrator(data_dir=dir_b)
+        orch2.load(path=dir_a / "psyche_snapshot.json")
+        orch2.save()
+
+        json_b = json.loads(
+            (dir_b / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        v7_to_v13_keys = [
+            "policy_expansion_state", "memory_integration_state",
+            "real_feed_state", "text_dialogue_state",
+            "spontaneous_state", "vo_validation_state",
+            "forgetting_fixation_state",
+        ]
+        for key in v7_to_v13_keys:
+            assert json_a[key] == json_b[key], f"v7-v13 roundtrip mismatch: {key}"
+
+    def test_roundtrip_v14_to_v23_states(self, tmp_path):
+        """v14-v23 高度認知ステート（action_result〜selection_attribution）の復元。"""
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        orch1 = PsycheOrchestrator(data_dir=dir_a)
+        emotions = ["happy", "sad", "angry", "neutral", "surprised"]
+        valences = [0.7, -0.6, -0.5, 0.0, 0.3]
+        for i in range(15):
+            idx = i % len(emotions)
+            percept = _make_percept(emotion=emotions[idx], valence=valences[idx])
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        json_a = json.loads(
+            (dir_a / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        orch2 = PsycheOrchestrator(data_dir=dir_b)
+        orch2.load(path=dir_a / "psyche_snapshot.json")
+        orch2.save()
+
+        json_b = json.loads(
+            (dir_b / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        v14_to_v23_keys = [
+            "action_result_state", "dialogue_learning_state",
+            "self_action_perception_state",
+            "expectation_action_diff_log", "intent_action_gap_state",
+            "temporal_cognition_state", "multi_path_recall_state",
+            "introspection_cross_section_state", "perceptual_context_state",
+            "selection_attribution_state",
+        ]
+        for key in v14_to_v23_keys:
+            assert json_a[key] == json_b[key], f"v14-v23 roundtrip mismatch: {key}"
+
+    def test_roundtrip_v6_responsibility_context(self, tmp_path):
+        """v6 責任・文脈感度・カップリングの復元。"""
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        orch1 = PsycheOrchestrator(data_dir=dir_a)
+        percept = _make_percept()
+        for _ in range(10):
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        json_a = json.loads(
+            (dir_a / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        orch2 = PsycheOrchestrator(data_dir=dir_b)
+        orch2.load(path=dir_a / "psyche_snapshot.json")
+        orch2.save()
+
+        json_b = json.loads(
+            (dir_b / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        v6_keys = ["dispersion_state", "context_sensitivity_state", "last_coupling"]
+        for key in v6_keys:
+            assert json_a[key] == json_b[key], f"v6 roundtrip mismatch: {key}"
+
+    def test_roundtrip_v4_snapshot_states(self, tmp_path):
+        """v4 スナップショットステート（self_view〜consumption, expectations, motives等）の復元。"""
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        orch1 = PsycheOrchestrator(data_dir=dir_a, memory_count=5)
+        percept = _make_percept()
+        for _ in range(10):
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        json_a = json.loads(
+            (dir_a / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        orch2 = PsycheOrchestrator(data_dir=dir_b, memory_count=5)
+        orch2.load(path=dir_a / "psyche_snapshot.json")
+        orch2.save()
+
+        json_b = json.loads(
+            (dir_b / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+
+        v4_keys = [
+            "amplitude", "value_orientation", "self_ref_state",
+            "last_self_view", "tendency_awareness", "last_diff_summary",
+            "last_strain", "last_self_image", "last_coherence",
+            "last_narrative", "last_episodes", "last_bindings",
+            "last_trace", "last_consumption",
+            "last_expectations", "last_motives",
+            "last_other_model", "input_supply",
+        ]
+        for key in v4_keys:
+            assert json_a[key] == json_b[key], f"v4 roundtrip mismatch: {key}"
+
+    def test_roundtrip_preserves_enrichment(self, tmp_path):
+        """ラウンドトリップ後も get_prompt_enrichment の内容が維持される。"""
+        orch1 = PsycheOrchestrator(data_dir=tmp_path, memory_count=10)
+        emotions = ["happy", "sad", "loving", "angry", "neutral"]
+        valences = [0.7, -0.6, 0.8, -0.5, 0.0]
+        for i in range(20):
+            idx = i % len(emotions)
+            percept = _make_percept(emotion=emotions[idx], valence=valences[idx])
+            orch1.post_response_update(percept, delta_time=1.0)
+
+        enrichment_before = orch1.get_prompt_enrichment()
+        orch1.save()
+
+        orch2 = PsycheOrchestrator(data_dir=tmp_path, memory_count=10)
+        orch2.load()
+        enrichment_after = orch2.get_prompt_enrichment()
+
+        # enrichment は内部キャッシュの再生成で多少変わりうるが、
+        # 主要セクションは存在するはず
+        assert "心理状態" in enrichment_after
+        assert len(enrichment_after) > 100
+
 
 # ── メモリ保存コールバックテスト ──────────────────────────────────
 

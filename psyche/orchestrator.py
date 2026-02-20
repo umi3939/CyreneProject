@@ -1506,7 +1506,6 @@ class PsycheOrchestrator:
                     dl_data = self._dialogue_learning_processor.get_enrichment_data()
                     dl_active = dl_data.get("active_count", 0)
                     dl_rep = dl_data.get("repetition_active", 0)
-                    dl_non_rep = dl_data.get("non_repetition_active", 0)
                     if dl_active > 0:
                         # 長期蓄積の存在を密度・連続性に微弱に反映
                         density_supplement = min(0.1, dl_active * 0.01)
@@ -1525,8 +1524,6 @@ class PsycheOrchestrator:
                 try:
                     dl_data = self._dialogue_learning_processor.get_enrichment_data()
                     materials = dl_data.get("material_count", 0)
-                    rep_active = dl_data.get("repetition_active", 0)
-                    non_rep_active = dl_data.get("non_repetition_active", 0)
                     supply_str = dl_data.get("supply_strength", 0.0)
                     if materials > 0:
                         # 仮説材料分布を参照情報として付加

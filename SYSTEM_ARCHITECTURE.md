@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-02-18
-総コード行数: ~121,000行
-総テスト数: 4,575テスト
+更新日: 2026-02-20
+総コード行数: ~124,000行
+総テスト数: 4,747テスト
 
 ---
 
@@ -105,8 +105,10 @@
 | 13l | intent_action_gap.py | 397 | 129 | 知覚 | 意図-行動間の乖離認知（3段パイプライン・対構成→多断面記述→蓄積参照・全記録等価・パターン抽出禁止・3経路遮断・安全弁5種） |
 | 13m | temporal_cognition.py | 617 | 149 | 知覚 | 時間認知構造（3段パイプライン・経過蓄積→6断面特徴量記述→参照提供・スライディングウィンドウ・段階値列挙型・パターン抽出禁止・4経路遮断・安全弁5種） |
 | 13n | multi_path_recall.py | 807 | 105 | 記憶 | 記憶の多経路想起（3経路想起・感情連想/文脈連想/時間近接・経路等価性・顕著性バイアス抑制・ルーミネーション防止・忘却分離・安全弁5種） |
-| 13o | introspection_cross_section.py | 729 | 130 | 内省 | 内省断面間の横断的記述（3段パイプライン・6断面並置・パターン抽出禁止・統合禁止・全断面等価・5経路遮断・安全弁5種） |
+| 13o | introspection_cross_section.py | 731 | 130 | 内省 | 内省断面間の横断的記述（3段パイプライン・6断面並置・ウィンドウ25件（enrichment10件）・パターン抽出禁止・統合禁止・全断面等価・5経路遮断・安全弁5種） |
 | 13p | perceptual_context.py | 646 | 116 | 知覚 | 知覚入力の内部文脈化（3段パイプライン・4断面段階値列挙型・感情変化頻度/意図変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・4経路遮断・安全弁7種） |
+| 13q | scoring_fluctuation.py | 647 | テスト内 | 判断 | スコアリングの構造的揺らぎ（5段パイプライン・内部状態由来の非決定性・感情/STM/drives/経過時間から変動度導出・振幅上限<ValueOrientation・状態蓄積なし・安全弁5種） |
+| 13r | selection_attribution.py | 402 | テスト内 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -118,7 +120,7 @@
 | 11 | value_orientation.py | 746 | 34 | 目的 | 長期価値観 |
 | 12 | stability_valve.py | 728 | 40 | 判断 | 極端回避バルブ |
 | 13 | silence_hesitation.py | 724 | 36 | 出力 | 沈黙・躊躇い表現 |
-| 14 | __init__.py | 1,562 | - | 基盤 | エクスポート定義 |
+| 14 | __init__.py | 1,858 | - | 基盤 | エクスポート定義 |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
 | 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
@@ -146,7 +148,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 3,298 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 50システム, save/load v22(47項目永続化), enrichment(5セクション/30項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 3,365 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 52システム, save/load v23(48項目永続化), enrichment(5セクション/31項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3671,6 +3673,9 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑱ | 記憶の多経路想起 ✅完了 | 低 | ③⑨⑰ | multi_path_recall.py (807行/105テスト) 3経路想起（感情連想/文脈連想/時間近接）・経路等価性・顕著性バイアス抑制・ルーミネーション防止・忘却分離。orchestrator Phase 21d、enrichment #28、save/load v21 (45フィールド) |
 | ⑲ | 内省断面間の横断的記述 ✅完了 | 低 | ⑫⑯⑰ | introspection_cross_section.py (729行/130テスト) 3段パイプライン（断面値収集→スナップショット蓄積→参照受渡）・6断面並置（self_model/temporal_self_difference/identity_coherence/self_narrative/introspection_consumption/meta_emotion_cognition）・全断面等価・パターン抽出禁止・統合禁止・5経路遮断。orchestrator Phase 14d、enrichment #29、save/load v22 (47フィールド) |
 | ⑳ | 知覚入力の内部文脈化 ✅完了 | 低 | ⑰⑱ | perceptual_context.py (646行/116テスト) 3段パイプライン（知覚サマリ蓄積→4断面段階値記述→参照受渡）・感情ラベル変化頻度/意図ラベル変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・topics意味判定禁止・4経路遮断。orchestrator Phase 7c/14e、enrichment #30、save/load v22 (47フィールド) |
+| ㉑ | 内省ウィンドウ拡大 ✅完了 | 最小 | ⑲ | introspection_cross_section.pyのウィンドウサイズ10→25に拡大（enrichment出力は直近10件のみ維持）。反固定化第1段階（パラメータ変更のみ）。討論結果: 条件付き推奨 |
+| ㉒ | スコアリングの構造的揺らぎ ✅完了 | 低 | ⑳ | scoring_fluctuation.py (647行/テスト内) 5段パイプライン（変動量抽出→合成→制限→ポリシー別生成→加算）・内部状態由来（感情/STM/drives/経過時間）・振幅上限<ValueOrientation(+-5%)・状態蓄積なし・安全弁5種。orchestrator Phase 35c（最後の加算層）。反固定化第2段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
+| ㉓ | 選択帰属 ✅完了 | 低 | ⑧ | selection_attribution.py (402行/テスト内) 選択事実のREAD-ONLY記録（候補群構成+選択ラベル+ティック+タイムスタンプ）・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙。orchestrator select_policy後record_selection()、enrichment #31、save/load v23 (48フィールド)。Agency第1段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
 
 ### 9.2 各項目の詳細
 
@@ -3918,6 +3923,43 @@ value_orientation_validation.py (1,211行/88テスト)
 - orchestrator Phase 7c（毎ティック蓄積）/Phase 14e（3ティック毎記述）
 - enrichment #30: 自己認識セクションに知覚推移の4断面等価列挙（強調禁止）
 - save/load v22 (47フィールド): 知覚サマリウィンドウ+特徴量スナップショット+直前スナップショット
+
+#### ㉑ 内省ウィンドウ拡大 ✅完了
+- introspection_cross_section.pyのスライディングウィンドウサイズを10→25に拡大
+- enrichment出力は直近10件のみに制限（enrichment肥大化防止）
+- 残りの15件は内部参照用にのみ保持
+- 反固定化第1段階（パラメータ変更のみ、新モジュールなし）
+- 討論結果: discussion_anti_fixation_vs_self_formation_20260220.md（条件付き推奨）
+
+#### ㉒ スコアリングの構造的揺らぎ ✅完了
+- scoring_fluctuation.py: 647行
+- 設計書: design_scoring_fluctuation.md
+- 討論結果: 条件付き推奨（反固定化第2段階）
+- 解析結果: 低固定化リスク（analysis_scoring_fluctuation_fixation_20260220.md）
+- thought.pyの決定論的スコアリング（同一入力→同一出力の固定化）を緩和
+- 5段パイプライン:
+  1. 変動量抽出: 4入力源（感情多次元偏り/STM蓄積形状/駆動不均衡度/処理間隔）からスカラー変動度
+  2. 変動度合成: 最大値と平均値の中間的統合（単一支配防止）
+  3. 振幅制限: 上限 < ValueOrientation最大バイアス(+-5%)、下限 > 0（消失防止）
+  4. ポリシー別揺らぎ値生成: ポリシー特性×変動成分の相互作用
+  5. スコアへの加算: 全バイアス適用完了後の最後の加算層
+- 永続化対象の内部状態なし（呼び出しごとに完結する純粋変換）
+- 安全弁5種: 振幅絶対上限/状態蓄積禁止/入力源逆流遮断/ValueOrientation更新非介入/下限消失防止
+- orchestrator Phase 35c（全バイアス適用後の最終加算層）
+
+#### ㉓ 選択帰属 ✅完了
+- selection_attribution.py: 402行
+- 設計書: design_selection_attribution.md
+- 討論結果: 条件付き推奨（Agency第1段階）
+- 解析結果: 低固定化リスク（analysis_selection_attribution_fixation_20260220.md）
+- 方針選択の「そのとき」を記録する構造（既存の自己行動知覚は「後」、意図行動乖離は「間」を記録）
+- 記録内容: 選択ポリシーラベル + 候補群ラベル一覧 + 候補数 + ティック番号 + タイムスタンプ
+- 候補のスコアは受領しない（全記録等価の原則維持）
+- 蓄積リスト: 上限付きFIFO、最古押し出しが唯一の消失経路
+- 出力2経路のみ: enrichment（直近記録の等価列挙）+ 内省系参照（READ-ONLY）
+- 5経路遮断: →候補生成/→バイアス計算/→安定化弁/→感情処理/→責任計算
+- 安全弁5種: 全記録等価/パターン抽出禁止/経路遮断不変性/enrichment等価列挙/上限入れ替わり保証
+- orchestrator: select_policy_dict後にrecord_selection()、enrichment #31、save/load v23 (48フィールド)
 
 ---
 

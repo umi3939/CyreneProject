@@ -463,6 +463,15 @@ from .selection_attribution import (
     get_selection_attribution_summary,
 )
 
+# Reference frequency description (参照頻度の構造的記述)
+from .reference_frequency_description import (
+    ReferenceFrequencyConfig,
+    ReferenceFrequencyState,
+    process_reference_frequency,
+    create_reference_frequency_state,
+    get_reference_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -721,6 +730,10 @@ class PsycheOrchestrator:
 
         # ── Selection attribution (選択帰属) ──
         self._selection_attribution_recorder = create_selection_attribution_recorder()
+
+        # ── Reference frequency description (参照頻度の構造的記述) ──
+        self._reference_frequency_state = create_reference_frequency_state()
+        self._reference_frequency_config = ReferenceFrequencyConfig()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1417,6 +1430,40 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Expectation formation skipped: %s", e)
+
+        # Phase 24b: reference_frequency_description — 参照頻度の構造的記述
+        # 各記憶系構造の参照回数更新が完了した後に実行する。
+        # enrichmentへの直接露出を行わない（設計制約: 安全弁5）。
+        # 忘却パイプラインとの経路遮断（設計制約）。
+        # 想起経路選択への影響遮断（設計制約）。
+        # 出力先は内省系構造への参照情報のみに限定する。
+        try:
+            self._reference_frequency_state = process_reference_frequency(
+                self._reference_frequency_state,
+                episodic_store=self._last_episodes,
+                binding_store=self._last_bindings,
+                consumption_store=self._last_consumption,
+                expectation_store=self._last_expectations,
+                motive_store=self._last_motives,
+                narrative_state=self._last_narrative,
+                other_model_store=self._last_other_model,
+                self_reference_state=self._self_ref_state,
+                action_result_state=(
+                    self._action_result_observer.state
+                    if self._action_result_observer else None
+                ),
+                dialogue_learning_state=(
+                    self._dialogue_learning_processor.state
+                    if self._dialogue_learning_processor else None
+                ),
+                forgetting_state=(
+                    self._forgetting_fixation_processor.state
+                    if self._forgetting_fixation_processor else None
+                ),
+                config=self._reference_frequency_config,
+            )
+        except Exception as e:
+            logger.debug("Reference frequency description skipped: %s", e)
 
         # Phase 25a: other_model_real_feed — 実対話由来の観測断片抽出・正規化
         try:
@@ -3124,7 +3171,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 23,
+            "version": 24,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3192,6 +3239,8 @@ class PsycheOrchestrator:
             "perceptual_context_state": self._perceptual_context.save() if self._perceptual_context else {},
             # Version 23 fields
             "selection_attribution_state": self._selection_attribution_recorder.state.to_dict() if self._selection_attribution_recorder else {},
+            # Version 24 fields
+            "reference_frequency_state": self._reference_frequency_state.to_dict() if self._reference_frequency_state else {},
         }
 
         save_path.write_text(
@@ -3353,6 +3402,10 @@ class PsycheOrchestrator:
             # Version 23+ fields
             if data.get("selection_attribution_state"):
                 self._selection_attribution_recorder.state = SelectionAttributionState.from_dict(data["selection_attribution_state"])
+
+            # Version 24+ fields
+            if data.get("reference_frequency_state"):
+                self._reference_frequency_state = ReferenceFrequencyState.from_dict(data["reference_frequency_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

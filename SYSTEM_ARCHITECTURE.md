@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-02-20
-総コード行数: ~124,000行
-総テスト数: 4,747テスト
+更新日: 2026-02-21
+総コード行数: ~127,000行
+総テスト数: 4,848テスト
 
 ---
 
@@ -109,6 +109,7 @@
 | 13p | perceptual_context.py | 646 | 116 | 知覚 | 知覚入力の内部文脈化（3段パイプライン・4断面段階値列挙型・感情変化頻度/意図変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・4経路遮断・安全弁7種） |
 | 13q | scoring_fluctuation.py | 647 | テスト内 | 判断 | スコアリングの構造的揺らぎ（5段パイプライン・内部状態由来の非決定性・感情/STM/drives/経過時間から変動度導出・振幅上限<ValueOrientation・状態蓄積なし・安全弁5種） |
 | 13r | selection_attribution.py | 402 | テスト内 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙・安全弁5種） |
+| 13s | reference_frequency_description.py | 782 | テスト内 | 内省 | 参照頻度の構造的記述（12箇所横断読み取り・断面構成・集中度/偏在度記述・変動記述・FIFO断面履歴・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -148,7 +149,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 3,365 | 52 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 52システム, save/load v23(48項目永続化), enrichment(5セクション/31項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 3,420 | 53 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 53システム, save/load v24(49項目永続化), enrichment(5セクション/31項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3676,6 +3677,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ㉑ | 内省ウィンドウ拡大 ✅完了 | 最小 | ⑲ | introspection_cross_section.pyのウィンドウサイズ10→25に拡大（enrichment出力は直近10件のみ維持）。反固定化第1段階（パラメータ変更のみ）。討論結果: 条件付き推奨 |
 | ㉒ | スコアリングの構造的揺らぎ ✅完了 | 低 | ⑳ | scoring_fluctuation.py (647行/テスト内) 5段パイプライン（変動量抽出→合成→制限→ポリシー別生成→加算）・内部状態由来（感情/STM/drives/経過時間）・振幅上限<ValueOrientation(+-5%)・状態蓄積なし・安全弁5種。orchestrator Phase 35c（最後の加算層）。反固定化第2段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
 | ㉓ | 選択帰属 ✅完了 | 低 | ⑧ | selection_attribution.py (402行/テスト内) 選択事実のREAD-ONLY記録（候補群構成+選択ラベル+ティック+タイムスタンプ）・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙。orchestrator select_policy後record_selection()、enrichment #31、save/load v23 (48フィールド)。Agency第1段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
+| ㉔ | 参照頻度の構造的記述 ✅完了 | 低 | - | reference_frequency_description.py (782行/93テスト) 12箇所横断読み取り専用集約層・断面構成（集中度/偏在度）・FIFO断面履歴（30件上限）・変動記述（再導出型）・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種。orchestrator Phase 24b、save/load v24 (49フィールド)。反固定化第3段階。討論結果: 条件付き推奨。設計解析: 低固定化リスク。実装解析: 低固定化リスク |
 
 ### 9.2 各項目の詳細
 
@@ -3961,7 +3963,23 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種: 全記録等価/パターン抽出禁止/経路遮断不変性/enrichment等価列挙/上限入れ替わり保証
 - orchestrator: select_policy_dict後にrecord_selection()、enrichment #31、save/load v23 (48フィールド)
 
+#### ㉔ 参照頻度の構造的記述 ✅完了
+
+- 設計書: design_reference_frequency_description.md
+- 討論結果: 条件付き推奨（反固定化第3段階、discussion_anti_fixation_vs_self_formation_20260220.md）
+- 設計解析結果: 低固定化リスク（analysis_reference_frequency_fixation_20260220.md）
+- 実装解析結果: 低固定化リスク（analysis_reference_frequency_impl_fixation_20260220.md）
+- 12箇所の既存モジュールのreference_countを横断的に読み取り専用で収集する集約層
+- 収集元: episodic_memory/emotional_memory_binding(結合+痕跡)/introspection_consumption/expectation_formation/intrinsic_motivation(動機+衝動)/self_narrative/other_agent_model/self_reference/action_result_observation/other_model_dialogue_learning/memory_forgetting_fixation
+- 断面構成: 集中度（ジニ係数）+ 構造別偏在度（構造間ジニ係数）
+- 断面履歴: FIFO（30件上限）、変動記述は毎回再導出（累積蓄積しない）
+- enrichmentへの直接露出を遮断（安全弁5）
+- 忘却パイプラインとの経路遮断
+- 想起経路選択への影響遮断
+- 安全弁5種: 全記録等価維持/評価的変換禁止/累積的傾向抑制/断面履歴有限性/出力経路不拡張
+- orchestrator: Phase 24b（Phase 24 expectation_formation の後、Phase 25a の前）、save/load v24 (49フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~121,000行 / テスト数: 4,575*
+*総コード行数: ~127,000行 / テスト数: 4,848*

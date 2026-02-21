@@ -1333,6 +1333,22 @@ from .selection_attribution import (
     get_selection_attribution_summary,
 )
 
+# Reference Frequency Description (参照頻度の構造的記述)
+from .reference_frequency_description import (
+    ReferenceFrequencyConfig,
+    ReferenceFrequencyState,
+    ReferenceSnapshot,
+    VariationDescription,
+    process_reference_frequency,
+    collect_reference_counts,
+    create_reference_frequency_state,
+    create_reference_frequency_config,
+    get_latest_snapshot,
+    get_snapshot_history,
+    get_latest_variation,
+    get_reference_summary,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -1853,6 +1869,13 @@ __all__ = [
     "SelectionRecord", "SelectionAttributionState", "SelectionAttributionConfig",
     "SelectionAttributionRecorder",
     "create_selection_attribution_recorder", "get_selection_attribution_summary",
+    # Reference Frequency Description (参照頻度の構造的記述)
+    "ReferenceFrequencyConfig", "ReferenceFrequencyState",
+    "ReferenceSnapshot", "VariationDescription",
+    "process_reference_frequency", "collect_reference_counts",
+    "create_reference_frequency_state", "create_reference_frequency_config",
+    "get_latest_snapshot", "get_snapshot_history",
+    "get_latest_variation", "get_reference_summary",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

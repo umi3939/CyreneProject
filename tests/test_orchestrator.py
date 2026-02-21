@@ -450,10 +450,12 @@ class TestPersistence:
             "temporal_cognition_state", "multi_path_recall_state",
             "introspection_cross_section_state", "perceptual_context_state",
             "selection_attribution_state",
+            # v24
+            "reference_frequency_state",
         ]
         for key in expected_keys:
             assert key in data, f"Missing save field: {key}"
-        assert data["version"] == 23
+        assert data["version"] == 24
 
     def test_roundtrip_json_match(self, tmp_path):
         """save → load → save で JSON が一致する（全フィールド復元確認）。
@@ -610,16 +612,18 @@ class TestPersistence:
             (dir_b / "psyche_snapshot.json").read_text(encoding="utf-8")
         )
 
-        v14_to_v23_keys = [
+        v14_to_v24_keys = [
             "action_result_state", "dialogue_learning_state",
             "self_action_perception_state",
             "expectation_action_diff_log", "intent_action_gap_state",
             "temporal_cognition_state", "multi_path_recall_state",
             "introspection_cross_section_state", "perceptual_context_state",
             "selection_attribution_state",
+            # v24
+            "reference_frequency_state",
         ]
-        for key in v14_to_v23_keys:
-            assert json_a[key] == json_b[key], f"v14-v23 roundtrip mismatch: {key}"
+        for key in v14_to_v24_keys:
+            assert json_a[key] == json_b[key], f"v14-v24 roundtrip mismatch: {key}"
 
     def test_roundtrip_v6_responsibility_context(self, tmp_path):
         """v6 責任・文脈感度・カップリングの復元。"""

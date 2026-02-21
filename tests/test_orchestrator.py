@@ -868,3 +868,362 @@ class TestIntegration:
         orch.post_response_update(percept, delta_time=1.0, user_id="user_a")
         orch.post_response_update(percept, delta_time=1.0, user_id="user_b")
         assert orch.tick_count == 2
+
+
+# ── スモークテスト: 全パイプライン通過 ─────────────────────────────
+
+
+class TestSmokeFullPipeline:
+    """全パイプラインを通過するスモークテスト。
+
+    post_response_update → get_prompt_enrichment → get_policy_suggestions →
+    select_policy_dict → save → load → 再実行 → 再save の全経路を検証する。
+    """
+
+    # ── 1. 全パス通過テスト ──────────────────────────────────────
+
+    def test_full_path_smoke(self, tmp_path):
+        """全パス通過: tick(全インターバル) → enrichment → suggestions → select → save → load → tick → save。"""
+        orch = PsycheOrchestrator(memory_count=5, data_dir=tmp_path)
+        percept = _make_percept()
+
+        # 全ティックインターバルを通過させる (3, 5, 10 の最小公倍数 = 30)
+        for i in range(30):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral", "angry", "surprised"][i % 5],
+                valence=[0.7, -0.6, 0.0, -0.5, 0.3][i % 5],
+                text=f"スモークテスト入力{i}",
+            )
+            orch.post_response_update(p, delta_time=1.0)
+
+        assert orch.tick_count == 30
+
+        # get_prompt_enrichment
+        enrichment = orch.get_prompt_enrichment()
+        assert isinstance(enrichment, str)
+        assert len(enrichment) > 0
+
+        # get_policy_suggestions
+        suggestions = orch.get_policy_suggestions(percept, [])
+        assert isinstance(suggestions, str)
+        assert len(suggestions) > 0
+
+        # select_policy_dict
+        policy = orch.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)
+
+        # save
+        orch.save()
+        assert (tmp_path / "psyche_snapshot.json").exists()
+
+        # load
+        orch2 = PsycheOrchestrator(memory_count=5, data_dir=tmp_path)
+        loaded = orch2.load()
+        assert loaded is True
+        assert orch2.tick_count == 30
+
+        # 再度ティック実行
+        for i in range(10):
+            p = _make_percept(
+                emotion=["loving", "teasing", "scared"][i % 3],
+                valence=[0.8, 0.4, -0.4][i % 3],
+            )
+            orch2.post_response_update(p, delta_time=1.0)
+        assert orch2.tick_count == 40
+
+        # 再度save
+        orch2.save()
+        data = json.loads(
+            (tmp_path / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+        assert data["tick_count"] == 40
+
+    # ── 2. select_policy_dict の動作テスト ────────────────────────
+
+    def test_select_policy_dict_returns_valid_dict(self):
+        """select_policy_dict() が有効な dict を返す。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(3):
+            orch.post_response_update(percept, delta_time=1.0)
+        policy = orch.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)
+
+    def test_select_policy_dict_contains_required_keys(self):
+        """select_policy_dict の返り値に policy_label, _score, rationale が含まれる。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(5):
+            orch.post_response_update(percept, delta_time=1.0)
+        policy = orch.select_policy_dict(percept, [])
+        assert "policy_label" in policy
+        assert "_score" in policy
+        assert "rationale" in policy
+
+    def test_select_policy_dict_with_few_ticks(self):
+        """ティック数が少なくても select_policy_dict が動作する。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        # わずか1ティックでも動作する
+        orch.post_response_update(percept, delta_time=1.0)
+        policy = orch.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)
+        assert "policy_label" in policy
+
+    def test_select_policy_dict_after_diverse_input(self):
+        """多様な入力後でも select_policy_dict が動作する。"""
+        orch = PsycheOrchestrator()
+        emotions = [
+            ("happy", 0.9), ("sad", -0.8), ("angry", -0.7),
+            ("surprised", 0.5), ("scared", -0.6), ("loving", 0.8),
+            ("teasing", 0.3), ("neutral", 0.0),
+        ]
+        for emotion, valence in emotions:
+            percept = _make_percept(emotion=emotion, valence=valence)
+            orch.post_response_update(percept, delta_time=1.0)
+
+        percept = _make_percept()
+        policy = orch.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)
+        assert "policy_label" in policy
+        assert "_score" in policy
+        assert "rationale" in policy
+
+    # ── 3. save→load後のselect_policy_dict テスト ────────────────
+
+    def test_select_policy_dict_after_save_load(self, tmp_path):
+        """save→load 後に select_policy_dict が動作する。"""
+        orch1 = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+        for _ in range(10):
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        orch2 = PsycheOrchestrator(data_dir=tmp_path)
+        orch2.load()
+        policy = orch2.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)
+        assert "policy_label" in policy
+        assert "_score" in policy
+
+    def test_enrichment_length_after_save_load(self, tmp_path):
+        """load 後の enrichment が妥当な長さを持つ。"""
+        orch1 = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+        for _ in range(15):
+            orch1.post_response_update(percept, delta_time=1.0)
+        orch1.save()
+
+        orch2 = PsycheOrchestrator(data_dir=tmp_path)
+        orch2.load()
+        enrichment = orch2.get_prompt_enrichment()
+        assert isinstance(enrichment, str)
+        # load後でも心理状態セクションは必ず含まれる
+        assert "心理状態" in enrichment
+        assert len(enrichment) > 100
+
+    # ── 4. Phase発火の確認テスト ──────────────────────────────────
+
+    def test_phase_3_tick_attributes_set(self):
+        """3ティック後に _tendency_awareness, transient_goal, _last_motives が設定される。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(3):
+            orch.post_response_update(percept, delta_time=1.0)
+
+        # Phase 8: tendency_awareness
+        assert orch._tendency_awareness is not None
+        # Phase 12: transient_goal_mgr が observe_turn を実行済み
+        assert orch._transient_goal_mgr is not None
+        assert orch._transient_goal_mgr.state is not None
+        # Phase 14: intrinsic_motivation
+        assert orch._last_motives is not None
+
+    def test_phase_5_tick_attributes_set(self):
+        """5ティック後に自己像・一貫性・ナラティブ等が設定される。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(5):
+            orch.post_response_update(percept, delta_time=1.0)
+
+        # Phase 17: self_image
+        assert orch._last_self_image is not None
+        # Phase 18: coherence
+        assert orch._last_coherence is not None
+        # Phase 19: narrative
+        assert orch._last_narrative is not None
+        # Phase 20: episodes
+        assert orch._last_episodes is not None
+        # Phase 21: bindings
+        assert orch._last_bindings is not None
+        # Phase 22: trace
+        assert orch._last_trace is not None
+        # Phase 23: consumption
+        assert orch._last_consumption is not None
+        # Phase 24: expectations
+        assert orch._last_expectations is not None
+        # Phase 25: other_model
+        assert orch._last_other_model is not None
+
+    def test_phase_10_tick_all_phases_fired(self):
+        """10ティック後に全フェーズが発火済み。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(10):
+            orch.post_response_update(percept, delta_time=1.0)
+
+        # Phase 8 (3ティック毎)
+        assert orch._tendency_awareness is not None
+        # Phase 14 (3ティック毎)
+        assert orch._last_motives is not None
+        # Phase 15-26 (5ティック毎) の主要属性
+        assert orch._last_self_image is not None
+        assert orch._last_coherence is not None
+        assert orch._last_narrative is not None
+        assert orch._last_episodes is not None
+        assert orch._last_bindings is not None
+        assert orch._last_trace is not None
+        assert orch._last_consumption is not None
+        assert orch._last_expectations is not None
+        assert orch._last_other_model is not None
+        # Phase 27-29 (10ティック毎): stability_valve が observe_extremity 実行済み
+        assert orch._stability_valve is not None
+        # dynamics_observer が record_turn 実行済み
+        assert orch._dynamics_observer is not None
+
+    # ── 5. enrichment内容の検証テスト ─────────────────────────────
+
+    def test_enrichment_contains_all_five_sections(self):
+        """十分なティック後、enrichmentに5セクション全てが含まれる。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        # 全フェーズが複数回発火するまでティック実行
+        for i in range(30):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral", "angry", "surprised"][i % 5],
+                valence=[0.7, -0.6, 0.0, -0.5, 0.3][i % 5],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+
+        enrichment = orch.get_prompt_enrichment()
+
+        # 5セクション: 心理状態、自己認識、動機・目標、記憶・内省、判断傾向
+        assert "心理状態" in enrichment
+        assert "自己認識" in enrichment
+        assert "動機・目標" in enrichment or "動機" in enrichment
+        assert "記憶・内省" in enrichment or "記憶" in enrichment
+        assert "判断傾向" in enrichment
+
+    def test_enrichment_size_reasonable(self):
+        """enrichment のサイズが合理的範囲内（500文字以上、50000文字以下）。"""
+        orch = PsycheOrchestrator()
+        for i in range(30):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral", "angry", "loving"][i % 5],
+                valence=[0.7, -0.6, 0.0, -0.5, 0.8][i % 5],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+
+        enrichment = orch.get_prompt_enrichment()
+        assert len(enrichment) >= 500, (
+            f"Enrichment too short: {len(enrichment)} chars"
+        )
+        assert len(enrichment) <= 50000, (
+            f"Enrichment too long: {len(enrichment)} chars"
+        )
+
+    # ── 6. 連続稼働安定性テスト ──────────────────────────────────
+
+    def test_50_ticks_continuous_no_error(self):
+        """50ティック連続実行でエラーなし。"""
+        orch = PsycheOrchestrator()
+        emotions = ["happy", "sad", "angry", "neutral", "surprised",
+                     "loving", "teasing", "scared"]
+        valences = [0.7, -0.6, -0.5, 0.0, 0.3, 0.8, 0.4, -0.4]
+
+        for i in range(50):
+            idx = i % len(emotions)
+            percept = _make_percept(
+                emotion=emotions[idx],
+                valence=valences[idx],
+                text=f"連続稼働テスト{i}",
+            )
+            orch.post_response_update(percept, delta_time=1.0)
+
+        assert orch.tick_count == 50
+
+        # 50ティック後もすべての公開APIが正常動作する
+        enrichment = orch.get_prompt_enrichment()
+        assert isinstance(enrichment, str)
+        assert len(enrichment) > 0
+
+        percept = _make_percept()
+        suggestions = orch.get_policy_suggestions(percept, [])
+        assert isinstance(suggestions, str)
+
+        policy = orch.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)
+
+    def test_50_ticks_with_midway_save_load_resume(self, tmp_path):
+        """途中のsave/load/resumeでもエラーなし。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+
+        # 最初の20ティック
+        for i in range(20):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral"][i % 3],
+                valence=[0.7, -0.6, 0.0][i % 3],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+        assert orch.tick_count == 20
+
+        # 中間save
+        orch.save()
+        assert (tmp_path / "psyche_snapshot.json").exists()
+
+        # load して再開
+        orch2 = PsycheOrchestrator(data_dir=tmp_path)
+        orch2.load()
+        assert orch2.tick_count == 20
+
+        # 次の15ティック
+        for i in range(15):
+            p = _make_percept(
+                emotion=["angry", "surprised", "loving"][i % 3],
+                valence=[-0.5, 0.3, 0.8][i % 3],
+            )
+            orch2.post_response_update(p, delta_time=1.0)
+        assert orch2.tick_count == 35
+
+        # 2回目のsave
+        orch2.save()
+
+        # 再度load して再開
+        orch3 = PsycheOrchestrator(data_dir=tmp_path)
+        orch3.load()
+        assert orch3.tick_count == 35
+
+        # 最後の15ティック
+        for i in range(15):
+            p = _make_percept(
+                emotion=["teasing", "scared", "neutral"][i % 3],
+                valence=[0.4, -0.4, 0.0][i % 3],
+            )
+            orch3.post_response_update(p, delta_time=1.0)
+        assert orch3.tick_count == 50
+
+        # 最終save
+        orch3.save()
+        data = json.loads(
+            (tmp_path / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+        assert data["tick_count"] == 50
+
+        # 最終状態でもすべての公開APIが正常動作する
+        enrichment = orch3.get_prompt_enrichment()
+        assert isinstance(enrichment, str)
+        assert len(enrichment) > 0
+
+        policy = orch3.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)

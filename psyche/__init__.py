@@ -1349,6 +1349,18 @@ from .reference_frequency_description import (
     get_reference_summary,
 )
 
+# Persistent Commitment (持続的取り組み保持構造)
+from .persistent_commitment import (
+    PersistentCommitmentConfig,
+    PersistentCommitmentState,
+    PersistentCommitmentProcessor,
+    CommitmentItem,
+    CognitionRecord,
+    CommitmentCrossSectionInputs,
+    create_persistent_commitment_processor,
+    get_commitment_summary,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -1876,6 +1888,11 @@ __all__ = [
     "create_reference_frequency_state", "create_reference_frequency_config",
     "get_latest_snapshot", "get_snapshot_history",
     "get_latest_variation", "get_reference_summary",
+    # Persistent Commitment (持続的取り組み保持構造)
+    "PersistentCommitmentConfig", "PersistentCommitmentState",
+    "PersistentCommitmentProcessor", "CommitmentItem", "CognitionRecord",
+    "CommitmentCrossSectionInputs",
+    "create_persistent_commitment_processor", "get_commitment_summary",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

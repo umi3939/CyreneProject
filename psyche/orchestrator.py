@@ -472,6 +472,16 @@ from .reference_frequency_description import (
     get_reference_summary,
 )
 
+# Persistent commitment (持続的取り組み保持構造)
+from .persistent_commitment import (
+    PersistentCommitmentProcessor,
+    PersistentCommitmentState,
+    PersistentCommitmentConfig,
+    CommitmentCrossSectionInputs,
+    create_persistent_commitment_processor,
+    get_commitment_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -734,6 +744,9 @@ class PsycheOrchestrator:
         # ── Reference frequency description (参照頻度の構造的記述) ──
         self._reference_frequency_state = create_reference_frequency_state()
         self._reference_frequency_config = ReferenceFrequencyConfig()
+
+        # ── Persistent commitment (持続的取り組み保持構造) ──
+        self._persistent_commitment = create_persistent_commitment_processor()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1060,6 +1073,13 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Transient goal skipped: %s", e)
+
+        # Phase 12b: persistent_commitment — 持続的取り組み保持
+        # transient_goal からの昇格チェック + 保持項目の減衰・解除・資源競合
+        try:
+            self._run_persistent_commitment()
+        except Exception as e:
+            logger.debug("Persistent commitment skipped: %s", e)
 
         # Phase 13: scoped_goal — スコープ目標コミット
         try:
@@ -1993,6 +2013,16 @@ class PsycheOrchestrator:
                     f"一時目標: {goal.get('category', '?')} "
                     f"(strength={goal.get('strength', 0):.2f})"
                 )
+        # #31 persistent_commitment — 保持中の項目数、解除理由分布を等価列挙（強調禁止）
+        if self._persistent_commitment is not None:
+            try:
+                pc_text = get_commitment_summary(
+                    self._persistent_commitment.state
+                )
+                if pc_text and "待機中" not in pc_text:
+                    motive_lines.append(f"持続保持: {pc_text}")
+            except Exception:
+                pass
         # #5 proto_goal_vector
         if self._vector_gen is not None:
             vec_summary = get_vector_summary(self._vector_gen)
@@ -2340,6 +2370,15 @@ class PsycheOrchestrator:
             candidates = apply_orientation_to_candidates(
                 candidates=candidates,
                 orientation=self._value_orientation,
+            )
+        except Exception:
+            pass
+
+        # Phase 35b2: persistent_commitment — 持続的取り組み保持バイアス適用
+        # value_orientation の後、scoring_fluctuation の前に適用
+        try:
+            candidates = self._persistent_commitment.apply_bias_to_candidates(
+                candidates=candidates,
             )
         except Exception:
             pass
@@ -2941,6 +2980,109 @@ class PsycheOrchestrator:
             current_tick=self._tick_count,
         )
 
+    def _run_persistent_commitment(self) -> None:
+        """Phase 12b: 持続的取り組み保持の昇格チェック + ティック処理。
+
+        transient_goal からの昇格が唯一の生成経路。
+        昇格はコピーであり移動ではない（transient_goal側は変更しない）。
+        """
+        p = self._psyche
+        tg_mgr = self._transient_goal_mgr
+        pc = self._persistent_commitment
+
+        # ── 昇格チェック ──
+        # transient_goal にアクティブな目標があれば昇格候補として評価
+        active_goal = tg_mgr.state.active_goal
+        if active_goal is not None:
+            # 維持ティック数: turn_countからの近似
+            maintained_ticks = tg_mgr.state.turn_count
+            pc.try_promote(
+                goal_id=active_goal.goal_id,
+                category=active_goal.candidate_category.value,
+                direction_signature=dict(active_goal.direction_alignment),
+                remaining_strength=active_goal.selection_strength,
+                maintained_ticks=maintained_ticks,
+                current_tick=self._tick_count,
+            )
+
+        # ── 8断面入力の構築 ──
+        emo = p.emotions.as_dict() if p.emotions else {}
+        drives = p.drives.as_dict() if p.drives else {}
+
+        # 断面1: 支配的感情と覚醒度の変化量
+        arousal_delta = abs(p.mood.arousal - 0.5) if p.mood else 0.0
+
+        # 断面2: 文脈連続性の断裂度
+        context_disruption = 0.0
+        if self._last_coupling is not None:
+            context_disruption = 1.0 - getattr(
+                self._last_coupling, 'coupling_strength', 0.5
+            )
+
+        # 断面3: 内的推進力の変動幅
+        drive_variability = 0.0
+        if drives:
+            vals = list(drives.values())
+            if len(vals) > 1:
+                mean = sum(vals) / len(vals)
+                drive_variability = sum(abs(v - mean) for v in vals) / len(vals)
+
+        # 断面4: 現在の注目と保持項目の方向的距離
+        transient_dir_dist = 0.0
+        if active_goal is not None and pc.state.items:
+            active_items = [it for it in pc.state.items if not it.released]
+            if active_items:
+                from .persistent_commitment import _direction_similarity
+                avg_sim = sum(
+                    _direction_similarity(
+                        active_goal.direction_alignment,
+                        it.direction_signature,
+                    )
+                    for it in active_items
+                ) / len(active_items)
+                transient_dir_dist = max(0.0, 1.0 - avg_sim)
+
+        # 断面5: 長期傾斜との整合度の変化量
+        orientation_delta = 0.0
+
+        # 断面6: 競合する候補の出現状態
+        competing_intensity = 0.0
+        if self._candidate_gen is not None:
+            try:
+                cands = self._candidate_gen.state.candidates
+                if cands:
+                    competing_intensity = max(c.intensity for c in cands) if cands else 0.0
+            except Exception:
+                pass
+
+        # 断面7: 責任容量の圧迫度
+        resp_pressure = 0.0
+        try:
+            resp_summary = self._responsibility_mgr.get_summary("viewer")
+            resp_pressure = min(1.0, resp_summary.get("total_weight", 0.0))
+        except Exception:
+            pass
+
+        # 断面8: 非決定性由来の変動量
+        scoring_fluct = 0.0
+        if self._last_fluctuation_select_time > 0:
+            scoring_fluct = min(1.0, (time.time() - self._last_fluctuation_select_time) / 300.0)
+
+        inputs = CommitmentCrossSectionInputs(
+            dominant_emotion=p.dominant_emotion if p.dominant_emotion else "",
+            arousal_delta=arousal_delta,
+            context_disruption=context_disruption,
+            drive_variability=drive_variability,
+            transient_direction_distance=transient_dir_dist,
+            orientation_alignment_delta=orientation_delta,
+            competing_candidate_intensity=competing_intensity,
+            responsibility_pressure=resp_pressure,
+            scoring_fluctuation_amount=scoring_fluct,
+        )
+
+        # ── ティック処理 ──
+        pc.tick(inputs, current_tick=self._tick_count)
+
     def _build_meta_emotion_inputs(self) -> MetaEmotionInputs:
         """メタ感情認知に必要な8断面の入力を構築する。
 
@@ -3171,7 +3313,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 24,
+            "version": 25,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3241,6 +3383,8 @@ class PsycheOrchestrator:
             "selection_attribution_state": self._selection_attribution_recorder.state.to_dict() if self._selection_attribution_recorder else {},
             # Version 24 fields
             "reference_frequency_state": self._reference_frequency_state.to_dict() if self._reference_frequency_state else {},
+            # Version 25 fields
+            "persistent_commitment_state": self._persistent_commitment.state.to_dict() if self._persistent_commitment else {},
         }
 
         save_path.write_text(
@@ -3406,6 +3550,11 @@ class PsycheOrchestrator:
             # Version 24+ fields
             if data.get("reference_frequency_state"):
                 self._reference_frequency_state = ReferenceFrequencyState.from_dict(data["reference_frequency_state"])
+
+            # Version 25+ fields
+            if data.get("persistent_commitment_state"):
+                self._persistent_commitment._state = PersistentCommitmentState.from_dict(data["persistent_commitment_state"])
+                self._persistent_commitment.validate_on_load()
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

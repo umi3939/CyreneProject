@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-21
-総コード行数: ~127,000行
-総テスト数: 4,848テスト
+総コード行数: ~130,000行
+総テスト数: 4,921テスト
 
 ---
 
@@ -110,6 +110,7 @@
 | 13q | scoring_fluctuation.py | 647 | テスト内 | 判断 | スコアリングの構造的揺らぎ（5段パイプライン・内部状態由来の非決定性・感情/STM/drives/経過時間から変動度導出・振幅上限<ValueOrientation・状態蓄積なし・安全弁5種） |
 | 13r | selection_attribution.py | 402 | テスト内 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙・安全弁5種） |
 | 13s | reference_frequency_description.py | 782 | テスト内 | 内省 | 参照頻度の構造的記述（12箇所横断読み取り・断面構成・集中度/偏在度記述・変動記述・FIFO断面履歴・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種） |
+| 13t | persistent_commitment.py | 1,037 | テスト内 | 目標 | 持続的取り組み保持（transient_goal昇格が唯一生成経路・複数並行保持・強度依存非線形減衰・慣性時間減衰・4解除条件・認知記録FIFO・資源競合・バイアス上限<VO・安全弁6種・自己強化ループ4重遮断） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -149,7 +150,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 3,420 | 53 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 53システム, save/load v24(49項目永続化), enrichment(5セクション/31項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 3,500 | 54 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 54システム, save/load v25(50項目永続化), enrichment(5セクション/32項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3678,6 +3679,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ㉒ | スコアリングの構造的揺らぎ ✅完了 | 低 | ⑳ | scoring_fluctuation.py (647行/テスト内) 5段パイプライン（変動量抽出→合成→制限→ポリシー別生成→加算）・内部状態由来（感情/STM/drives/経過時間）・振幅上限<ValueOrientation(+-5%)・状態蓄積なし・安全弁5種。orchestrator Phase 35c（最後の加算層）。反固定化第2段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
 | ㉓ | 選択帰属 ✅完了 | 低 | ⑧ | selection_attribution.py (402行/テスト内) 選択事実のREAD-ONLY記録（候補群構成+選択ラベル+ティック+タイムスタンプ）・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙。orchestrator select_policy後record_selection()、enrichment #31、save/load v23 (48フィールド)。Agency第1段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
 | ㉔ | 参照頻度の構造的記述 ✅完了 | 低 | - | reference_frequency_description.py (782行/93テスト) 12箇所横断読み取り専用集約層・断面構成（集中度/偏在度）・FIFO断面履歴（30件上限）・変動記述（再導出型）・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種。orchestrator Phase 24b、save/load v24 (49フィールド)。反固定化第3段階。討論結果: 条件付き推奨。設計解析: 低固定化リスク。実装解析: 低固定化リスク |
+| ㉕ | 持続的コミットメント ✅完了 | 中→低（修正済） | ⑧ | persistent_commitment.py (1,037行/73テスト) transient_goal昇格が唯一生成経路・複数並行保持（上限付き）・強度依存非線形減衰（飽和構造）・慣性時間減衰・4解除条件（時間/内部状態/競合/達成認知）・認知記録FIFO・資源競合（揺らぎ付き帯域分配）・バイアス上限<VO(+-5%)・安全弁6種・自己強化ループ4重遮断。orchestrator Phase 12b/35b2、enrichment #32、save/load v25 (50フィールド)。Agency第2段階。討論結果: 条件付き推奨（7条件）。設計解析: 低固定化リスク。実装解析: 中→修正後低 |
 
 ### 9.2 各項目の詳細
 
@@ -3979,7 +3981,26 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種: 全記録等価維持/評価的変換禁止/累積的傾向抑制/断面履歴有限性/出力経路不拡張
 - orchestrator: Phase 24b（Phase 24 expectation_formation の後、Phase 25a の前）、save/load v24 (49フィールド)
 
+#### ㉕ 持続的コミットメント ✅完了
+
+- 設計書: design_persistent_commitment.md
+- 討論結果: 条件付き推奨（Agency第2段階、discussion_persistent_commitment_20260221.md、7条件付き）
+- 設計解析結果: 低固定化リスク（analysis_persistent_commitment_design_fixation_20260221.md）
+- 実装解析結果: 中→修正後低（analysis_persistent_commitment_impl_fixation_20260221.md、3件修正済み）
+- transient_goalの構造的限界（単一アクティブ/無抵抗切替/一様減衰/認知不在/軽量責任）を補完
+- 唯一の生成経路: transient_goalからの昇格のみ（4経路遮断）
+- 複数保持項目の並行保持（上限付き、資源競合で帯域分配）
+- 強度依存の非線形減衰（飽和構造: 高強度域で加速減衰）
+- 慣性値: 強度独立で時間減衰（自己強化ループ遮断）
+- 4つの解除条件: 時間減衰/内部状態変動/競合保持項目出現/達成認知記録
+- 認知記録: FIFO、READ-ONLY、評価判定なし、パターン抽出禁止
+- バイアス出力: 三重上限制約（単一/方向別/総量）、max_total_bias=0.12 < VO 0.15
+- 安全弁6種: 集中度監視/慣性累積上限/同一方向抑制(時間減衰付き)/最大保持期間/バイアス総量上限/緊急一括減衰
+- 自己強化ループ4重遮断: 再昇格バイアス不加算/慣性独立減衰/同一方向バイアスキャップ/認知記録判断経路切断
+- 修正済み問題: same_direction_counts時間減衰追加、enrichment累積カウンタ→スライディングウィンドウ化、ハードコードcategory_affinities除去
+- orchestrator: Phase 12b（transient_goal後・scoped_goal前）、Phase 35b2（value_orientation後・scoring_fluctuation前）、enrichment #32、save/load v25 (50フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~127,000行 / テスト数: 4,848*
+*総コード行数: ~130,000行 / テスト数: 4,921*

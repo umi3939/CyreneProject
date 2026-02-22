@@ -1387,6 +1387,30 @@ from .stabilization_description import (
     ALL_SIGNAL_KEYS,
 )
 
+# Behavioral Diversity Description (行動多様性の構造的記述)
+from .behavioral_diversity_description import (
+    BehavioralDiversityConfig,
+    BehavioralDiversityState,
+    DiversityRecord,
+    TypeCountLevel,
+    DispersionLevel,
+    determine_type_count_level,
+    determine_dispersion_level,
+    process_behavioral_diversity,
+    read_section_key_types,
+    read_policy_label_types,
+    read_candidate_size_types,
+    compose_record as compose_diversity_record,
+    accumulate_record as accumulate_diversity_record,
+    get_latest_record as get_latest_diversity_record,
+    get_record_history as get_diversity_record_history,
+    get_diversity_summary,
+    create_behavioral_diversity_state,
+    create_behavioral_diversity_config,
+    save_state as save_behavioral_diversity_state,
+    load_state as load_behavioral_diversity_state,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -1932,6 +1956,17 @@ __all__ = [
     "SIGNAL_EMOTION", "SIGNAL_STM_ENTRIES", "SIGNAL_TRANSIENT_GOAL",
     "SIGNAL_PERSISTENT_COMMITMENT", "SIGNAL_SPONTANEOUS_CANDIDATE",
     "SIGNAL_EXTERNAL_INPUT", "ALL_SIGNAL_KEYS",
+    # Behavioral Diversity Description (行動多様性の構造的記述)
+    "BehavioralDiversityConfig", "BehavioralDiversityState",
+    "DiversityRecord", "TypeCountLevel", "DispersionLevel",
+    "determine_type_count_level", "determine_dispersion_level",
+    "process_behavioral_diversity",
+    "read_section_key_types", "read_policy_label_types", "read_candidate_size_types",
+    "compose_diversity_record", "accumulate_diversity_record",
+    "get_latest_diversity_record", "get_diversity_record_history",
+    "get_diversity_summary",
+    "create_behavioral_diversity_state", "create_behavioral_diversity_config",
+    "save_behavioral_diversity_state", "load_behavioral_diversity_state",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

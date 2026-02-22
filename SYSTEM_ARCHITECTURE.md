@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-02-21
-総コード行数: ~130,000行
-総テスト数: 5,056テスト
+更新日: 2026-02-22
+総コード行数: ~133,000行
+総テスト数: 5,136テスト
 
 ---
 
@@ -66,8 +66,8 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 66 | 53,065 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 65 | 51,320 | 自動テストコード |
+| psyche/ | 67 | 53,729 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 66 | 52,313 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | tools/ | 2 | 418 | 長期シミュレーション等 |
 | ルート | 6 | 2,580 | コアシステム |
@@ -111,6 +111,7 @@
 | 13r | selection_attribution.py | 402 | テスト内 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙・安全弁5種） |
 | 13s | reference_frequency_description.py | 782 | テスト内 | 内省 | 参照頻度の構造的記述（12箇所横断読み取り・断面構成・集中度/偏在度記述・変動記述・FIFO断面履歴・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種） |
 | 13t | persistent_commitment.py | 1,037 | テスト内 | 目標 | 持続的取り組み保持（transient_goal昇格が唯一生成経路・複数並行保持・強度依存非線形減衰・慣性時間減衰・4解除条件・認知記録FIFO・資源競合・バイアス上限<VO・安全弁6種・自己強化ループ4重遮断） |
+| 13u | behavioral_diversity_description.py | 664 | テスト内 | 内省 | 行動多様性の構造的記述（3断面横断読み取り・結果断面キー種類数/選択ラベル種類数/候補群サイズ分散度・段階値列挙型・FIFO蓄積・enrichment直接露出遮断・頻度情報構造的排除・安全弁8種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -150,7 +151,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 3,500 | 54 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 54システム, save/load v25(50項目永続化), enrichment(5セクション/32項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 3,713 | 54 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 55システム, save/load v27(52項目永続化), enrichment(5セクション/32項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4036,7 +4037,22 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種: 全記録等価/パターン抽出禁止/enrichment直接露出遮断/忘却経路遮断/出力経路不拡張
 - orchestrator: Phase 15b（temporal_self_difference更新後・continuity_strain前）、save/load v26 (51フィールド)
 
+#### ㉙ 行動多様性の構造的記述 ✅完了
+
+- 設計書: design_behavioral_diversity_description.md
+- 討論結果: 短期適応→短期認知への問題再定義後、候補7（多様度記述）の方向性を条件付き推奨（discussion_short_term_adaptation_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_behavioral_diversity_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_behavioral_diversity_impl_fixation_20260222.md）
+- 行動結果観測構造と選択帰属構造の蓄積群から「種類数」のみを横断的にREAD-ONLY読み取りし、構造的多様性を記述する層
+- 入力源2つ: action_result_observation（結果断面キー種類数）、selection_attribution（ポリシーラベル種類数、候補群サイズ分散度）
+- 3段パイプライン: 読み取り→断面構成（3断面・段階値列挙型・全断面等価）→FIFO蓄積（上限30件）
+- 3断面: 結果断面キー種類数（TypeCountLevel）、選択ラベル種類数（TypeCountLevel）、候補群サイズ分散度（DispersionLevel）
+- 頻度情報の構造的排除: 「AがN回」ではなく「何種類あるか」の種類数のみ。出現回数は中間結果としても蓄積・出力しない
+- enrichment直接露出遮断（get_enrichment_data()メソッドを持たない）
+- 安全弁8種: 全記録等価/パターン抽出禁止/enrichment直接露出遮断/忘却経路遮断/想起経路遮断/頻度情報構造的不在/出力経路不拡張/既存モジュール安全弁維持保証
+- orchestrator: Phase 26c2（action_result_observation後・予期差分記録前）、save/load v27 (52フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~132,000行 / テスト数: 5,056*
+*総コード行数: ~133,000行 / テスト数: 5,136*

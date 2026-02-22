@@ -491,6 +491,15 @@ from .stabilization_description import (
     get_stabilization_summary,
 )
 
+# Behavioral diversity description (行動多様性の構造的記述)
+from .behavioral_diversity_description import (
+    BehavioralDiversityConfig,
+    BehavioralDiversityState,
+    process_behavioral_diversity,
+    create_behavioral_diversity_state,
+    get_diversity_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -760,6 +769,10 @@ class PsycheOrchestrator:
         # ── Stabilization description (安定化の構造的記述) ──
         self._stabilization_desc_state = create_stabilization_description_state()
         self._stabilization_desc_config = StabilizationDescriptionConfig()
+
+        # ── Behavioral diversity description (行動多様性の構造的記述) ──
+        self._behavioral_diversity_state = create_behavioral_diversity_state()
+        self._behavioral_diversity_config = BehavioralDiversityConfig()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1750,6 +1763,24 @@ class PsycheOrchestrator:
             self._last_action_result = self._action_result_observer.process(ar_inputs)
         except Exception as e:
             logger.debug("Action-result observation skipped: %s", e)
+
+        # Phase 26c2: behavioral_diversity_description — 行動多様性の構造的記述
+        # 行動結果観測構造（Phase 26c）と選択帰属構造の更新完了後に配置する。
+        # enrichmentへの直接露出を行わない（安全弁3）。
+        # 忘却パイプラインとの経路遮断（安全弁4）。
+        # 想起経路との経路遮断（安全弁5）。
+        # 出力先は内省系構造への参照情報のみに限定する（安全弁7）。
+        # 既存モジュールの安全弁を一切緩和しない（安全弁8）。
+        try:
+            self._behavioral_diversity_state = process_behavioral_diversity(
+                self._behavioral_diversity_state,
+                action_result_state=self._action_result_observer,
+                selection_attribution_state=self._selection_attribution_recorder,
+                tick=self._tick_count,
+                config=self._behavioral_diversity_config,
+            )
+        except Exception as e:
+            logger.debug("Behavioral diversity description skipped: %s", e)
 
         # Phase 26d: [C] action_result → expectation_formation 差分照合
         # 蓄積された行動-結果対と予期情報との差分を記録する。
@@ -3419,7 +3450,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 26,
+            "version": 27,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3493,6 +3524,8 @@ class PsycheOrchestrator:
             "persistent_commitment_state": self._persistent_commitment.state.to_dict() if self._persistent_commitment else {},
             # Version 26 fields
             "stabilization_description_state": self._stabilization_desc_state.to_dict() if self._stabilization_desc_state else {},
+            # Version 27 fields
+            "behavioral_diversity_state": self._behavioral_diversity_state.to_dict() if self._behavioral_diversity_state else {},
         }
 
         save_path.write_text(
@@ -3667,6 +3700,10 @@ class PsycheOrchestrator:
             # Version 26+ fields
             if data.get("stabilization_description_state"):
                 self._stabilization_desc_state = StabilizationDescriptionState.from_dict(data["stabilization_description_state"])
+
+            # Version 27+ fields
+            if data.get("behavioral_diversity_state"):
+                self._behavioral_diversity_state = BehavioralDiversityState.from_dict(data["behavioral_diversity_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

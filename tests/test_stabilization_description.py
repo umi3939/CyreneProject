@@ -1009,7 +1009,7 @@ class TestOrchestratorIntegration:
             (tmp_path / "psyche_snapshot.json").read_text(encoding="utf-8")
         )
         assert "stabilization_description_state" in data
-        assert data["version"] == 26
+        assert data["version"] >= 26
 
     def test_orchestrator_enrichment_does_not_contain_stabilization(self, tmp_path):
         """enrichment出力にstabilization_description の内容が含まれないことの確認。"""

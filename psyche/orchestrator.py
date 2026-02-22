@@ -427,6 +427,14 @@ from .multi_path_recall import (
     create_multi_path_recall,
 )
 
+# Spontaneous recall (記憶の自発的想起 - 非参照型想起)
+from .spontaneous_recall import (
+    SpontaneousRecallProcessor,
+    SpontaneousRecallState,
+    InternalEmotionSnapshot as SpontaneousRecallEmotionSnapshot,
+    create_spontaneous_recall,
+)
+
 # Introspection cross-section (内省断面間の横断的記述)
 from .introspection_cross_section import (
     IntrospectionCrossSectionProcessor,
@@ -745,6 +753,9 @@ class PsycheOrchestrator:
 
         # ── Multi-path recall (記憶の多経路想起) ──
         self._multi_path_recall = create_multi_path_recall()
+
+        # ── Spontaneous recall (記憶の自発的想起 - 非参照型想起) ──
+        self._spontaneous_recall = create_spontaneous_recall()
 
         # ── Introspection cross-section (内省断面間の横断的記述) ──
         self._introspection_cross_section = create_introspection_cross_section()
@@ -1496,6 +1507,76 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Multi-path recall skipped: %s", e)
+
+        # Phase 21e: spontaneous_recall — 記憶の自発的想起（非参照型想起）
+        # 外部入力(Percept)は一切参照しない。内部状態変動のみを契機とする。
+        # 出力はenrichment参照情報のみ。判断・行動・感情への逆流経路なし。
+        try:
+            sr_units: list = []
+            if self._last_integration_result is not None:
+                sr_units = list(self._last_integration_result.candidates)
+
+            # emotion_snapshot (現在の感情断面)
+            sr_emo_snap = SpontaneousRecallEmotionSnapshot()
+            try:
+                sr_active_emos = get_active_emotions(self._psyche.emotions)
+                sr_dominant_label = ""
+                sr_dominant_intensity = 0.0
+                for emo_name, emo_val in sr_active_emos:
+                    if emo_val > sr_dominant_intensity:
+                        sr_dominant_intensity = emo_val
+                        sr_dominant_label = emo_name
+                sr_emo_snap = SpontaneousRecallEmotionSnapshot(
+                    emotions={name: val for name, val in sr_active_emos},
+                    mood_valence=self._psyche.emotions.mood,
+                    dominant_emotion=sr_dominant_label,
+                )
+            except Exception:
+                pass
+
+            # binding_store
+            sr_binding_store = self._last_bindings
+
+            # forgetting_state
+            sr_forgetting_state = None
+            if self._forgetting_fixation_processor is not None:
+                sr_forgetting_state = self._forgetting_fixation_processor.state
+
+            # motive_store (内的動機)
+            sr_motive_store = self._last_motives
+
+            # strain_state (連続性の揺らぎ)
+            sr_strain_state = self._last_strain
+
+            # direction_vectors (方向ベクトル)
+            sr_direction_vectors = None
+            try:
+                if self._vector_gen is not None:
+                    sr_direction_vectors = self._vector_gen.state
+            except Exception:
+                pass
+
+            # temporal_snapshot (時間認知)
+            sr_temporal_snapshot = None
+            try:
+                if self._temporal_cognition is not None:
+                    sr_temporal_snapshot = self._temporal_cognition.get_enrichment_data()
+            except Exception:
+                pass
+
+            self._spontaneous_recall.process(
+                unified_units=sr_units,
+                binding_store=sr_binding_store,
+                forgetting_state=sr_forgetting_state,
+                emotion_snapshot=sr_emo_snap,
+                prev_emotion_snapshot=None,  # processor uses stored prev state
+                motive_store=sr_motive_store,
+                strain_state=sr_strain_state,
+                direction_vectors=sr_direction_vectors,
+                temporal_snapshot=sr_temporal_snapshot,
+            )
+        except Exception as e:
+            logger.debug("Spontaneous recall skipped: %s", e)
 
         # Phase 22: introspection_trace — 内省ログ生成
         try:
@@ -2331,6 +2412,25 @@ class PsycheOrchestrator:
                         if label:
                             memory_lines.append(
                                 f"  [{label}] 候補{count}件"
+                            )
+            except Exception:
+                pass
+        # #33 spontaneous_recall — 自発的想起候補の等価列挙（強調禁止・判断非接続）
+        if self._spontaneous_recall is not None:
+            try:
+                sr_data = self._spontaneous_recall.get_enrichment_data()
+                sr_text = sr_data.get("summary_text", "")
+                if sr_text and "待機中" not in sr_text:
+                    memory_lines.append(f"自発想起: {sr_text}")
+                # 経路ラベル付き候補を等価に列挙（強調・選別・要約なし）
+                sr_entries = sr_data.get("entries", [])
+                if sr_entries:
+                    for entry in sr_entries:
+                        path_label = entry.get("path", "")
+                        summary = entry.get("summary", "")[:40]
+                        if path_label or summary:
+                            memory_lines.append(
+                                f"  [{path_label}] {summary}"
                             )
             except Exception:
                 pass
@@ -3450,7 +3550,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 27,
+            "version": 28,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3526,6 +3626,8 @@ class PsycheOrchestrator:
             "stabilization_description_state": self._stabilization_desc_state.to_dict() if self._stabilization_desc_state else {},
             # Version 27 fields
             "behavioral_diversity_state": self._behavioral_diversity_state.to_dict() if self._behavioral_diversity_state else {},
+            # Version 28 fields
+            "spontaneous_recall_state": self._spontaneous_recall.state.to_dict() if self._spontaneous_recall else {},
         }
 
         save_path.write_text(
@@ -3704,6 +3806,10 @@ class PsycheOrchestrator:
             # Version 27+ fields
             if data.get("behavioral_diversity_state"):
                 self._behavioral_diversity_state = BehavioralDiversityState.from_dict(data["behavioral_diversity_state"])
+
+            # Version 28+ fields
+            if data.get("spontaneous_recall_state"):
+                self._spontaneous_recall.state = SpontaneousRecallState.from_dict(data["spontaneous_recall_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

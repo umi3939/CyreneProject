@@ -1256,6 +1256,21 @@ from .memory_forgetting_fixation import (
     create_forgetting_fixation_processor,
 )
 
+# Spontaneous Recall (記憶の自発的想起 - 非参照型想起)
+from .spontaneous_recall import (
+    SpontaneousRecallPathLabel,
+    SpontaneousRecallCandidate,
+    SpontaneousRecallPathStatistics,
+    InternalEmotionSnapshot as SpontaneousRecallEmotionSnapshot,
+    InternalStateCrossSections,
+    SpontaneousRecallState,
+    SpontaneousRecallConfig,
+    SpontaneousRecallProcessor,
+    extract_cross_sections as extract_recall_cross_sections,
+    get_spontaneous_recall_summary,
+    create_spontaneous_recall,
+)
+
 # Action Result Observation (行動-結果の観測と蓄積)
 from .action_result_observation import (
     ObservationSection,
@@ -1892,6 +1907,13 @@ __all__ = [
     "ForgettingFixationResult", "ForgettingFixationConfig",
     "MemoryForgettingFixationProcessor",
     "get_forgetting_fixation_summary", "create_forgetting_fixation_processor",
+    # Spontaneous Recall (記憶の自発的想起 - 非参照型想起)
+    "SpontaneousRecallPathLabel", "SpontaneousRecallCandidate",
+    "SpontaneousRecallPathStatistics", "SpontaneousRecallEmotionSnapshot",
+    "InternalStateCrossSections", "SpontaneousRecallState",
+    "SpontaneousRecallConfig", "SpontaneousRecallProcessor",
+    "extract_recall_cross_sections", "get_spontaneous_recall_summary",
+    "create_spontaneous_recall",
     # Action Result Observation (行動-結果の観測と蓄積)
     "ObservationSection", "ActionResultFreshnessStage",
     "PairStatus", "ActionResultConvergenceLevel",

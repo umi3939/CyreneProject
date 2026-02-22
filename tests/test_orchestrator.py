@@ -492,10 +492,12 @@ class TestPersistence:
             "emotional_backdrop_state",
             # v32
             "situational_self_presentation_state",
+            # v33
+            "drive_variation_state",
         ]
         for key in expected_keys:
             assert key in data, f"Missing save field: {key}"
-        assert data["version"] == 32
+        assert data["version"] == 33
 
     def test_roundtrip_json_match(self, tmp_path):
         """save → load → save で JSON が一致する（全フィールド復元確認）。
@@ -542,8 +544,9 @@ class TestPersistence:
         # 5) 既知の差異を除いた全フィールドで一致確認
         # meta_emotion_state: load時に apply_session_decay() が適用される
         # emotional_backdrop_state: load時に apply_session_decay() が適用される
+        # drive_variation_state: load時に apply_session_decay() が適用される
         # psyche.fear_index: from_dict が個別リスク値を復元しない制約
-        skip_keys = {"meta_emotion_state", "emotional_backdrop_state", "psyche"}
+        skip_keys = {"meta_emotion_state", "emotional_backdrop_state", "drive_variation_state", "psyche"}
         for key in json_a:
             if key in skip_keys:
                 continue
@@ -556,9 +559,10 @@ class TestPersistence:
         psyche_b = {k: v for k, v in json_b["psyche"].items() if k != "fear_index"}
         assert psyche_a == psyche_b, "Roundtrip mismatch on field 'psyche' (excluding fear_index)"
 
-        # 7) meta_emotion_state, emotional_backdrop_state は存在することだけ確認
+        # 7) meta_emotion_state, emotional_backdrop_state, drive_variation_state は存在することだけ確認
         assert "meta_emotion_state" in json_b
         assert "emotional_backdrop_state" in json_b
+        assert "drive_variation_state" in json_b
 
     def test_roundtrip_v5_system_states(self, tmp_path):
         """v5 システムステート（tendency/vector/candidate/transient_goal/stability）の復元。"""

@@ -530,6 +530,16 @@ from .emotional_backdrop_cognition import (
     get_backdrop_summary,
 )
 
+# Drive variation description (駆動の変動記述)
+from .drive_variation_description import (
+    DriveVariationProcessor,
+    DriveVariationInputs,
+    DriveVariationResult,
+    DriveVariationState,
+    create_drive_variation_processor,
+    get_drive_variation_summary,
+)
+
 # Stabilization description (安定化の構造的記述)
 from .stabilization_description import (
     StabilizationDescriptionConfig,
@@ -843,6 +853,10 @@ class PsycheOrchestrator:
         # ── Emotional backdrop cognition (感情基調の持続認知) ──
         self._emotional_backdrop_processor = create_emotional_backdrop_processor()
         self._last_backdrop_result: Optional[BackdropResult] = None
+
+        # ── Drive variation description (駆動の変動記述) ──
+        self._drive_variation_processor = create_drive_variation_processor()
+        self._last_drive_variation_result: Optional[DriveVariationResult] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1344,6 +1358,17 @@ class PsycheOrchestrator:
             self._introspection_longitudinal_view.process(ilv_snapshots)
         except Exception as e:
             logger.debug("Introspection longitudinal view skipped: %s", e)
+
+        # Phase 14i: drive_variation_description — 駆動の変動記述（3ティック毎）
+        # 駆動ベクトルの時間的推移をスライディングウィンドウで収集し、
+        # 窓内の構成を等価に列挙する記述構造。
+        # 駆動値・反応処理パラメータ・動機生成・ポリシー候補・感情パイプラインのパラメータを一切変更しない（READ-ONLY参照のみ）。
+        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
+        try:
+            dv_inputs = self._build_drive_variation_inputs()
+            self._last_drive_variation_result = self._drive_variation_processor.tick(dv_inputs)
+        except Exception as e:
+            logger.debug("Drive variation description skipped: %s", e)
 
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
@@ -2378,6 +2403,15 @@ class PsycheOrchestrator:
                 )
                 if sp_text and "待機中" not in sp_text:
                     motive_lines.append(f"自発起動: {sp_text}")
+            except Exception:
+                pass
+        # #39 drive_variation_description — 駆動の変動記述（数値列挙のみ・解釈禁止・駆動値変更禁止・恒常性強調遮断）
+        if self._drive_variation_processor is not None:
+            try:
+                dv_data = self._drive_variation_processor.get_enrichment_data()
+                dv_text = dv_data.get("summary_text", "")
+                if dv_text and "待機中" not in dv_text:
+                    motive_lines.append(f"駆動変動: {dv_text}")
             except Exception:
                 pass
         if len(motive_lines) > 1:
@@ -3776,6 +3810,85 @@ class PsycheOrchestrator:
             current_tick=self._tick_count,
         )
 
+    def _build_drive_variation_inputs(self) -> DriveVariationInputs:
+        """駆動の変動記述に必要な8断面の入力を構築する。
+
+        すべてREAD-ONLY参照。駆動値・反応処理パラメータ・動機生成・
+        ポリシー候補・感情パイプラインのパラメータを変更しない。
+        """
+        # 1. 駆動状態断面（駆動ベクトル全次元の値 — READ-ONLY）
+        drive_values = self._psyche.drives.as_dict()
+
+        # 2. 感情基調認知断面（窓サイズと低変動性警告のみ — READ-ONLY）
+        backdrop_window_size = 0
+        backdrop_low_variability = False
+        if self._last_backdrop_result is not None:
+            backdrop_window_size = self._last_backdrop_result.window_size
+            backdrop_low_variability = self._last_backdrop_result.low_variability_warning
+
+        # 3. メタ感情認知断面（推移特徴量の変化速度と支配安定度のみ — READ-ONLY）
+        meta_change_speed = 0.0
+        meta_dominant_stability = 0.0
+        if self._last_meta_emotion is not None:
+            try:
+                me_state = self._meta_emotion_processor.state
+                if me_state.cognition_history:
+                    last_rec = me_state.cognition_history[-1]
+                    if last_rec.transition_features:
+                        last_tf = last_rec.transition_features[-1]
+                        meta_change_speed = last_tf.change_speed
+                        meta_dominant_stability = last_tf.dominant_stability
+            except Exception:
+                pass
+
+        # 4. 蓄積鮮度断面（自己参照）
+        dv_state = self._drive_variation_processor.state
+        existing_record_count = len(dv_state.composition_records)
+        average_freshness = 0.0
+        if dv_state.composition_records:
+            average_freshness = sum(
+                r.freshness for r in dv_state.composition_records
+            ) / len(dv_state.composition_records)
+
+        # 5. 対話経過断面
+        dialogue_elapsed_ticks = self._tick_count
+
+        # 6. 時間認知断面（利用可能な場合のみ）
+        temporal_elapsed_description = ""
+        try:
+            if self._temporal_cognition is not None:
+                tc_state = self._temporal_cognition.state
+                if tc_state.elapsed_records:
+                    last_elapsed = tc_state.elapsed_records[-1]
+                    temporal_elapsed_description = last_elapsed.description or ""
+        except Exception:
+            pass
+
+        # 7. ムード断面（READ-ONLY）
+        mood_valence = self._psyche.mood.valence
+        mood_arousal = self._psyche.mood.arousal
+
+        # 8. 反応結果断面（直近の反応処理が駆動に対して行った更新の有無）
+        # 反応処理はpost_response_update内で毎回実行されるため、
+        # 3ティック周期帯では前回の反応が存在する
+        reaction_updated_drives = True  # 反応処理が実行されたティックかどうか
+
+        return DriveVariationInputs(
+            drive_values=drive_values,
+            backdrop_window_size=backdrop_window_size,
+            backdrop_low_variability=backdrop_low_variability,
+            meta_emotion_change_speed=meta_change_speed,
+            meta_emotion_dominant_stability=meta_dominant_stability,
+            existing_record_count=existing_record_count,
+            average_freshness=average_freshness,
+            dialogue_elapsed_ticks=dialogue_elapsed_ticks,
+            temporal_elapsed_description=temporal_elapsed_description,
+            mood_valence=mood_valence,
+            mood_arousal=mood_arousal,
+            reaction_updated_drives=reaction_updated_drives,
+            current_tick=self._tick_count,
+        )
+
     def select_policy_dict(
         self,
         percept: Percept,
@@ -3922,7 +4035,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 32,
+            "version": 33,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -4008,6 +4121,8 @@ class PsycheOrchestrator:
             "emotional_backdrop_state": self._emotional_backdrop_processor.save() if self._emotional_backdrop_processor else {},
             # Version 32 fields
             "situational_self_presentation_state": self._situational_self_presentation.state.to_dict() if self._situational_self_presentation else {},
+            # Version 33 fields
+            "drive_variation_state": self._drive_variation_processor.save() if self._drive_variation_processor else {},
         }
 
         save_path.write_text(
@@ -4208,6 +4323,11 @@ class PsycheOrchestrator:
             if data.get("situational_self_presentation_state"):
                 self._situational_self_presentation.state = SituationalSelfPresentationState.from_dict(data["situational_self_presentation_state"])
                 self._situational_self_presentation.state.apply_session_decay()
+
+            # Version 33+ fields
+            if data.get("drive_variation_state"):
+                self._drive_variation_processor.load(data["drive_variation_state"])
+                self._drive_variation_processor.state.apply_session_decay()
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

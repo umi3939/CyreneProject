@@ -1497,6 +1497,24 @@ from .situational_self_presentation import (
     create_situational_self_presentation_processor,
 )
 
+# Drive Variation Description (駆動の変動記述)
+from .drive_variation_description import (
+    InputSection as DriveVariationInputSection,
+    FreshnessStage as DriveVariationFreshnessStage,
+    ConvergenceLevel as DriveVariationConvergenceLevel,
+    WindowEntry as DriveVariationWindowEntry,
+    CompositionRecord as DriveVariationCompositionRecord,
+    DecayRecord as DriveVariationDecayRecord,
+    ConvergenceRecord as DriveVariationConvergenceRecord,
+    DriveVariationInputs,
+    DriveVariationState,
+    DriveVariationResult,
+    DriveVariationConfig,
+    DriveVariationProcessor,
+    get_drive_variation_summary,
+    create_drive_variation_processor,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -2084,6 +2102,13 @@ __all__ = [
     "SituationalSelfPresentationProcessor",
     "determine_presentation_type_count_level",
     "get_presentation_summary", "create_situational_self_presentation_processor",
+    # Drive Variation Description (駆動の変動記述)
+    "DriveVariationInputSection", "DriveVariationFreshnessStage", "DriveVariationConvergenceLevel",
+    "DriveVariationWindowEntry", "DriveVariationCompositionRecord",
+    "DriveVariationDecayRecord", "DriveVariationConvergenceRecord",
+    "DriveVariationInputs", "DriveVariationState", "DriveVariationResult", "DriveVariationConfig",
+    "DriveVariationProcessor",
+    "get_drive_variation_summary", "create_drive_variation_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

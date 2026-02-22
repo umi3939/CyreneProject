@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~147,000行
-総テスト数: 5,584テスト
+総コード行数: ~149,000行
+総テスト数: 5,697テスト
 
 ---
 
@@ -118,6 +118,7 @@
 | 13y | emotional_backdrop_cognition.py | 989 | テスト内 | 感情 | 感情基調の持続認知（4段パイプライン・スライディングウィンドウ・8断面入力・段階的鮮度減衰・等価列挙のみ・移動平均禁止・パターン判定禁止・安全弁5種・経路遮断5種） |
 | 13z | situational_self_presentation.py | 901 | テスト内 | 自己認知 | 状況依存的自己呈示の認知（3段パイプライン・相手別分離蓄積・種類数段階値・鮮度減衰・マッピング形成禁止・パターン抽出禁止・安全弁8種） |
 | 13aa | introspection_longitudinal_view.py | 506 | テスト内 | 内省 | 内省の時間的縦断参照（3段パイプライン・横断→縦断変換・独自状態なし・全断面等価・全時点等価・パターン抽出禁止・安全弁5種） |
+| 13ab | drive_variation_description.py | 1,079 | テスト内 | 駆動 | 駆動の変動記述（4段パイプライン・スライディングウィンドウ・8断面入力・段階的鮮度減衰・等価列挙のみ・移動平均禁止・安全弁5種・経路遮断6種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -157,7 +158,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,217 | 57 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 61システム, save/load v32(57項目永続化), enrichment(5セクション/38項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,337 | 58 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 62システム, save/load v33(58項目永続化), enrichment(5セクション/39項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4139,7 +4140,21 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種: パターン抽出禁止/全断面等価/全時点等価/独自状態蓄積禁止/書き込み経路遮断
 - orchestrator: Phase 14h（3ティック周期、introspection_cross_section後）、enrichment #38（記憶・内省セクション）
 
+#### ㊱ 駆動の変動記述 ✅完了
+
+- 設計書: design_drive_variation_description.md
+- 討論結果: 推奨（感情3層に対しdrivesゼロの構造的非対称性の解消、discussion_next_gaps_cycle2_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_drive_variation_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_drive_variation_impl_fixation_20260222.md）
+- DriveVector（curiosity/affiliation/autonomy/competence）の時間的推移をスライディングウィンドウで等価列挙する層
+- 入力8断面（全READ-ONLY）: 駆動状態、感情基調認知、メタ感情認知、蓄積鮮度、対話経過、時間認知、ムード、反応更新
+- 4段パイプライン: 駆動状態収集（スライディングウィンドウ）→窓内構成記述（等価列挙のみ・移動平均禁止・統合指標禁止）→蓄積処理（段階的鮮度減衰）→受渡準備
+- emotional_backdrop_cognitionとの構造的対称性: 感情基調は感情パイプライン観測、本機能は駆動ベクトル観測
+- 安全弁5種: 低変動性監視/蓄積偏り検出/enrichment出力量制限/収束監視/恒常性強調遮断
+- 経路遮断6種: 駆動値/反応パラメータ/動機生成入力/ポリシー拡張供給/感情パイプライン/記憶忘却パラメータ
+- orchestrator: Phase 14i（3ティック周期、emotional_backdrop_cognition後）、enrichment #39（動機・目標セクション）、save/load v33 (58フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~147,000行 / テスト数: 5,584*
+*総コード行数: ~149,000行 / テスト数: 5,697*

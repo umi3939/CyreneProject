@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~155,000行
-総テスト数: 5,949テスト
+総コード行数: ~159,000行
+総テスト数: 6,154テスト
 
 ---
 
@@ -122,6 +122,8 @@
 | 13ac | expectation_lifecycle_description.py | 904 | テスト内 | 予期 | 予期の成立・消失の事後記述（スナップショット比較・5状態遷移検出・FIFO蓄積・均一減衰・因果帰属禁止・統計量算出禁止・安全弁5種） |
 | 13ad | input_pathway_balance.py | 813 | テスト内 | 入力 | 入力経路間の均衡記述（3経路横断読み取り・窓内カウント・段階値列挙型・FIFO蓄積・規範なし事実記述・パターン抽出禁止・安全弁5種） |
 | 13ae | responsibility_temporal_trace.py | 653 | テスト内 | 責任 | 責任の時間的推移記述（スナップショット蓄積・段階値記述・FIFO・責任分散操作非介入・パターン抽出禁止・安全弁5種） |
+| 13af | emotion_cooccurrence_description.py | 745 | テスト内 | 感情 | 感情間の共起記述（同時存在事実記録・種類のみ・頻度記録禁止・評価的判定禁止・FIFO・安全弁5種） |
+| 13ag | other_boundary_accumulation.py | 1,043 | テスト内 | 他者認知 | 他者境界の多相蓄積（相手別分離・自他境界変動記述・FIFO・鮮度減衰・境界制御禁止・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -161,7 +163,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,495 | 61 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 65システム, save/load v36(61項目永続化), enrichment(5セクション/42項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,603 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 67システム, save/load v38(63項目永続化), enrichment(5セクション/44項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4190,7 +4192,27 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種
 - orchestrator: Phase 26g（5ティック周期、expectation_lifecycle後）、enrichment #42（責任セクション）、save/load v36 (61フィールド)
 
+#### ㊵ 感情間の共起記述 ✅完了
+
+- 設計書: design_emotion_cooccurrence_description.md
+- 討論結果: 条件付き推奨（複数感情の同時存在事実の記録構造が不在、discussion_next_gaps_cycle2_20260222.md）
+- 複数感情の同時存在（共起）の事実を記録する層。「どの感情同士が同時に高い値を持ったか」の種類のみを記録
+- 出現頻度の記録禁止、評価的判定禁止（「共起は異常」等の判定なし）
+- パターン抽出禁止、等価列挙、FIFO蓄積
+- 安全弁5種
+- orchestrator: Phase 14j（3ティック周期、drive_variation後）、enrichment #43（感情セクション）、save/load v37 (62フィールド)
+
+#### ㊶ 他者境界の多相蓄積 ✅完了
+
+- 設計書: design_other_boundary_accumulation.md
+- 討論結果: 条件付き推奨（相手別の自他境界推移蓄積が不在、discussion_next_gaps_cycle2_20260222.md）
+- other_agent_modelのSelfOtherBoundary（自他境界の乖離度）を相手別・時間軸で蓄積し変動を記述する層
+- other_model_dialogue_learningの相手別分離パターンに倣う
+- 境界の制御禁止（記述のみ）、パターン抽出禁止、等価列挙、FIFO、鮮度減衰
+- 安全弁5種
+- orchestrator: Phase 25e（5ティック周期、interaction_accumulation後）、enrichment #44（他者認知セクション）、save/load v38 (63フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~155,000行 / テスト数: 5,949*
+*総コード行数: ~159,000行 / テスト数: 6,154*

@@ -590,6 +590,24 @@ from .responsibility_temporal_trace import (
     get_trace_summary as get_responsibility_trace_summary,
 )
 
+# Emotion cooccurrence description (感情間の共起記述)
+from .emotion_cooccurrence_description import (
+    EmotionCooccurrenceDescriptionProcessor,
+    CooccurrenceState,
+    CooccurrenceResult,
+    create_cooccurrence_processor,
+    get_cooccurrence_summary,
+)
+
+# Other boundary accumulation (他者境界の多相蓄積)
+from .other_boundary_accumulation import (
+    OtherBoundaryAccumulationProcessor,
+    OtherBoundaryAccumulationState,
+    BoundaryAccumulationResult,
+    create_other_boundary_accumulation_processor,
+    get_boundary_accumulation_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -899,6 +917,14 @@ class PsycheOrchestrator:
 
         # ── Responsibility temporal trace (責任の時間的推移記述) ──
         self._responsibility_temporal_trace = create_responsibility_temporal_trace()
+
+        # ── Emotion cooccurrence description (感情間の共起記述) ──
+        self._emotion_cooccurrence_processor = create_cooccurrence_processor()
+        self._last_cooccurrence_result: Optional[CooccurrenceResult] = None
+
+        # ── Other boundary accumulation (他者境界の多相蓄積) ──
+        self._other_boundary_accumulation = create_other_boundary_accumulation_processor()
+        self._last_boundary_accumulation: Optional[BoundaryAccumulationResult] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1440,6 +1466,18 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Drive variation description skipped: %s", e)
 
+        # Phase 14j: emotion_cooccurrence_description — 感情間の共起記述（3ティック毎）
+        # 毎ティックにおいて同時に閾値以上で存在した感情の組み合わせを、
+        # 事実としてFIFOに等価蓄積する。
+        # 感情処理パイプラインのパラメータ（減衰率、振幅、ムード、連動設定）を一切変更しない（READ-ONLY参照のみ）。
+        # 出力は参照情報としてのみ流れる。判断・行動・責任・ポリシー選択に接続しない。
+        # 設計書: 実行位置は「感情処理パイプライン完了後」かつ「enrichment構築前」。
+        try:
+            emo_values = self._psyche.emotions.as_dict()
+            self._last_cooccurrence_result = self._emotion_cooccurrence_processor.tick(emo_values)
+        except Exception as e:
+            logger.debug("Emotion cooccurrence description skipped: %s", e)
+
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
             self._tick_count,
@@ -1942,6 +1980,24 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Interaction accumulation skipped: %s", e)
+
+        # Phase 25e: other_boundary_accumulation — 他者境界の多相蓄積
+        # other_agent_modelが前ティックで生成したSelfOtherBoundaryのリストを
+        # READ-ONLY参照し、相手別に蓄積する。境界の乖離度を制御・調整・最適化しない。
+        # 蓄積された推移からパターンを抽出しない。判断・行動選択に接続しない。
+        try:
+            oba_boundaries = []
+            if self._last_other_model is not None:
+                oba_boundaries = list(self._last_other_model.boundaries)
+            # 最新の境界情報（あれば1件）を蓄積対象とする
+            oba_boundary = oba_boundaries[-1] if oba_boundaries else None
+            self._last_boundary_accumulation = self._other_boundary_accumulation.tick(
+                boundary=oba_boundary,
+                user_id=user_id,
+                current_tick=self._tick_count,
+            )
+        except Exception as e:
+            logger.debug("Other boundary accumulation skipped: %s", e)
 
         # Phase 25: other_agent_model — 他者モデル仮説更新 (入力供給経由)
         try:
@@ -2624,6 +2680,17 @@ class PsycheOrchestrator:
                     memory_lines.append(f"他者蓄積: {dl_text}")
             except Exception:
                 pass
+        # #44 other_boundary_accumulation — 他者境界蓄積の段階値分布等価列挙（個別記録内容非露出・推移方向非記述・パターン抽出禁止・判断非接続）
+        if self._other_boundary_accumulation is not None:
+            try:
+                oba_data = self._other_boundary_accumulation.get_enrichment_data(
+                    user_id=user_id,
+                )
+                oba_text = oba_data.get("summary_text", "")
+                if oba_text and "待機中" not in oba_text:
+                    memory_lines.append(f"境界蓄積: {oba_text}")
+            except Exception:
+                pass
         # #23 meta_emotion_cognition
         if self._meta_emotion_processor is not None:
             try:
@@ -2788,6 +2855,33 @@ class PsycheOrchestrator:
                 eb_text = eb_data.get("summary_text", "")
                 if eb_text and "待機中" not in eb_text:
                     memory_lines.append(f"感情基調: {eb_text}")
+            except Exception:
+                pass
+        # #43 emotion_cooccurrence_description — 感情共起事実の等価列挙（数値列挙のみ・解釈禁止・頻度情報遮断・パイプラインパラメータ変更禁止・判断非接続）
+        if self._emotion_cooccurrence_processor is not None:
+            try:
+                ec_data = self._emotion_cooccurrence_processor.get_enrichment_data()
+                ec_text = ec_data.get("summary_text", "")
+                if ec_text and "待機中" not in ec_text:
+                    memory_lines.append(f"感情共起: {ec_text}")
+                # 直近記録を等価に列挙（強調・選別・要約・パターン名・傾向名・頻度情報なし）
+                ec_entries = ec_data.get("entries", [])
+                if ec_entries:
+                    for entry in ec_entries:
+                        if entry.get("no_cooccurrence"):
+                            memory_lines.append(
+                                f"  [tick={entry.get('tick', '?')}] 共起なし"
+                            )
+                        else:
+                            pairs = entry.get("pairs", [])
+                            pair_strs = [
+                                f"{p['a']}={p['va']:.3f},{p['b']}={p['vb']:.3f}"
+                                for p in pairs
+                            ]
+                            if pair_strs:
+                                memory_lines.append(
+                                    f"  [tick={entry.get('tick', '?')}] {'; '.join(pair_strs)}"
+                                )
             except Exception:
                 pass
         # #41 input_pathway_balance — 入力経路均衡記述（段階値の等価列挙のみ・件数非露出・比率非露出・順位非露出・評価的語彙禁止・経路選択遮断・判断層遮断）
@@ -4175,7 +4269,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 36,
+            "version": 38,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -4269,6 +4363,10 @@ class PsycheOrchestrator:
             "input_pathway_balance_state": save_input_pathway_balance_state(self._input_pathway_balance_state) if self._input_pathway_balance_state else {},
             # Version 36 fields
             "responsibility_temporal_trace_state": self._responsibility_temporal_trace.save() if self._responsibility_temporal_trace else {},
+            # Version 37 fields
+            "emotion_cooccurrence_state": self._emotion_cooccurrence_processor.save() if self._emotion_cooccurrence_processor else {},
+            # Version 38 fields
+            "other_boundary_accumulation_state": self._other_boundary_accumulation.state.to_dict() if self._other_boundary_accumulation else {},
         }
 
         save_path.write_text(
@@ -4486,6 +4584,16 @@ class PsycheOrchestrator:
             # Version 36+ fields
             if data.get("responsibility_temporal_trace_state"):
                 self._responsibility_temporal_trace.load(data["responsibility_temporal_trace_state"])
+
+            # Version 37+ fields
+            if data.get("emotion_cooccurrence_state"):
+                self._emotion_cooccurrence_processor.load(data["emotion_cooccurrence_state"])
+                self._emotion_cooccurrence_processor.state.apply_session_decay()
+
+            # Version 38+ fields
+            if data.get("other_boundary_accumulation_state"):
+                self._other_boundary_accumulation._state = OtherBoundaryAccumulationState.from_dict(data["other_boundary_accumulation_state"])
+                self._other_boundary_accumulation.state.apply_session_decay()
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

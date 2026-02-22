@@ -1600,6 +1600,36 @@ from .responsibility_temporal_trace import (
     VARIATION_LABELS,
 )
 
+# Other Boundary Accumulation (他者境界の多相蓄積)
+from .other_boundary_accumulation import (
+    FreshnessStage as BoundaryFreshnessStage,
+    DivergenceLevel,
+    ConvergenceLevel as BoundaryConvergenceLevel,
+    BoundaryRecord,
+    ConvergenceRecord as BoundaryConvergenceRecord,
+    OtherBoundaryAccumulationState,
+    BoundaryAccumulationResult,
+    OtherBoundaryAccumulationConfig,
+    OtherBoundaryAccumulationProcessor,
+    determine_divergence_level,
+    get_boundary_accumulation_summary,
+    create_other_boundary_accumulation_processor,
+)
+
+# Emotion cooccurrence description (感情間の共起記述)
+from .emotion_cooccurrence_description import (
+    FreshnessStage as CooccurrenceFreshnessStage,
+    DiversityLevel as CooccurrenceDiversityLevel,
+    CooccurrencePair,
+    CooccurrenceRecord,
+    CooccurrenceState,
+    CooccurrenceResult,
+    CooccurrenceConfig,
+    EmotionCooccurrenceDescriptionProcessor,
+    get_cooccurrence_summary,
+    create_cooccurrence_processor,
+)
+
 # Orchestrator (全モジュール統合管理)
 from .orchestrator import PsycheOrchestrator
 
@@ -2209,6 +2239,19 @@ __all__ = [
     "SECTION_HARM_VARIATION", "SECTION_CONFIDENCE_VARIATION",
     "SECTION_DISPERSION_ACTIVITY_DENSITY",
     "RESPONSIBILITY_TRACE_SECTION_LABELS", "VARIATION_LABELS",
+    # Other Boundary Accumulation (他者境界の多相蓄積)
+    "BoundaryFreshnessStage", "DivergenceLevel", "BoundaryConvergenceLevel",
+    "BoundaryRecord", "BoundaryConvergenceRecord",
+    "OtherBoundaryAccumulationState", "BoundaryAccumulationResult",
+    "OtherBoundaryAccumulationConfig", "OtherBoundaryAccumulationProcessor",
+    "determine_divergence_level",
+    "get_boundary_accumulation_summary", "create_other_boundary_accumulation_processor",
+    # Emotion cooccurrence description (感情間の共起記述)
+    "CooccurrenceFreshnessStage", "CooccurrenceDiversityLevel",
+    "CooccurrencePair", "CooccurrenceRecord",
+    "CooccurrenceState", "CooccurrenceResult", "CooccurrenceConfig",
+    "EmotionCooccurrenceDescriptionProcessor",
+    "get_cooccurrence_summary", "create_cooccurrence_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

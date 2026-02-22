@@ -504,10 +504,14 @@ class TestPersistence:
             "emotion_cooccurrence_state",
             # v38
             "other_boundary_accumulation_state",
+            # v39
+            "forgetting_recall_balance_state",
+            # v40
+            "attention_distribution_state",
         ]
         for key in expected_keys:
             assert key in data, f"Missing save field: {key}"
-        assert data["version"] == 38
+        assert data["version"] == 40
 
     def test_roundtrip_json_match(self, tmp_path):
         """save → load → save で JSON が一致する（全フィールド復元確認）。
@@ -1283,3 +1287,131 @@ class TestSmokeFullPipeline:
 
         policy = orch3.select_policy_dict(percept, [])
         assert isinstance(policy, dict)
+
+
+class TestForgettingRecallBalanceIntegration:
+    """Phase 21f: forgetting_recall_balance orchestrator integration tests."""
+
+    def test_frb_state_initialized(self, tmp_path):
+        """Orchestrator初期化時に_frb_stateが生成される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        assert orch._frb_state is not None
+        assert orch._frb_config is not None
+
+    def test_frb_state_after_5_ticks(self, tmp_path):
+        """5ティック後にPhase 21fが実行されfrb_stateが更新される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        for i in range(5):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral"][i % 3],
+                valence=[0.7, -0.6, 0.0][i % 3],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+        # cycle_count should have incremented (Phase 21f runs on 5-tick cycle)
+        assert orch._frb_state.cycle_count >= 1
+
+    def test_frb_enrichment_in_prompt(self, tmp_path):
+        """enrichmentに忘却想起均衡の記述が含まれうる。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        for i in range(10):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral", "angry", "surprised"][i % 5],
+                valence=[0.7, -0.6, 0.0, -0.5, 0.3][i % 5],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+        enrichment = orch.get_prompt_enrichment()
+        # enrichmentが文字列で生成され、エラーなし
+        assert isinstance(enrichment, str)
+
+    def test_frb_save_load_roundtrip(self, tmp_path):
+        """save/loadでfrb_stateが復元される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        for i in range(10):
+            p = _make_percept(
+                emotion=["happy", "sad"][i % 2],
+                valence=[0.7, -0.6][i % 2],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+        orch.save()
+
+        data = json.loads(
+            (tmp_path / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+        assert "forgetting_recall_balance_state" in data
+
+        orch2 = PsycheOrchestrator(data_dir=tmp_path)
+        orch2.load()
+        # cycle_count should be restored
+        assert orch2._frb_state.cycle_count == orch._frb_state.cycle_count
+
+    def test_frb_no_error_without_dependencies(self, tmp_path):
+        """依存モジュール未初期化でもPhase 21fはスキップされエラーにならない。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        # 1ティックだけ実行しても例外なし
+        p = _make_percept()
+        orch.post_response_update(p, delta_time=1.0)
+        assert orch._frb_state is not None
+
+
+class TestAttentionDistributionIntegration:
+    """Phase 7f: attention_distribution_description orchestrator integration tests."""
+
+    def test_att_dist_state_initialized(self, tmp_path):
+        """Orchestrator初期化時に_att_dist_stateが生成される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        assert orch._att_dist_state is not None
+        assert orch._att_dist_config is not None
+
+    def test_att_dist_state_after_ticks(self, tmp_path):
+        """ティック実行後にPhase 7fが実行されatt_dist_stateが更新される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        for i in range(3):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral"][i % 3],
+                valence=[0.7, -0.6, 0.0][i % 3],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+        # snapshot_history should have entries (Phase 7f runs every tick)
+        assert orch._att_dist_state.total_snapshots_generated >= 1
+
+    def test_att_dist_enrichment_in_prompt(self, tmp_path):
+        """enrichmentに注意配分の記述が含まれうる。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        for i in range(5):
+            p = _make_percept(
+                emotion=["happy", "sad", "neutral", "angry", "surprised"][i % 5],
+                valence=[0.7, -0.6, 0.0, -0.5, 0.3][i % 5],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+        enrichment = orch.get_prompt_enrichment()
+        # enrichmentが文字列で生成され、エラーなし
+        assert isinstance(enrichment, str)
+
+    def test_att_dist_save_load_roundtrip(self, tmp_path):
+        """save/loadでatt_dist_stateが復元される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        for i in range(5):
+            p = _make_percept(
+                emotion=["happy", "sad"][i % 2],
+                valence=[0.7, -0.6][i % 2],
+            )
+            orch.post_response_update(p, delta_time=1.0)
+        orch.save()
+
+        data = json.loads(
+            (tmp_path / "psyche_snapshot.json").read_text(encoding="utf-8")
+        )
+        assert "attention_distribution_state" in data
+
+        orch2 = PsycheOrchestrator(data_dir=tmp_path)
+        orch2.load()
+        # total_snapshots_generated should be restored
+        assert orch2._att_dist_state.total_snapshots_generated == orch._att_dist_state.total_snapshots_generated
+
+    def test_att_dist_no_error_without_dependencies(self, tmp_path):
+        """依存モジュール未初期化でもPhase 7fはスキップされエラーにならない。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        # 1ティックだけ実行しても例外なし
+        p = _make_percept()
+        orch.post_response_update(p, delta_time=1.0)
+        assert orch._att_dist_state is not None

@@ -1,14 +1,14 @@
 {
   "viewer": {
     "total_weight": 0.0,
-    "pending_decisions": 41696,
+    "pending_decisions": 53697,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-22T18:56:46",
+    "last_updated": "2026-02-23T03:09:27",
     "recent_decisions": [
       {
-        "id": "575ff49ada59",
-        "timestamp": "2026-02-22T18:56:45",
+        "id": "c90f4dcefc5a",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -19,8 +19,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "29278f9581ec",
-        "timestamp": "2026-02-22T18:56:45",
+        "id": "615212e52c09",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "sad",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -31,8 +31,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "5ed6b6dffa43",
-        "timestamp": "2026-02-22T18:56:45",
+        "id": "2f29d06f7707",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "angry",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -43,8 +43,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "6134031bf2ba",
-        "timestamp": "2026-02-22T18:56:45",
+        "id": "5be8341a081c",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "neutral",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -55,8 +55,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d8955799cf06",
-        "timestamp": "2026-02-22T18:56:45",
+        "id": "61b6f1fbe4ab",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "surprised",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -67,8 +67,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "5dd56cb5b7ac",
-        "timestamp": "2026-02-22T18:56:45",
+        "id": "90a98badc92f",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "loving",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -79,8 +79,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a817e389dbea",
-        "timestamp": "2026-02-22T18:56:45",
+        "id": "f294343e8fcf",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "teasing",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -91,8 +91,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "fc03934eaeb8",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "2436d2b8c926",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "scared",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -103,8 +103,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "30d39dd66d72",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "48db263d5e4a",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -115,8 +115,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "9ae8f4291f0b",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "e90f8b1da619",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "neutral",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -127,8 +127,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "c783bd80773d",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "cb59d03ae52b",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -139,8 +139,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "64c838e08f8b",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "669e5c47af48",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "sad",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -151,8 +151,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a3d26b7183a7",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "340bbcae6078",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "angry",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -163,8 +163,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "1aa4386017b3",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "5e4a5334dc90",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "neutral",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -175,8 +175,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "eb63a33d851b",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "a37545fd4049",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "surprised",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -187,8 +187,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "30b5992fcece",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "1c53f36b3696",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "loving",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -199,8 +199,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "9a68ab2c795a",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "a3d2412d183a",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "teasing",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -211,8 +211,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "7b43fd8f4a8c",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "9f0b3f43c57f",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "scared",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -223,8 +223,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "cb39d9752d06",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "d7986bd30e7e",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -235,8 +235,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "b1bc463cb47d",
-        "timestamp": "2026-02-22T18:56:46",
+        "id": "c6261537568a",
+        "timestamp": "2026-02-23T03:09:27",
         "policy_label": "neutral",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -250,14 +250,14 @@
   },
   "user_a": {
     "total_weight": 0.0,
-    "pending_decisions": 164,
+    "pending_decisions": 190,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-22T18:56:40",
+    "last_updated": "2026-02-23T03:09:22",
     "recent_decisions": [
       {
-        "id": "d335493d3d4d",
-        "timestamp": "2026-02-22T14:47:10",
+        "id": "26bec05b4f5d",
+        "timestamp": "2026-02-22T20:54:24",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -268,8 +268,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "8d99002d9123",
-        "timestamp": "2026-02-22T15:04:28",
+        "id": "eff3e73f96c2",
+        "timestamp": "2026-02-22T20:55:21",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -280,8 +280,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "c3b352e5883e",
-        "timestamp": "2026-02-22T15:06:49",
+        "id": "62ac8897b40b",
+        "timestamp": "2026-02-22T21:24:14",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -292,8 +292,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "054cf13c4908",
-        "timestamp": "2026-02-22T16:52:54",
+        "id": "26d98e2467e3",
+        "timestamp": "2026-02-22T21:24:33",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -304,8 +304,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "17195b5857a6",
-        "timestamp": "2026-02-22T16:53:11",
+        "id": "33fbe4bc4525",
+        "timestamp": "2026-02-22T21:25:32",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -316,8 +316,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "276006fadec9",
-        "timestamp": "2026-02-22T16:53:56",
+        "id": "05634231f094",
+        "timestamp": "2026-02-22T21:59:12",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -328,8 +328,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "cc162ac1194d",
-        "timestamp": "2026-02-22T16:54:56",
+        "id": "374f3240e496",
+        "timestamp": "2026-02-22T21:59:55",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -340,8 +340,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "22170b8e8c48",
-        "timestamp": "2026-02-22T16:55:15",
+        "id": "b9840bcab1fb",
+        "timestamp": "2026-02-22T23:08:14",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -352,8 +352,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "ae523541d131",
-        "timestamp": "2026-02-22T17:53:43",
+        "id": "41dd822827fd",
+        "timestamp": "2026-02-22T23:08:33",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -364,8 +364,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "fa19f30154bd",
-        "timestamp": "2026-02-22T17:55:07",
+        "id": "080e71f828b0",
+        "timestamp": "2026-02-22T23:09:25",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -376,8 +376,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "f15613125aa5",
-        "timestamp": "2026-02-22T17:55:53",
+        "id": "1e75ac11627f",
+        "timestamp": "2026-02-22T23:14:37",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -388,8 +388,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "e499597332bf",
-        "timestamp": "2026-02-22T17:56:08",
+        "id": "bc3aa3c74189",
+        "timestamp": "2026-02-22T23:15:25",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -400,8 +400,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "e22b8a4f1844",
-        "timestamp": "2026-02-22T18:35:31",
+        "id": "2c81dd74fbcf",
+        "timestamp": "2026-02-22T23:41:19",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -412,8 +412,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "0c77b070ec66",
-        "timestamp": "2026-02-22T18:35:49",
+        "id": "7aa56b843794",
+        "timestamp": "2026-02-22T23:41:35",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -424,8 +424,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "55c358b51f35",
-        "timestamp": "2026-02-22T18:36:37",
+        "id": "0621cd8c518f",
+        "timestamp": "2026-02-22T23:42:19",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -436,8 +436,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "af1c6d7b2a3f",
-        "timestamp": "2026-02-22T18:36:54",
+        "id": "dc51ec095d11",
+        "timestamp": "2026-02-22T23:46:51",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -448,8 +448,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "c57e36e6801e",
-        "timestamp": "2026-02-22T18:41:06",
+        "id": "19ac24269e04",
+        "timestamp": "2026-02-23T03:03:09",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -460,8 +460,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d631df9ed632",
-        "timestamp": "2026-02-22T18:55:01",
+        "id": "f08ffb06c228",
+        "timestamp": "2026-02-23T03:03:29",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -472,8 +472,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "15f303cdb1fd",
-        "timestamp": "2026-02-22T18:55:18",
+        "id": "d04ef5b38da0",
+        "timestamp": "2026-02-23T03:04:32",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -484,8 +484,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "2302a4912b68",
-        "timestamp": "2026-02-22T18:56:40",
+        "id": "4a3f735fa5dc",
+        "timestamp": "2026-02-23T03:09:22",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -499,14 +499,14 @@
   },
   "user_b": {
     "total_weight": 0.0,
-    "pending_decisions": 164,
+    "pending_decisions": 190,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-22T18:56:40",
+    "last_updated": "2026-02-23T03:09:22",
     "recent_decisions": [
       {
-        "id": "a40cf3863007",
-        "timestamp": "2026-02-22T14:47:10",
+        "id": "fb500fa6bf1e",
+        "timestamp": "2026-02-22T20:54:24",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -517,8 +517,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "626eaae1e6b1",
-        "timestamp": "2026-02-22T15:04:28",
+        "id": "5cc6be476e30",
+        "timestamp": "2026-02-22T20:55:21",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -529,8 +529,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "c102cdc022ac",
-        "timestamp": "2026-02-22T15:06:49",
+        "id": "09907cc05722",
+        "timestamp": "2026-02-22T21:24:14",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -541,8 +541,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d490ee9e5d68",
-        "timestamp": "2026-02-22T16:52:54",
+        "id": "a97d18817aa3",
+        "timestamp": "2026-02-22T21:24:33",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -553,8 +553,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "52a33c5c0bd3",
-        "timestamp": "2026-02-22T16:53:11",
+        "id": "f2718d8207d8",
+        "timestamp": "2026-02-22T21:25:32",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -565,8 +565,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "69ab4912fe84",
-        "timestamp": "2026-02-22T16:53:56",
+        "id": "0063ad7bdf5c",
+        "timestamp": "2026-02-22T21:59:12",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -577,8 +577,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "8bda0488a029",
-        "timestamp": "2026-02-22T16:54:56",
+        "id": "7da4c2bbb6fd",
+        "timestamp": "2026-02-22T21:59:55",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -589,8 +589,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "e59da0a92cfa",
-        "timestamp": "2026-02-22T16:55:15",
+        "id": "7bc6910cdecb",
+        "timestamp": "2026-02-22T23:08:14",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -601,8 +601,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "4b705e06987a",
-        "timestamp": "2026-02-22T17:53:43",
+        "id": "c329fab8e0a1",
+        "timestamp": "2026-02-22T23:08:33",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -613,8 +613,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "cc8d948e8bbd",
-        "timestamp": "2026-02-22T17:55:07",
+        "id": "fe9d89b3ef1c",
+        "timestamp": "2026-02-22T23:09:25",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -625,8 +625,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "77d558146c76",
-        "timestamp": "2026-02-22T17:55:53",
+        "id": "51c709977ae5",
+        "timestamp": "2026-02-22T23:14:37",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -637,8 +637,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a856642df06b",
-        "timestamp": "2026-02-22T17:56:08",
+        "id": "ff74ab0a216c",
+        "timestamp": "2026-02-22T23:15:25",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -649,8 +649,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a1c2c63ee54d",
-        "timestamp": "2026-02-22T18:35:31",
+        "id": "09dc4a8983f7",
+        "timestamp": "2026-02-22T23:41:19",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -661,8 +661,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "08b3a3e1f665",
-        "timestamp": "2026-02-22T18:35:49",
+        "id": "37e9b2ab60a5",
+        "timestamp": "2026-02-22T23:41:35",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -673,8 +673,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "7fca40768461",
-        "timestamp": "2026-02-22T18:36:37",
+        "id": "d250e0ca564c",
+        "timestamp": "2026-02-22T23:42:19",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -685,8 +685,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "b28713e0d79d",
-        "timestamp": "2026-02-22T18:36:54",
+        "id": "86f20852ff0f",
+        "timestamp": "2026-02-22T23:46:51",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -697,8 +697,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "f84d14e5f2f0",
-        "timestamp": "2026-02-22T18:41:06",
+        "id": "442184b5b157",
+        "timestamp": "2026-02-23T03:03:09",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -709,8 +709,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a90b4487ea4f",
-        "timestamp": "2026-02-22T18:55:01",
+        "id": "c6951c545200",
+        "timestamp": "2026-02-23T03:03:29",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -721,8 +721,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "abbf2ff2b2d2",
-        "timestamp": "2026-02-22T18:55:18",
+        "id": "6aa6ffbd1ff6",
+        "timestamp": "2026-02-23T03:04:32",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -733,8 +733,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "de9b5c9c2226",
-        "timestamp": "2026-02-22T18:56:40",
+        "id": "ee6cea39f93a",
+        "timestamp": "2026-02-23T03:09:22",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -751,11 +751,11 @@
     "pending_decisions": 1,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 1.0,
-    "last_updated": "2026-02-22T18:56:34",
+    "last_updated": "2026-02-23T03:09:15",
     "recent_decisions": [
       {
-        "id": "bffb81aae28a",
-        "timestamp": "2026-02-22T18:35:43",
+        "id": "bc266cbaff32",
+        "timestamp": "2026-02-22T23:41:30",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -766,8 +766,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "3ad6bd53ed04",
-        "timestamp": "2026-02-22T18:35:43",
+        "id": "eb1bbbf5a8cd",
+        "timestamp": "2026-02-22T23:41:30",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -778,8 +778,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "106e89a663c9",
-        "timestamp": "2026-02-22T18:36:48",
+        "id": "7cb039adb09e",
+        "timestamp": "2026-02-22T23:46:46",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -790,8 +790,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "32dd9867ea7e",
-        "timestamp": "2026-02-22T18:36:48",
+        "id": "b306fd0d3713",
+        "timestamp": "2026-02-22T23:46:46",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -802,8 +802,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "7b69d37b5547",
-        "timestamp": "2026-02-22T18:36:48",
+        "id": "75f3563e1c22",
+        "timestamp": "2026-02-22T23:46:46",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -814,8 +814,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "350a89cd98fb",
-        "timestamp": "2026-02-22T18:36:48",
+        "id": "7dd7483a238e",
+        "timestamp": "2026-02-22T23:46:46",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -826,8 +826,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "6db7b0d787c8",
-        "timestamp": "2026-02-22T18:36:48",
+        "id": "3b94dfe92ae3",
+        "timestamp": "2026-02-22T23:46:46",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -838,8 +838,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "68ea6ceb6f54",
-        "timestamp": "2026-02-22T18:36:48",
+        "id": "f1d35e40fb1c",
+        "timestamp": "2026-02-22T23:46:46",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -850,8 +850,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "b545091c680d",
-        "timestamp": "2026-02-22T18:55:12",
+        "id": "21d07d7fc092",
+        "timestamp": "2026-02-23T03:03:22",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -862,8 +862,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "b318aa0da5d2",
-        "timestamp": "2026-02-22T18:55:12",
+        "id": "38d9ab9bc85a",
+        "timestamp": "2026-02-23T03:03:22",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -874,8 +874,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "fd2e1a6f32c3",
-        "timestamp": "2026-02-22T18:55:12",
+        "id": "6a212a7ea0dc",
+        "timestamp": "2026-02-23T03:03:22",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -886,8 +886,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "b862d419310c",
-        "timestamp": "2026-02-22T18:55:12",
+        "id": "579dab68947a",
+        "timestamp": "2026-02-23T03:03:22",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -898,8 +898,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "192254a87e63",
-        "timestamp": "2026-02-22T18:55:12",
+        "id": "784fa2023b89",
+        "timestamp": "2026-02-23T03:03:22",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -910,8 +910,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "95b9acc89c4b",
-        "timestamp": "2026-02-22T18:55:12",
+        "id": "b9b50afc5d1e",
+        "timestamp": "2026-02-23T03:03:22",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -922,8 +922,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "c98ca457abef",
-        "timestamp": "2026-02-22T18:56:34",
+        "id": "77e59f6ad47c",
+        "timestamp": "2026-02-23T03:09:15",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -934,8 +934,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "c2b37f80e032",
-        "timestamp": "2026-02-22T18:56:34",
+        "id": "2198487b6c0a",
+        "timestamp": "2026-02-23T03:09:15",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -946,8 +946,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "70a82d31c8a5",
-        "timestamp": "2026-02-22T18:56:34",
+        "id": "757b6dead773",
+        "timestamp": "2026-02-23T03:09:15",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -958,8 +958,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "e9887d71425c",
-        "timestamp": "2026-02-22T18:56:34",
+        "id": "ab3df86b7b3c",
+        "timestamp": "2026-02-23T03:09:15",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -970,8 +970,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d3e64fd2b624",
-        "timestamp": "2026-02-22T18:56:34",
+        "id": "9b12cba17d9d",
+        "timestamp": "2026-02-23T03:09:15",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -982,8 +982,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "9a127e0df958",
-        "timestamp": "2026-02-22T18:56:34",
+        "id": "13db7bd44354",
+        "timestamp": "2026-02-23T03:09:15",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",

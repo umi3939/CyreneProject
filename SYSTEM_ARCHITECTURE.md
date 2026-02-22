@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~159,000行
-総テスト数: 6,154テスト
+総コード行数: ~163,000行
+総テスト数: 6,336テスト
 
 ---
 
@@ -124,6 +124,8 @@
 | 13ae | responsibility_temporal_trace.py | 653 | テスト内 | 責任 | 責任の時間的推移記述（スナップショット蓄積・段階値記述・FIFO・責任分散操作非介入・パターン抽出禁止・安全弁5種） |
 | 13af | emotion_cooccurrence_description.py | 745 | テスト内 | 感情 | 感情間の共起記述（同時存在事実記録・種類のみ・頻度記録禁止・評価的判定禁止・FIFO・安全弁5種） |
 | 13ag | other_boundary_accumulation.py | 1,043 | テスト内 | 他者認知 | 他者境界の多相蓄積（相手別分離・自他境界変動記述・FIFO・鮮度減衰・境界制御禁止・安全弁5種） |
+| 13ah | forgetting_recall_balance.py | 729 | テスト内 | 記憶 | 忘却と想起の均衡記述（忘却速度/想起頻度の事実記述・窓内カウント・規範なし・パラメータ非介入・安全弁5種） |
+| 13ai | attention_distribution_description.py | 920 | テスト内 | 自己認知 | 注意配分の構造的記述（処理帯域集中/分散記述・横断読み取り・段階値・FIFO・帯域制御禁止・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -163,7 +165,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,603 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 67システム, save/load v38(63項目永続化), enrichment(5セクション/44項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,734 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 69システム, save/load v40(65項目永続化), enrichment(5セクション/46項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4212,7 +4214,26 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種
 - orchestrator: Phase 25e（5ティック周期、interaction_accumulation後）、enrichment #44（他者認知セクション）、save/load v38 (63フィールド)
 
+#### ㊷ 忘却と想起の均衡記述 ✅完了
+
+- 設計書: design_forgetting_recall_balance.md
+- 討論結果: 条件付き推奨（忘却と想起の均衡の事後認知が不在、discussion_next_gaps_cycle2_20260222.md）
+- memory_forgetting_fixation（忘却速度）とmulti_path_recall/spontaneous_recall（想起頻度）の稼働実績を窓内カウントで事実記述する層
+- 窓内カウント方式（単方向累積禁止）、段階値列挙型
+- 「均衡すべき」という規範なし — 事実記述のみ。忘却/想起パラメータへの書き込み経路遮断
+- 安全弁5種: 蓄積上限/窓サイズ固定/収束監視/enrichment出力量制限/段階値更新制限
+- orchestrator: Phase 21f（5ティック周期、memory_forgetting_fixation後）、enrichment #45（記憶セクション）、save/load v39 (64フィールド)
+
+#### ㊸ 注意配分の構造的記述 ✅完了
+
+- 設計書: design_attention_distribution_description.md
+- 討論結果: 条件付き推奨（処理帯域の集中/分散の認知構造が不在、discussion_next_gaps_cycle2_20260222.md）
+- orchestratorの各Phase処理時間・入力経路使用パターンから処理帯域の集中度/分散度を横断読み取りで記述する層
+- 段階値列挙型、FIFO蓄積、帯域制御禁止（記述のみ）
+- 安全弁5種: 蓄積上限/窓サイズ固定/収束監視/enrichment出力量制限/段階値更新制限
+- orchestrator: Phase 7f（毎ティック、input_pathway_balance後）、enrichment #46（自己認知セクション）、save/load v40 (65フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~159,000行 / テスト数: 6,154*
+*総コード行数: ~163,000行 / テスト数: 6,336*

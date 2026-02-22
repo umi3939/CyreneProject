@@ -608,6 +608,28 @@ from .other_boundary_accumulation import (
     get_boundary_accumulation_summary,
 )
 
+# Forgetting-recall balance (忘却と想起の均衡記述)
+from .forgetting_recall_balance import (
+    ForgettingRecallBalanceConfig,
+    ForgettingRecallBalanceState,
+    process_forgetting_recall_balance,
+    get_enrichment_text as get_frb_enrichment_text,
+    save_state as save_frb_state,
+    load_state as load_frb_state,
+    create_forgetting_recall_balance_state,
+)
+
+# Attention distribution description (注意配分の構造的記述)
+from .attention_distribution_description import (
+    AttentionDistributionConfig as AttDistConfig,
+    AttentionDistributionState as AttDistState,
+    process_attention_distribution,
+    get_enrichment_text as get_att_dist_enrichment_text,
+    save_state as save_att_dist_state,
+    load_state as load_att_dist_state,
+    create_attention_distribution_state,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -926,6 +948,14 @@ class PsycheOrchestrator:
         self._other_boundary_accumulation = create_other_boundary_accumulation_processor()
         self._last_boundary_accumulation: Optional[BoundaryAccumulationResult] = None
 
+        # ── Forgetting-recall balance (忘却と想起の均衡記述) ──
+        self._frb_state = create_forgetting_recall_balance_state()
+        self._frb_config = ForgettingRecallBalanceConfig()
+
+        # ── Attention distribution description (注意配分の構造的記述) ──
+        self._att_dist_state = create_attention_distribution_state()
+        self._att_dist_config = AttDistConfig()
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -934,7 +964,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "fields=48",
+            "fields=49",
             fear.value, fear.dominant_fear,
         )
 
@@ -1232,6 +1262,47 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Input pathway balance skipped: %s", e)
+
+        # Phase 7f: attention_distribution_description — 注意配分の構造的記述（毎ティック）
+        # 各処理Phaseの実行有無を事後的に読み取り、断面として記述する。
+        # 安全弁5: 帯域制御経路の遮断。本機能の出力は帯域配分制御に接続されない。
+        # 安全弁7: 出力経路不拡張。
+        try:
+            # 各入力源・内部信号の量的指標を既存状態からREAD-ONLYで参照
+            _has_perception = bool(percept.text and percept.intent != "expression")
+            _has_text = bool(percept.text)
+            _has_spontaneous = (
+                self._last_activation_result is not None
+                and bool(getattr(self._last_activation_result, "candidates", None))
+            )
+            _perception_count = 0
+            if _has_perception and percept.text:
+                _perception_count = max(1, len(percept.text.split()) // 5)
+
+            self._att_dist_state = process_attention_distribution(
+                self._att_dist_state,
+                emotion_state=self._psyche.emotions,
+                memory_state=self._last_bindings,
+                motivation_state=self._last_motives,
+                transient_goal_state=self._transient_goal_mgr._state if self._transient_goal_mgr else None,
+                scoped_goal_state=self._scoped_goal_sys,
+                responsibility_state=self._dispersion_state,
+                text_dialogue_state=(
+                    self._text_dialogue_processor.state
+                    if self._text_dialogue_processor else None
+                ),
+                spontaneous_state=(
+                    self._spontaneous_processor.state
+                    if self._spontaneous_processor else None
+                ),
+                has_perception_input=_has_perception,
+                has_text_input=_has_text,
+                has_spontaneous_activation=_has_spontaneous,
+                perception_element_count=_perception_count,
+                config=self._att_dist_config,
+            )
+        except Exception as e:
+            logger.debug("Attention distribution description skipped: %s", e)
 
         logger.debug(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
@@ -1824,6 +1895,37 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Spontaneous recall skipped: %s", e)
+
+        # Phase 21f: forgetting_recall_balance — 忘却と想起の均衡記述
+        # 忘却側1構造・想起側2構造の状態を読み取り専用で参照し、
+        # 3断面（忘却断面・外部トリガー型想起断面・自発的想起断面）を等価に並置記述する。
+        # 処理タイミング: 忘却処理(21c)と想起処理(21d, 21e)の双方が完了した後。
+        # 出力は情報としてのみ流れ、忘却処理・想起処理・判断系に直接作用しない。
+        try:
+            frb_forgetting_state = None
+            if self._forgetting_fixation_processor is not None:
+                frb_forgetting_state = self._forgetting_fixation_processor.state
+
+            frb_forgetting_result = self._last_forgetting_fixation
+
+            frb_multi_path_recall_state = None
+            if self._multi_path_recall is not None:
+                frb_multi_path_recall_state = self._multi_path_recall.state
+
+            frb_spontaneous_recall_state = None
+            if self._spontaneous_recall is not None:
+                frb_spontaneous_recall_state = self._spontaneous_recall.state
+
+            self._frb_state = process_forgetting_recall_balance(
+                self._frb_state,
+                forgetting_state=frb_forgetting_state,
+                forgetting_result=frb_forgetting_result,
+                multi_path_recall_state=frb_multi_path_recall_state,
+                spontaneous_recall_state=frb_spontaneous_recall_state,
+                config=self._frb_config,
+            )
+        except Exception as e:
+            logger.debug("Forgetting-recall balance skipped: %s", e)
 
         # Phase 22: introspection_trace — 内省ログ生成
         try:
@@ -2506,6 +2608,15 @@ class PsycheOrchestrator:
                     self_lines.append(f"自己呈示: {ssp_text}")
             except Exception:
                 pass
+        # #46 attention_distribution_description — 注意配分断面の段階値等価列挙
+        # （件数非露出・比率非露出・順位非露出・評価的語彙禁止・帯域制御経路遮断・判断非接続）
+        if self._att_dist_state is not None:
+            try:
+                att_text = get_att_dist_enrichment_text(self._att_dist_state)
+                if att_text and "待機中" not in att_text:
+                    self_lines.append(f"注意配分: {att_text}")
+            except Exception:
+                pass
         if len(self_lines) > 1:
             sections.append("\n".join(self_lines))
 
@@ -2892,6 +3003,14 @@ class PsycheOrchestrator:
                 )
                 if ipb_text and "待機中" not in ipb_text:
                     memory_lines.append(f"経路均衡: {ipb_text}")
+            except Exception:
+                pass
+        # #45 forgetting_recall_balance — 忘却と想起の均衡記述（段階別件数と経路別件数の数量的記述のみ・評価的判定禁止・パターン抽出禁止）
+        if self._frb_state is not None:
+            try:
+                frb_text = get_frb_enrichment_text(self._frb_state)
+                if frb_text and "待機中" not in frb_text:
+                    memory_lines.append(f"忘却想起均衡: {frb_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -4269,7 +4388,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 38,
+            "version": 40,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -4367,6 +4486,10 @@ class PsycheOrchestrator:
             "emotion_cooccurrence_state": self._emotion_cooccurrence_processor.save() if self._emotion_cooccurrence_processor else {},
             # Version 38 fields
             "other_boundary_accumulation_state": self._other_boundary_accumulation.state.to_dict() if self._other_boundary_accumulation else {},
+            # Version 39 fields
+            "forgetting_recall_balance_state": save_frb_state(self._frb_state) if self._frb_state else {},
+            # Version 40 fields
+            "attention_distribution_state": save_att_dist_state(self._att_dist_state) if self._att_dist_state else {},
         }
 
         save_path.write_text(
@@ -4594,6 +4717,14 @@ class PsycheOrchestrator:
             if data.get("other_boundary_accumulation_state"):
                 self._other_boundary_accumulation._state = OtherBoundaryAccumulationState.from_dict(data["other_boundary_accumulation_state"])
                 self._other_boundary_accumulation.state.apply_session_decay()
+
+            # Version 39+ fields
+            if data.get("forgetting_recall_balance_state"):
+                self._frb_state = load_frb_state(data["forgetting_recall_balance_state"])
+
+            # Version 40+ fields
+            if data.get("attention_distribution_state"):
+                self._att_dist_state = load_att_dist_state(data["attention_distribution_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -1468,6 +1468,22 @@ from .emotional_backdrop_cognition import (
     create_emotional_backdrop_processor,
 )
 
+# Situational Self-Presentation (状況依存的自己呈示の認知)
+from .situational_self_presentation import (
+    RecordFreshness as PresentationRecordFreshness,
+    TypeCountLevel as PresentationTypeCountLevel,
+    ConvergenceLevel as PresentationConvergenceLevel,
+    PresentationRecord,
+    CompositionDescription,
+    ConvergenceRecord as PresentationConvergenceRecord,
+    SituationalSelfPresentationState,
+    SituationalSelfPresentationConfig,
+    SituationalSelfPresentationProcessor,
+    determine_type_count_level as determine_presentation_type_count_level,
+    get_presentation_summary,
+    create_situational_self_presentation_processor,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -2048,6 +2064,13 @@ __all__ = [
     "BackdropInputs", "BackdropState", "BackdropResult", "BackdropConfig",
     "EmotionalBackdropProcessor",
     "get_backdrop_summary", "create_emotional_backdrop_processor",
+    # Situational Self-Presentation (状況依存的自己呈示の認知)
+    "PresentationRecordFreshness", "PresentationTypeCountLevel", "PresentationConvergenceLevel",
+    "PresentationRecord", "CompositionDescription", "PresentationConvergenceRecord",
+    "SituationalSelfPresentationState", "SituationalSelfPresentationConfig",
+    "SituationalSelfPresentationProcessor",
+    "determine_presentation_type_count_level",
+    "get_presentation_summary", "create_situational_self_presentation_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~143,000行
-総テスト数: 5,410テスト
+総コード行数: ~145,000行
+総テスト数: 5,492テスト
 
 ---
 
@@ -116,6 +116,7 @@
 | 13w | internal_contradiction_description.py | 787 | テスト内 | 内省 | 内部状態の矛盾並置記述（5段パイプライン・6断面対定義・数値的乖離検出・矛盾解消禁止・全記録等価・収束監視・evaluative語彙除去・安全弁7種） |
 | 13x | interaction_accumulation.py | 678 | テスト内 | 相互作用 | 相互作用の蓄積記述（4段パイプライン・時間的隣接対構成・因果帰属禁止・全記録等価・FIFO自然消失・ルーミネーション防止・パターン抽出排除・安全弁5種） |
 | 13y | emotional_backdrop_cognition.py | 989 | テスト内 | 感情 | 感情基調の持続認知（4段パイプライン・スライディングウィンドウ・8断面入力・段階的鮮度減衰・等価列挙のみ・移動平均禁止・パターン判定禁止・安全弁5種・経路遮断5種） |
+| 13z | situational_self_presentation.py | 901 | テスト内 | 自己認知 | 状況依存的自己呈示の認知（3段パイプライン・相手別分離蓄積・種類数段階値・鮮度減衰・マッピング形成禁止・パターン抽出禁止・安全弁8種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -155,7 +156,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,135 | 56 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 59システム, save/load v31(56項目永続化), enrichment(5セクション/36項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,184 | 57 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 60システム, save/load v32(57項目永続化), enrichment(5セクション/37項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4111,7 +4112,20 @@ value_orientation_validation.py (1,211行/88テスト)
 - 経路遮断5種: 感情パイプラインパラメータ/ポリシー候補拡張直接供給/ムード直接値/記憶忘却パラメータ/ダイナミクス設定値
 - orchestrator: Phase 14g（3ティック周期、internal_contradiction_description後）、enrichment #36（感情・トーンセクション）、save/load v31 (56フィールド)
 
+#### ㉞ 状況依存的自己呈示の認知 ✅完了
+
+- 設計書: design_situational_self_presentation.md
+- 討論結果: 条件付き推奨（相手別の自己認知の構造的空白、discussion_next_gaps_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_situational_self_presentation_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_situational_self_presentation_impl_fixation_20260222.md）
+- 自己行動知覚の記録を相手識別情報で分離蓄積し、相手別の出力構成を種類数段階値で記述する層
+- 入力3系統（全READ-ONLY）: self_action_perception記録、相手識別情報（user_id）、selection_attribution記録
+- 3段パイプライン: 相手別記録受領蓄積（相手別FIFO・鮮度減衰）→構成記述生成（種類数段階値・毎サイクル独立再計算・非累積）→参照受渡準備（enrichment等価列挙+READ-ONLYアクセサ）
+- self_action_perceptionとの責務分離: 自己行動知覚は全出力を等価記録、本機能は相手別の事後的分離蓄積
+- 安全弁8種: 記録等価性/パターン抽出禁止/FIFO自然消失/構成記述非累積性/マッピング形成禁止/enrichment露出制限/ポリシー選択経路遮断/収束監視
+- orchestrator: Phase 7d（毎ティック、self_action_perception後）、enrichment #37（自己認知セクション）、save/load v32 (57フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~143,000行 / テスト数: 5,410*
+*総コード行数: ~145,000行 / テスト数: 5,492*

@@ -402,6 +402,14 @@ from .self_action_perception import (
     get_self_action_summary,
 )
 
+# Situational self-presentation (状況依存的自己呈示の認知)
+from .situational_self_presentation import (
+    SituationalSelfPresentationProcessor,
+    SituationalSelfPresentationState,
+    create_situational_self_presentation_processor,
+    get_presentation_summary,
+)
+
 # Intent-action gap (意図-行動間の乖離認知)
 from .intent_action_gap import (
     IntentActionGapRecorder,
@@ -771,6 +779,9 @@ class PsycheOrchestrator:
         # ── Self-action perception ──
         self._self_action_recorder = create_self_action_perception_recorder()
 
+        # ── Situational self-presentation (状況依存的自己呈示の認知) ──
+        self._situational_self_presentation = create_situational_self_presentation_processor()
+
         # ── Intent-action gap (意図-行動間の乖離認知) ──
         self._intent_action_gap_recorder = create_intent_action_gap_recorder()
 
@@ -1080,6 +1091,26 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Perceptual context accumulate skipped: %s", e)
+
+        # Phase 7d: situational_self_presentation — 相手別自己出力記録の蓄積（毎ティック）
+        # 自己行動知覚の受領処理の直後に、本機能の蓄積処理を呼び出す。
+        # 自己行動知覚の記録をREAD-ONLYで参照し、相手識別情報と対にして蓄積する。
+        # パターン抽出禁止。マッピング形成禁止。ポリシー選択経路遮断。
+        try:
+            latest_record = self._self_action_recorder.get_latest_record()
+            if latest_record is not None and user_id:
+                self._situational_self_presentation.receive_and_accumulate(
+                    user_id=user_id,
+                    response_text=latest_record.response_text,
+                    policy_label=latest_record.policy_label,
+                    tick=self._tick_count,
+                )
+                # 構成記述の生成
+                self._situational_self_presentation.generate_compositions(
+                    current_tick=self._tick_count,
+                )
+        except Exception as e:
+            logger.debug("Situational self-presentation skipped: %s", e)
 
         logger.debug(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
@@ -2237,6 +2268,17 @@ class PsycheOrchestrator:
                 pc_text = self._perceptual_context.get_enrichment_text()
                 if pc_text and "待機中" not in pc_text:
                     self_lines.append(f"知覚推移: {pc_text}")
+            except Exception:
+                pass
+        # #37 situational_self_presentation — 相手別自己出力概要（蓄積記録数とポリシーラベル種類数の段階値のみ・テキスト内容非露出・個別ラベル名非列挙・相手間比較禁止）
+        if self._situational_self_presentation is not None:
+            try:
+                ssp_data = self._situational_self_presentation.get_enrichment_data(
+                    user_id=user_id,
+                )
+                ssp_text = ssp_data.get("summary_text", "")
+                if ssp_text and "待機中" not in ssp_text:
+                    self_lines.append(f"自己呈示: {ssp_text}")
             except Exception:
                 pass
         if len(self_lines) > 1:
@@ -3847,7 +3889,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 31,
+            "version": 32,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3931,6 +3973,8 @@ class PsycheOrchestrator:
             "interaction_accumulation_state": self._interaction_accumulation.state.to_dict() if self._interaction_accumulation else {},
             # Version 31 fields
             "emotional_backdrop_state": self._emotional_backdrop_processor.save() if self._emotional_backdrop_processor else {},
+            # Version 32 fields
+            "situational_self_presentation_state": self._situational_self_presentation.state.to_dict() if self._situational_self_presentation else {},
         }
 
         save_path.write_text(
@@ -4126,6 +4170,11 @@ class PsycheOrchestrator:
             if data.get("emotional_backdrop_state"):
                 self._emotional_backdrop_processor.load(data["emotional_backdrop_state"])
                 self._emotional_backdrop_processor.state.apply_session_decay()
+
+            # Version 32+ fields
+            if data.get("situational_self_presentation_state"):
+                self._situational_self_presentation.state = SituationalSelfPresentationState.from_dict(data["situational_self_presentation_state"])
+                self._situational_self_presentation.state.apply_session_decay()
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

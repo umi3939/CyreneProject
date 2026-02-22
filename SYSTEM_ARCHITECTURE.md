@@ -3,7 +3,7 @@
 作成日: 2026-02-09
 更新日: 2026-02-21
 総コード行数: ~130,000行
-総テスト数: 4,983テスト
+総テスト数: 4,985テスト
 
 ---
 
@@ -3682,6 +3682,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ㉓ | 選択帰属 ✅完了 | 低 | ⑧ | selection_attribution.py (402行/テスト内) 選択事実のREAD-ONLY記録（候補群構成+選択ラベル+ティック+タイムスタンプ）・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙。orchestrator select_policy後record_selection()、enrichment #31、save/load v23 (48フィールド)。Agency第1段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
 | ㉔ | 参照頻度の構造的記述 ✅完了 | 低 | - | reference_frequency_description.py (782行/93テスト) 12箇所横断読み取り専用集約層・断面構成（集中度/偏在度）・FIFO断面履歴（30件上限）・変動記述（再導出型）・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種。orchestrator Phase 24b、save/load v24 (49フィールド)。反固定化第3段階。討論結果: 条件付き推奨。設計解析: 低固定化リスク。実装解析: 低固定化リスク |
 | ㉕ | 持続的コミットメント ✅完了 | 中→低（修正済） | ⑧ | persistent_commitment.py (1,037行/73テスト) transient_goal昇格が唯一生成経路・複数並行保持（上限付き）・強度依存非線形減衰（飽和構造）・慣性時間減衰・4解除条件（時間/内部状態/競合/達成認知）・認知記録FIFO・資源競合（揺らぎ付き帯域分配）・バイアス上限<VO(+-5%)・安全弁6種・自己強化ループ4重遮断。orchestrator Phase 12b/35b2、enrichment #32、save/load v25 (50フィールド)。Agency第2段階。討論結果: 条件付き推奨（7条件）。設計解析: 低固定化リスク。実装解析: 中→修正後低 |
+| ㉗ | Agency Stage 3: 不整合度サマリー ✅完了 | - | ㉕ | 討論結果: 要再検討（新モジュール不要）。定量評価: 既存構造(persistent_commitment+stability_valve+context_sensitivity)で-20~-30%の間接的抵抗カバー済み。残ギャップ「不整合の明示的記述」をenrichment追加で解消。orchestrator get_prompt_enrichment()に内部-外部間張力サマリー追加（32行）。保持方向バイアス/外部文脈慎重度/価値軸傾斜の3断面をREAD-ONLY参照。張力情報なしの場合は出力しない。テスト+2 (4,985) |
 | ㉖ | 結合テスト強化 ✅完了 | - | - | orchestratorスモークテスト14件（全パス通過・select_policy_dict・Phase発火・enrichment検証・連続稼働安定性）+ Phase間連鎖動作テスト48件（every-tick/3-tick/5-tick/10-tick/policy-selection/cross-phase data flow）。test_orchestrator.py (1,229行) + test_phase_chain_integration.py (825行)。総テスト数: 4,983 |
 
 ### 9.2 各項目の詳細
@@ -4022,4 +4023,4 @@ value_orientation_validation.py (1,211行/88テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~130,000行 / テスト数: 4,983*
+*総コード行数: ~130,000行 / テスト数: 4,985*

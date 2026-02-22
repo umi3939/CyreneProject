@@ -275,6 +275,30 @@ class TestPromptEnrichment:
         text = orch.get_prompt_enrichment()
         assert "機械的に読み上げないこと" in text
 
+    def test_enrichment_tension_with_commitment(self):
+        """persistent_commitment に保持項目がある場合、張力情報が含まれる。"""
+        orch = PsycheOrchestrator()
+        # persistent_commitment に保持項目を直接追加する
+        from psyche.persistent_commitment import CommitmentItem
+        item = CommitmentItem(
+            item_id="test_item_1",
+            source_goal_id="goal_1",
+            category="test",
+            direction_signature={"a": 0.5, "b": -0.3},
+            strength=0.6,
+            initial_strength=0.6,
+        )
+        orch._persistent_commitment._state.items.append(item)
+        text = orch.get_prompt_enrichment()
+        assert "内部-外部間の張力" in text
+        assert "保持方向1件の方向的バイアスあり" in text
+
+    def test_enrichment_no_tension_in_initial_state(self):
+        """初期状態（保持項目なし、caution低、価値軸中立）では張力情報が含まれない。"""
+        orch = PsycheOrchestrator()
+        text = orch.get_prompt_enrichment()
+        assert "内部-外部間の張力" not in text
+
 
 # ── ポリシー提案テスト ────────────────────────────────────────────
 

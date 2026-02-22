@@ -2264,6 +2264,38 @@ class PsycheOrchestrator:
                     bias_lines.append(f"価値検証: {vo_text}")
             except Exception:
                 pass
+        # #20 内部-外部間の張力サマリー (READ-ONLY参照のみ)
+        try:
+            tension_parts: list[str] = []
+            # (a) persistent_commitment の方向的張力
+            if self._persistent_commitment is not None:
+                pc_active = [
+                    it for it in self._persistent_commitment.state.items
+                    if not it.released
+                ]
+                if pc_active:
+                    tension_parts.append(f"保持方向{len(pc_active)}件の方向的バイアスあり")
+            # (b) context_sensitivity の慎重度
+            if (self._last_sensitivity_bias is not None
+                    and self._last_sensitivity_bias.caution_level > 0.5):
+                tension_parts.append("外部文脈の慎重度が高い")
+            # (c) value_orientation の最強方向バイアス (vo_validation未記述時のみ)
+            vo_already_shown = (
+                self._vo_validator is not None
+                and any("価値検証" in ln for ln in bias_lines)
+            )
+            if self._value_orientation is not None and not vo_already_shown:
+                dims = self._value_orientation.get_all_dimensions()
+                if dims:
+                    max_dim = max(dims.values(), key=abs)
+                    if abs(max_dim) > 0.1:
+                        tension_parts.append("価値軸の傾斜方向あり")
+            if tension_parts:
+                bias_lines.append(
+                    "内部-外部間の張力: " + " / ".join(tension_parts)
+                )
+        except Exception:
+            pass
         if len(bias_lines) > 1:
             sections.append("\n".join(bias_lines))
 

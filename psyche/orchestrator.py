@@ -456,6 +456,12 @@ from .introspection_cross_section import (
     SECTION_META_EMOTION_COGNITION as ICS_META_EMOTION,
 )
 
+# Introspection longitudinal view (内省の時間的縦断参照)
+from .introspection_longitudinal_view import (
+    IntrospectionLongitudinalViewProcessor,
+    create_introspection_longitudinal_view,
+)
+
 # Perceptual context (知覚入力の内部文脈化)
 from .perceptual_context import (
     PerceptualContextProcessor,
@@ -796,6 +802,11 @@ class PsycheOrchestrator:
 
         # ── Introspection cross-section (内省断面間の横断的記述) ──
         self._introspection_cross_section = create_introspection_cross_section()
+
+        # ── Introspection longitudinal view (内省の時間的縦断参照) ──
+        # 独自の永続的内部状態を保持しない薄い変換層。
+        # 横断的記述のスナップショットウィンドウを唯一の入力源とする。
+        self._introspection_longitudinal_view = create_introspection_longitudinal_view()
 
         # ── Perceptual context (知覚入力の内部文脈化) ──
         self._perceptual_context = create_perceptual_context()
@@ -1321,6 +1332,18 @@ class PsycheOrchestrator:
             self._last_backdrop_result = self._emotional_backdrop_processor.tick(backdrop_inputs)
         except Exception as e:
             logger.debug("Emotional backdrop cognition skipped: %s", e)
+
+        # Phase 14h: introspection_longitudinal_view — 内省の時間的縦断参照（3ティック毎）
+        # 横断的記述のスナップショットウィンドウを唯一の入力源として、
+        # 断面別の時系列並置に変換する薄い変換層。
+        # 独自の永続的内部状態を保持しない。
+        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
+        # introspection_cross_section（Phase 14d）の後に配置する。
+        try:
+            ilv_snapshots = self._introspection_cross_section.get_snapshot_window()
+            self._introspection_longitudinal_view.process(ilv_snapshots)
+        except Exception as e:
+            logger.debug("Introspection longitudinal view skipped: %s", e)
 
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
@@ -2516,6 +2539,16 @@ class PsycheOrchestrator:
                 ics_text = self._introspection_cross_section.get_enrichment_text()
                 if ics_text and "待機中" not in ics_text:
                     memory_lines.append(f"内省横断: {ics_text}")
+            except Exception:
+                pass
+        # #38 introspection_longitudinal_view — 断面別時系列並置（パターン抽出禁止・全断面等価・全時点等価・強調禁止・判断非接続）
+        if self._introspection_longitudinal_view is not None:
+            try:
+                ilv_snaps = self._introspection_cross_section.get_snapshot_window()
+                ilv_data = self._introspection_longitudinal_view.get_enrichment_data(ilv_snaps)
+                ilv_text = ilv_data.get("summary_text", "")
+                if ilv_text and "待機中" not in ilv_text:
+                    memory_lines.append(f"内省縦断: {ilv_text}")
             except Exception:
                 pass
         # #31 selection_attribution — 選択事実の等価列挙（強調禁止）

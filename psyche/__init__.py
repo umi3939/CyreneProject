@@ -1207,6 +1207,19 @@ from .introspection_cross_section import (
     SECTION_LABELS as INTROSPECTION_CS_SECTION_LABELS,
 )
 
+# Introspection Longitudinal View (内省の時間的縦断参照)
+from .introspection_longitudinal_view import (
+    LongitudinalViewConfig,
+    TimePointEntry,
+    SectionTimeline,
+    LongitudinalView,
+    IntrospectionLongitudinalViewProcessor,
+    create_introspection_longitudinal_view,
+    get_enrichment_data as get_longitudinal_enrichment_data,
+    get_longitudinal_view,
+    get_section_timeline,
+)
+
 # Perceptual Context (知覚入力の内部文脈化)
 from .perceptual_context import (
     PerceptualSummary,

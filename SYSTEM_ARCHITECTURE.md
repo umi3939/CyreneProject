@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~145,000行
-総テスト数: 5,492テスト
+総コード行数: ~147,000行
+総テスト数: 5,584テスト
 
 ---
 
@@ -117,6 +117,7 @@
 | 13x | interaction_accumulation.py | 678 | テスト内 | 相互作用 | 相互作用の蓄積記述（4段パイプライン・時間的隣接対構成・因果帰属禁止・全記録等価・FIFO自然消失・ルーミネーション防止・パターン抽出排除・安全弁5種） |
 | 13y | emotional_backdrop_cognition.py | 989 | テスト内 | 感情 | 感情基調の持続認知（4段パイプライン・スライディングウィンドウ・8断面入力・段階的鮮度減衰・等価列挙のみ・移動平均禁止・パターン判定禁止・安全弁5種・経路遮断5種） |
 | 13z | situational_self_presentation.py | 901 | テスト内 | 自己認知 | 状況依存的自己呈示の認知（3段パイプライン・相手別分離蓄積・種類数段階値・鮮度減衰・マッピング形成禁止・パターン抽出禁止・安全弁8種） |
+| 13aa | introspection_longitudinal_view.py | 506 | テスト内 | 内省 | 内省の時間的縦断参照（3段パイプライン・横断→縦断変換・独自状態なし・全断面等価・全時点等価・パターン抽出禁止・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -156,7 +157,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,184 | 57 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 60システム, save/load v32(57項目永続化), enrichment(5セクション/37項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,217 | 57 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 61システム, save/load v32(57項目永続化), enrichment(5セクション/38項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4125,7 +4126,20 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁8種: 記録等価性/パターン抽出禁止/FIFO自然消失/構成記述非累積性/マッピング形成禁止/enrichment露出制限/ポリシー選択経路遮断/収束監視
 - orchestrator: Phase 7d（毎ティック、self_action_perception後）、enrichment #37（自己認知セクション）、save/load v32 (57フィールド)
 
+#### ㉟ 内省の時間的縦断参照 ✅完了
+
+- 設計書: design_introspection_longitudinal_view.md
+- 討論結果: 条件付き推奨（横断的記述の補完として機能的に有用、discussion_next_gaps_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_introspection_longitudinal_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_introspection_longitudinal_impl_fixation_20260222.md）
+- introspection_cross_sectionのスナップショットウィンドウ（25件）を唯一の入力源とし、「1時点・6断面」の横断的並置を「1断面・複数時点」の縦断的並置に視点変換する薄い変換層
+- **独自の永続的内部状態を保持しない**（save/load不要 — 横断的記述のsave/loadに完全依存）
+- 3段パイプライン: スナップショットウィンドウ取得→断面別時系列並置変換→参照受渡準備
+- introspection_cross_sectionとの責務分離: 横断的記述はデータ蓄積・管理・スナップショット構成、本機能は視点変換のみ
+- 安全弁5種: パターン抽出禁止/全断面等価/全時点等価/独自状態蓄積禁止/書き込み経路遮断
+- orchestrator: Phase 14h（3ティック周期、introspection_cross_section後）、enrichment #38（記憶・内省セクション）
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~145,000行 / テスト数: 5,492*
+*総コード行数: ~147,000行 / テスト数: 5,584*

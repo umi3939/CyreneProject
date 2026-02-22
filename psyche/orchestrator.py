@@ -506,6 +506,16 @@ from .interaction_accumulation import (
     get_interaction_summary,
 )
 
+# Emotional backdrop cognition (感情基調の持続認知)
+from .emotional_backdrop_cognition import (
+    EmotionalBackdropProcessor,
+    BackdropInputs,
+    BackdropResult,
+    BackdropState,
+    create_emotional_backdrop_processor,
+    get_backdrop_summary,
+)
+
 # Stabilization description (安定化の構造的記述)
 from .stabilization_description import (
     StabilizationDescriptionConfig,
@@ -807,6 +817,10 @@ class PsycheOrchestrator:
 
         # ── Interaction accumulation (相互作用の蓄積記述) ──
         self._interaction_accumulation = create_interaction_accumulation_processor()
+
+        # ── Emotional backdrop cognition (感情基調の持続認知) ──
+        self._emotional_backdrop_processor = create_emotional_backdrop_processor()
+        self._last_backdrop_result: Optional[BackdropResult] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1266,6 +1280,16 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Internal contradiction description skipped: %s", e)
+
+        # Phase 14g: emotional_backdrop_cognition — 感情基調の持続認知（3ティック毎）
+        # 感情状態の時系列をより広い時間窓で観測し、窓内の構成を等価に記述する。
+        # 感情処理パイプラインのパラメータを一切変更しない（READ-ONLY参照のみ）。
+        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
+        try:
+            backdrop_inputs = self._build_backdrop_inputs()
+            self._last_backdrop_result = self._emotional_backdrop_processor.tick(backdrop_inputs)
+        except Exception as e:
+            logger.debug("Emotional backdrop cognition skipped: %s", e)
 
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
@@ -2518,6 +2542,15 @@ class PsycheOrchestrator:
                             )
             except Exception:
                 pass
+        # #36 emotional_backdrop_cognition — 感情基調の持続認知（数値列挙のみ・解釈禁止・パイプラインパラメータ変更禁止）
+        if self._emotional_backdrop_processor is not None:
+            try:
+                eb_data = self._emotional_backdrop_processor.get_enrichment_data()
+                eb_text = eb_data.get("summary_text", "")
+                if eb_text and "待機中" not in eb_text:
+                    memory_lines.append(f"感情基調: {eb_text}")
+            except Exception:
+                pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -3595,6 +3628,79 @@ class PsycheOrchestrator:
             current_tick=self._tick_count,
         )
 
+    def _build_backdrop_inputs(self) -> BackdropInputs:
+        """感情基調認知に必要な8断面の入力を構築する。
+
+        すべてREAD-ONLY参照。感情処理パイプラインのパラメータを変更しない。
+        """
+        # 1. 感情状態断面（感情ベクトル — READ-ONLY）
+        emotion_values = self._psyche.emotions.as_dict()
+
+        # 2. ムード断面（READ-ONLY）
+        mood_valence = self._psyche.mood.valence
+        mood_arousal = self._psyche.mood.arousal
+
+        # 3. ダイナミクス相断面（READ-ONLY）
+        dynamics_phase = self._dynamics.phase.value if self._dynamics else "normal"
+
+        # 4. 振幅断面（READ-ONLY）
+        amplitude_value = self._amplitude_state.current_amplitude if self._amplitude_state else 1.0
+
+        # 5. メタ感情認知断面（推移パターン特徴量のみ — 持続パターン検出結果・変動候補は参照しない）
+        meta_change_speed = 0.0
+        meta_dominant_stability = 0.0
+        if self._last_meta_emotion is not None:
+            try:
+                # TransitionFeature の直近値を参照
+                me_state = self._meta_emotion_processor.state
+                if me_state.cognition_history:
+                    last_rec = me_state.cognition_history[-1]
+                    if last_rec.transition_features:
+                        last_tf = last_rec.transition_features[-1]
+                        meta_change_speed = last_tf.change_speed
+                        meta_dominant_stability = last_tf.dominant_stability
+            except Exception:
+                pass
+
+        # 6. 蓄積鮮度断面（自己参照）
+        bd_state = self._emotional_backdrop_processor.state
+        existing_record_count = len(bd_state.composition_records)
+        average_freshness = 0.0
+        if bd_state.composition_records:
+            average_freshness = sum(
+                r.freshness for r in bd_state.composition_records
+            ) / len(bd_state.composition_records)
+
+        # 7. 対話経過断面
+        dialogue_elapsed_ticks = self._tick_count
+
+        # 8. 時間認知断面（利用可能な場合のみ）
+        temporal_elapsed_description = ""
+        try:
+            if self._temporal_cognition is not None:
+                tc_state = self._temporal_cognition.state
+                if tc_state.elapsed_records:
+                    last_elapsed = tc_state.elapsed_records[-1]
+                    temporal_elapsed_description = last_elapsed.description or ""
+            # 空の場合は空文字のまま
+        except Exception:
+            pass
+
+        return BackdropInputs(
+            emotion_values=emotion_values,
+            mood_valence=mood_valence,
+            mood_arousal=mood_arousal,
+            dynamics_phase=dynamics_phase,
+            amplitude_value=amplitude_value,
+            meta_emotion_change_speed=meta_change_speed,
+            meta_emotion_dominant_stability=meta_dominant_stability,
+            existing_record_count=existing_record_count,
+            average_freshness=average_freshness,
+            dialogue_elapsed_ticks=dialogue_elapsed_ticks,
+            temporal_elapsed_description=temporal_elapsed_description,
+            current_tick=self._tick_count,
+        )
+
     def select_policy_dict(
         self,
         percept: Percept,
@@ -3741,7 +3847,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 30,
+            "version": 31,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3823,6 +3929,8 @@ class PsycheOrchestrator:
             "internal_contradiction_state": self._contradiction_processor.save() if self._contradiction_processor else {},
             # Version 30 fields
             "interaction_accumulation_state": self._interaction_accumulation.state.to_dict() if self._interaction_accumulation else {},
+            # Version 31 fields
+            "emotional_backdrop_state": self._emotional_backdrop_processor.save() if self._emotional_backdrop_processor else {},
         }
 
         save_path.write_text(
@@ -4013,6 +4121,11 @@ class PsycheOrchestrator:
             # Version 30+ fields
             if data.get("interaction_accumulation_state"):
                 self._interaction_accumulation.state = InteractionAccumulationState.from_dict(data["interaction_accumulation_state"])
+
+            # Version 31+ fields
+            if data.get("emotional_backdrop_state"):
+                self._emotional_backdrop_processor.load(data["emotional_backdrop_state"])
+                self._emotional_backdrop_processor.state.apply_session_decay()
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

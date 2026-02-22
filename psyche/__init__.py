@@ -1451,6 +1451,23 @@ from .interaction_accumulation import (
     create_interaction_accumulation_processor,
 )
 
+# Emotional Backdrop Cognition (感情基調の持続認知)
+from .emotional_backdrop_cognition import (
+    InputSection as BackdropInputSection,
+    FreshnessStage as BackdropFreshnessStage,
+    ConvergenceLevel as BackdropConvergenceLevel,
+    WindowEntry as BackdropWindowEntry,
+    CompositionRecord as BackdropCompositionRecord,
+    ConvergenceRecord as BackdropConvergenceRecord,
+    BackdropInputs,
+    BackdropState,
+    BackdropResult,
+    BackdropConfig,
+    EmotionalBackdropProcessor,
+    get_backdrop_summary,
+    create_emotional_backdrop_processor,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -2025,6 +2042,12 @@ __all__ = [
     "InteractionAccumulationState", "InteractionAccumulationConfig",
     "InteractionAccumulationProcessor",
     "get_interaction_summary", "create_interaction_accumulation_processor",
+    # Emotional Backdrop Cognition (感情基調の持続認知)
+    "BackdropInputSection", "BackdropFreshnessStage", "BackdropConvergenceLevel",
+    "BackdropWindowEntry", "BackdropCompositionRecord", "BackdropConvergenceRecord",
+    "BackdropInputs", "BackdropState", "BackdropResult", "BackdropConfig",
+    "EmotionalBackdropProcessor",
+    "get_backdrop_summary", "create_emotional_backdrop_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

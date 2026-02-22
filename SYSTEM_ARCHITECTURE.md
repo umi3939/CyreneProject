@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~141,000行
-総テスト数: 5,326テスト
+総コード行数: ~143,000行
+総テスト数: 5,410テスト
 
 ---
 
@@ -115,6 +115,7 @@
 | 13v | spontaneous_recall.py | 1,025 | テスト内 | 記憶 | 記憶の自発的想起（4段パイプライン・3経路想起・感情変動連想/動機連想/揺らぎ連想・外部入力非依存・ルーミネーション防止・経路等価性・multi_path_recall経路分離・安全弁7種） |
 | 13w | internal_contradiction_description.py | 787 | テスト内 | 内省 | 内部状態の矛盾並置記述（5段パイプライン・6断面対定義・数値的乖離検出・矛盾解消禁止・全記録等価・収束監視・evaluative語彙除去・安全弁7種） |
 | 13x | interaction_accumulation.py | 678 | テスト内 | 相互作用 | 相互作用の蓄積記述（4段パイプライン・時間的隣接対構成・因果帰属禁止・全記録等価・FIFO自然消失・ルーミネーション防止・パターン抽出排除・安全弁5種） |
+| 13y | emotional_backdrop_cognition.py | 989 | テスト内 | 感情 | 感情基調の持続認知（4段パイプライン・スライディングウィンドウ・8断面入力・段階的鮮度減衰・等価列挙のみ・移動平均禁止・パターン判定禁止・安全弁5種・経路遮断5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -154,7 +155,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,022 | 55 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 58システム, save/load v30(55項目永続化), enrichment(5セクション/35項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,135 | 56 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 59システム, save/load v31(56項目永続化), enrichment(5セクション/36項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4096,7 +4097,21 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種: 全記録等価性/FIFO自然消失/ルーミネーション防止/パターン抽出構造的排除/判断系経路遮断
 - orchestrator: Phase 25d（other_model_dialogue_learning後）、enrichment #35（相互作用セクション）、save/load v30 (55フィールド)
 
+#### ㉝ 感情基調の持続認知 ✅完了
+
+- 設計書: design_emotional_backdrop_cognition.md
+- 討論結果: 条件付き推奨（dynamics-value_orientation間の時間スケール空白、discussion_next_gaps_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_emotional_backdrop_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_emotional_backdrop_impl_fixation_20260222.md）
+- dynamics（数ターン単位）とvalue_orientation（数百ターン単位）の間の数十ターン単位の感情的構成を記述する層
+- 入力8断面（全READ-ONLY）: 感情状態、ムード、ダイナミクス相、振幅、メタ感情認知推移特徴量、蓄積鮮度、対話経過、時間認知
+- 4段パイプライン: 感情状態収集（スライディングウィンドウ）→窓内構成記述（等価列挙のみ・移動平均禁止・統合指標禁止）→蓄積処理（段階的鮮度減衰: active→weakening→fading→near_invisible→invisible）→受渡準備
+- meta_emotion_cognitionとの責務分離: メタ感情認知は「推移特徴の認知と変動可能性の列挙」、本機能は「広い時間窓の感情状態の等価列挙」
+- 安全弁5種: 低変動性監視/蓄積偏り検出/enrichment出力量制限/収束監視/自己像固定化遮断
+- 経路遮断5種: 感情パイプラインパラメータ/ポリシー候補拡張直接供給/ムード直接値/記憶忘却パラメータ/ダイナミクス設定値
+- orchestrator: Phase 14g（3ティック周期、internal_contradiction_description後）、enrichment #36（感情・トーンセクション）、save/load v31 (56フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~141,000行 / テスト数: 5,326*
+*総コード行数: ~143,000行 / テスト数: 5,410*

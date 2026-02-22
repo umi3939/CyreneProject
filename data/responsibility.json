@@ -1,86 +1,14 @@
 {
   "viewer": {
     "total_weight": 0.0,
-    "pending_decisions": 33369,
+    "pending_decisions": 40171,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-22T15:06:53",
+    "last_updated": "2026-02-22T18:41:07",
     "recent_decisions": [
       {
-        "id": "9d04b2e6e119",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "6dcde3275bdc",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "sad",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "dcf0d53fcd17",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "angry",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "72936176acc5",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "neutral",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "7ce7b010b23a",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "surprised",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "e95bfb0fb584",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "loving",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "262fd9ef29f1",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "a43ecfaeaded",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "teasing",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -91,8 +19,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "4e96cbadf652",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "9fc9c330fd13",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "scared",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -103,8 +31,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "38e388d7c155",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "e009f21c3091",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -115,32 +43,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "5b69bba2f0a0",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "neutral",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "3f93d3fdb1f3",
-        "timestamp": "2026-02-22T15:06:53",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "5e5072c43ffc",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "d2fdaf6a06c5",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "sad",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -151,8 +55,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "f10c4d33017f",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "a63452b5d017",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "angry",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -163,8 +67,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "3cdac12fbebb",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "0adf689a55ee",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "neutral",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -175,8 +79,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "2597ed6853d8",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "73850a5ddab6",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "surprised",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -187,8 +91,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "ac9fe5ca9e75",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "1b2a2cd31f48",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "loving",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -199,8 +103,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a6ea58d0dab1",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "50347f0f581b",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "teasing",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -211,8 +115,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "bebaf305303a",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "f6438c51d484",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "scared",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -223,8 +127,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "9e5a2a118998",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "1e4ac2d1742e",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "happy",
         "policy_rationale": "",
         "target_partner": "unknown",
@@ -235,9 +139,105 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "b2001c15a698",
-        "timestamp": "2026-02-22T15:06:53",
+        "id": "5bde670dcf95",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "sad",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "117892cb99d3",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "angry",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "1d95cb9570fe",
+        "timestamp": "2026-02-22T18:41:07",
         "policy_label": "neutral",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "c6fea6b1fae1",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "surprised",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "831a9fe1a436",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "loving",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "593ead990303",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "teasing",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "3c914dd05140",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "scared",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "d74af29eefa0",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "0c9ac756bca6",
+        "timestamp": "2026-02-22T18:41:07",
+        "policy_label": "sad",
         "policy_rationale": "",
         "target_partner": "unknown",
         "emotional_state": "neutral",
@@ -250,179 +250,11 @@
   },
   "user_a": {
     "total_weight": 0.0,
-    "pending_decisions": 147,
+    "pending_decisions": 161,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-22T15:06:49",
+    "last_updated": "2026-02-22T18:41:06",
     "recent_decisions": [
-      {
-        "id": "1200b87b5aa8",
-        "timestamp": "2026-02-20T23:35:45",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "109ade9c7ef4",
-        "timestamp": "2026-02-21T00:50:27",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "104d51b7a183",
-        "timestamp": "2026-02-21T00:50:39",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "855aa36ae1f8",
-        "timestamp": "2026-02-21T15:22:30",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "7b1619b947a6",
-        "timestamp": "2026-02-21T15:25:57",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "a043d45dd07b",
-        "timestamp": "2026-02-22T04:06:53",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "e44d6e02e216",
-        "timestamp": "2026-02-22T04:07:07",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "360d3d65a26e",
-        "timestamp": "2026-02-22T04:08:11",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "1f093dd0bc95",
-        "timestamp": "2026-02-22T04:16:43",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "58d6b0ca4e1d",
-        "timestamp": "2026-02-22T04:17:57",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "f53bda7412fe",
-        "timestamp": "2026-02-22T04:21:56",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "fe6cb5a502e9",
-        "timestamp": "2026-02-22T04:31:09",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "25c929c3cbb7",
-        "timestamp": "2026-02-22T04:32:07",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "10487d4146cc",
-        "timestamp": "2026-02-22T04:32:42",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
       {
         "id": "1d4eb790a9b1",
         "timestamp": "2026-02-22T06:11:52",
@@ -494,184 +326,184 @@
         "importance": 3,
         "evaluated": false,
         "responsibility_delta": 0.0
+      },
+      {
+        "id": "054cf13c4908",
+        "timestamp": "2026-02-22T16:52:54",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "17195b5857a6",
+        "timestamp": "2026-02-22T16:53:11",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "276006fadec9",
+        "timestamp": "2026-02-22T16:53:56",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "cc162ac1194d",
+        "timestamp": "2026-02-22T16:54:56",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "22170b8e8c48",
+        "timestamp": "2026-02-22T16:55:15",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "ae523541d131",
+        "timestamp": "2026-02-22T17:53:43",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "fa19f30154bd",
+        "timestamp": "2026-02-22T17:55:07",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "f15613125aa5",
+        "timestamp": "2026-02-22T17:55:53",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "e499597332bf",
+        "timestamp": "2026-02-22T17:56:08",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "e22b8a4f1844",
+        "timestamp": "2026-02-22T18:35:31",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "0c77b070ec66",
+        "timestamp": "2026-02-22T18:35:49",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "55c358b51f35",
+        "timestamp": "2026-02-22T18:36:37",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "af1c6d7b2a3f",
+        "timestamp": "2026-02-22T18:36:54",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "c57e36e6801e",
+        "timestamp": "2026-02-22T18:41:06",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
       }
     ]
   },
   "user_b": {
     "total_weight": 0.0,
-    "pending_decisions": 147,
+    "pending_decisions": 161,
     "accumulated_harm": 0.0,
     "accumulated_confidence": 0.0,
-    "last_updated": "2026-02-22T15:06:49",
+    "last_updated": "2026-02-22T18:41:06",
     "recent_decisions": [
-      {
-        "id": "9fd400e51928",
-        "timestamp": "2026-02-20T23:35:45",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "55ea5babed63",
-        "timestamp": "2026-02-21T00:50:27",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "31ac604aec17",
-        "timestamp": "2026-02-21T00:50:39",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "15e79a6700c0",
-        "timestamp": "2026-02-21T15:22:30",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "477ec66f540a",
-        "timestamp": "2026-02-21T15:25:57",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "92593f61efce",
-        "timestamp": "2026-02-22T04:06:53",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "638ae70c4d8c",
-        "timestamp": "2026-02-22T04:07:07",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "d796571df52a",
-        "timestamp": "2026-02-22T04:08:11",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "92b8193c00e0",
-        "timestamp": "2026-02-22T04:16:43",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "9b94c2ca7ca4",
-        "timestamp": "2026-02-22T04:17:57",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "6d20be41c8a6",
-        "timestamp": "2026-02-22T04:21:56",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "2613429deb92",
-        "timestamp": "2026-02-22T04:31:09",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "96ed7a7f8431",
-        "timestamp": "2026-02-22T04:32:07",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
-      {
-        "id": "80c9babf84d2",
-        "timestamp": "2026-02-22T04:32:42",
-        "policy_label": "happy",
-        "policy_rationale": "",
-        "target_partner": "unknown",
-        "emotional_state": "neutral",
-        "fear_level": 0.0,
-        "importance": 3,
-        "evaluated": false,
-        "responsibility_delta": 0.0
-      },
       {
         "id": "78c9c89b3cad",
         "timestamp": "2026-02-22T06:11:52",
@@ -743,6 +575,174 @@
         "importance": 3,
         "evaluated": false,
         "responsibility_delta": 0.0
+      },
+      {
+        "id": "d490ee9e5d68",
+        "timestamp": "2026-02-22T16:52:54",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "52a33c5c0bd3",
+        "timestamp": "2026-02-22T16:53:11",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "69ab4912fe84",
+        "timestamp": "2026-02-22T16:53:56",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "8bda0488a029",
+        "timestamp": "2026-02-22T16:54:56",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "e59da0a92cfa",
+        "timestamp": "2026-02-22T16:55:15",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "4b705e06987a",
+        "timestamp": "2026-02-22T17:53:43",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "cc8d948e8bbd",
+        "timestamp": "2026-02-22T17:55:07",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "77d558146c76",
+        "timestamp": "2026-02-22T17:55:53",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "a856642df06b",
+        "timestamp": "2026-02-22T17:56:08",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "a1c2c63ee54d",
+        "timestamp": "2026-02-22T18:35:31",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "08b3a3e1f665",
+        "timestamp": "2026-02-22T18:35:49",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "7fca40768461",
+        "timestamp": "2026-02-22T18:36:37",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "b28713e0d79d",
+        "timestamp": "2026-02-22T18:36:54",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
+      },
+      {
+        "id": "f84d14e5f2f0",
+        "timestamp": "2026-02-22T18:41:06",
+        "policy_label": "happy",
+        "policy_rationale": "",
+        "target_partner": "unknown",
+        "emotional_state": "neutral",
+        "fear_level": 0.0,
+        "importance": 3,
+        "evaluated": false,
+        "responsibility_delta": 0.0
       }
     ]
   },
@@ -750,12 +750,12 @@
     "total_weight": 0.0,
     "pending_decisions": 1,
     "accumulated_harm": 0.0,
-    "accumulated_confidence": 0.9602801951740585,
-    "last_updated": "2026-02-22T14:47:03",
+    "accumulated_confidence": 1.0,
+    "last_updated": "2026-02-22T18:36:48",
     "recent_decisions": [
       {
-        "id": "b7f2be67c9c8",
-        "timestamp": "2026-02-22T04:17:49",
+        "id": "ab437b5470c0",
+        "timestamp": "2026-02-22T17:55:03",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -766,8 +766,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "dc8f3dae33c6",
-        "timestamp": "2026-02-22T04:17:49",
+        "id": "c0cd6ebcc549",
+        "timestamp": "2026-02-22T17:55:03",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -778,8 +778,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "299fb502491d",
-        "timestamp": "2026-02-22T04:32:37",
+        "id": "3a2d238fa1f5",
+        "timestamp": "2026-02-22T17:56:03",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -790,8 +790,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "2041eb998ecb",
-        "timestamp": "2026-02-22T04:32:37",
+        "id": "743ffa98343f",
+        "timestamp": "2026-02-22T17:56:03",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -802,8 +802,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "5ffeb457e82b",
-        "timestamp": "2026-02-22T04:32:37",
+        "id": "320e7030be83",
+        "timestamp": "2026-02-22T17:56:03",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -814,8 +814,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "a66081a956a9",
-        "timestamp": "2026-02-22T04:32:37",
+        "id": "a51d03aa5fe9",
+        "timestamp": "2026-02-22T17:56:03",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -826,8 +826,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "f42da57b9aba",
-        "timestamp": "2026-02-22T04:32:37",
+        "id": "54c2ee1f798f",
+        "timestamp": "2026-02-22T17:56:03",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -838,8 +838,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "3e388fae7ff0",
-        "timestamp": "2026-02-22T04:32:37",
+        "id": "72ca71418cef",
+        "timestamp": "2026-02-22T17:56:03",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -850,8 +850,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "1a0cd0e8f737",
-        "timestamp": "2026-02-22T06:12:15",
+        "id": "a2a8a638274e",
+        "timestamp": "2026-02-22T18:35:43",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -862,8 +862,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d13b8d189fee",
-        "timestamp": "2026-02-22T06:12:15",
+        "id": "221a3fb48947",
+        "timestamp": "2026-02-22T18:35:43",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -874,8 +874,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "af1108e379ac",
-        "timestamp": "2026-02-22T06:12:15",
+        "id": "e37048dc8330",
+        "timestamp": "2026-02-22T18:35:43",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -886,8 +886,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "b05e8fd03476",
-        "timestamp": "2026-02-22T06:12:15",
+        "id": "4565fbdf184b",
+        "timestamp": "2026-02-22T18:35:43",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -898,8 +898,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "f0f8b7a05393",
-        "timestamp": "2026-02-22T06:12:15",
+        "id": "bffb81aae28a",
+        "timestamp": "2026-02-22T18:35:43",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -910,8 +910,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "b260e972ca1d",
-        "timestamp": "2026-02-22T06:12:15",
+        "id": "3ad6bd53ed04",
+        "timestamp": "2026-02-22T18:35:43",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -922,8 +922,8 @@
         "responsibility_delta": -0.05500000000000001
       },
       {
-        "id": "4f8439ed2c73",
-        "timestamp": "2026-02-22T14:47:03",
+        "id": "106e89a663c9",
+        "timestamp": "2026-02-22T18:36:48",
         "policy_label": "感想を述べる",
         "policy_rationale": "自分の考えや感情を表現する",
         "target_partner": "test_user",
@@ -934,8 +934,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "d26b340f94c7",
-        "timestamp": "2026-02-22T14:47:03",
+        "id": "32dd9867ea7e",
+        "timestamp": "2026-02-22T18:36:48",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -946,8 +946,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "70a610b1e327",
-        "timestamp": "2026-02-22T14:47:03",
+        "id": "7b69d37b5547",
+        "timestamp": "2026-02-22T18:36:48",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",
@@ -958,8 +958,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "1545225d7972",
-        "timestamp": "2026-02-22T14:47:03",
+        "id": "350a89cd98fb",
+        "timestamp": "2026-02-22T18:36:48",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -970,8 +970,8 @@
         "responsibility_delta": 0.0
       },
       {
-        "id": "f924b60179af",
-        "timestamp": "2026-02-22T14:47:03",
+        "id": "6db7b0d787c8",
+        "timestamp": "2026-02-22T18:36:48",
         "policy_label": "質問で会話を広げる",
         "policy_rationale": "好奇心を満たし、会話を続ける",
         "target_partner": "test_user",
@@ -982,8 +982,8 @@
         "responsibility_delta": -0.04400000000000001
       },
       {
-        "id": "98d888dfc335",
-        "timestamp": "2026-02-22T14:47:03",
+        "id": "68ea6ceb6f54",
+        "timestamp": "2026-02-22T18:36:48",
         "policy_label": "からかう",
         "policy_rationale": "楽しさや親密さを表現する",
         "target_partner": "test_user",

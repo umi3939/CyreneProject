@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~135,000行
-総テスト数: 5,198テスト
+総コード行数: ~137,000行
+総テスト数: 5,262テスト
 
 ---
 
@@ -66,8 +66,8 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 68 | 54,754 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 67 | 53,338 | 自動テストコード |
+| psyche/ | 69 | 55,541 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 68 | 54,190 | 自動テストコード |
 | src/ | 14 | 2,655 | 補助モジュール |
 | tools/ | 2 | 418 | 長期シミュレーション等 |
 | ルート | 6 | 2,580 | コアシステム |
@@ -113,6 +113,7 @@
 | 13t | persistent_commitment.py | 1,037 | テスト内 | 目標 | 持続的取り組み保持（transient_goal昇格が唯一生成経路・複数並行保持・強度依存非線形減衰・慣性時間減衰・4解除条件・認知記録FIFO・資源競合・バイアス上限<VO・安全弁6種・自己強化ループ4重遮断） |
 | 13u | behavioral_diversity_description.py | 664 | テスト内 | 内省 | 行動多様性の構造的記述（3断面横断読み取り・結果断面キー種類数/選択ラベル種類数/候補群サイズ分散度・段階値列挙型・FIFO蓄積・enrichment直接露出遮断・頻度情報構造的排除・安全弁8種） |
 | 13v | spontaneous_recall.py | 1,025 | テスト内 | 記憶 | 記憶の自発的想起（4段パイプライン・3経路想起・感情変動連想/動機連想/揺らぎ連想・外部入力非依存・ルーミネーション防止・経路等価性・multi_path_recall経路分離・安全弁7種） |
+| 13w | internal_contradiction_description.py | 787 | テスト内 | 内省 | 内部状態の矛盾並置記述（5段パイプライン・6断面対定義・数値的乖離検出・矛盾解消禁止・全記録等価・収束監視・evaluative語彙除去・安全弁7種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -152,7 +153,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 3,819 | 54 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 56システム, save/load v28(53項目永続化), enrichment(5セクション/33項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 3,965 | 54 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 57システム, save/load v29(54項目永続化), enrichment(5セクション/34項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4067,7 +4068,21 @@ value_orientation_validation.py (1,211行/88テスト)
 - 循環遮断4種: 感情→想起→感情、想起→動機→想起、想起→起動→想起、想起頻度→忘却速度→想起対象
 - orchestrator: Phase 21e（multi_path_recall後）、enrichment #33（記憶・内省セクション）、save/load v28 (53フィールド)
 
+#### ㉛ 内部状態の矛盾並置記述 ✅完了
+
+- 設計書: design_internal_contradiction_description.md
+- 討論結果: 条件付き推奨（内省断面間の不一致を解消せず記述、discussion_next_gaps_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_contradiction_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_contradiction_impl_fixation_20260222.md）
+- 内省系モジュール群の出力間に生じる矛盾を検出・記述するが、解消・調停は行わない
+- 5段パイプライン: 対構成→乖離検出→矛盾対記述→FIFO蓄積→参照受渡
+- 6定義済み対（固定、動的選択なし）: 感情vs感情安定度、自己像安定度vs時間差分、同一性一貫度vs安定化信号数、自己像連続性vs揺らぎ度合い、感情vs感情的トーン、内省横断断面内部対
+- 収束監視: 同一矛盾の連続出現を抑制（suppression_window）、ただし記録等価性は維持
+- 評価的語彙サニタイズ: 「異常」「失敗」等の評価語を記述から排除
+- 安全弁7種: 全記録等価/解消経路不在/意味判断禁止/パターン抽出禁止/enrichment直接露出遮断/忘却経路遮断/出力経路不拡張
+- orchestrator: Phase 14f（3ティック周期、introspection_cross_section後）、enrichment #34（感情・トーンセクション）、save/load v29 (54フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~135,000行 / テスト数: 5,198*
+*総コード行数: ~137,000行 / テスト数: 5,262*

@@ -1338,6 +1338,20 @@ from . import continuity_manager
 from . import identity_manager
 from . import projection_manager
 
+# Internal Contradiction Description (内部状態の矛盾並置の構造的記述)
+from .internal_contradiction_description import (
+    ContradictionRecord,
+    ContradictionInputs,
+    ContradictionState,
+    ContradictionResult,
+    ContradictionConfig,
+    InternalContradictionProcessor,
+    get_contradiction_summary,
+    create_contradiction_processor,
+    PAIR_DEFINITIONS as CONTRADICTION_PAIR_DEFINITIONS,
+    PAIR_LABELS as CONTRADICTION_PAIR_LABELS,
+)
+
 # Selection Attribution (選択帰属)
 from .selection_attribution import (
     SelectionRecord,
@@ -1989,6 +2003,12 @@ __all__ = [
     "get_diversity_summary",
     "create_behavioral_diversity_state", "create_behavioral_diversity_config",
     "save_behavioral_diversity_state", "load_behavioral_diversity_state",
+    # Internal Contradiction Description (内部状態の矛盾並置の構造的記述)
+    "ContradictionRecord", "ContradictionInputs",
+    "ContradictionState", "ContradictionResult", "ContradictionConfig",
+    "InternalContradictionProcessor",
+    "get_contradiction_summary", "create_contradiction_processor",
+    "CONTRADICTION_PAIR_DEFINITIONS", "CONTRADICTION_PAIR_LABELS",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

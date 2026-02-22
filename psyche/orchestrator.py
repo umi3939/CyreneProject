@@ -490,6 +490,14 @@ from .persistent_commitment import (
     get_commitment_summary,
 )
 
+# Internal contradiction description (内部状態の矛盾並置の構造的記述)
+from .internal_contradiction_description import (
+    InternalContradictionProcessor,
+    ContradictionInputs,
+    ContradictionResult,
+    create_contradiction_processor,
+)
+
 # Stabilization description (安定化の構造的記述)
 from .stabilization_description import (
     StabilizationDescriptionConfig,
@@ -776,6 +784,10 @@ class PsycheOrchestrator:
 
         # ── Persistent commitment (持続的取り組み保持構造) ──
         self._persistent_commitment = create_persistent_commitment_processor()
+
+        # ── Internal contradiction description (内部状態の矛盾並置の構造的記述) ──
+        self._contradiction_processor = create_contradiction_processor()
+        self._last_contradiction_result: Optional[ContradictionResult] = None
 
         # ── Stabilization description (安定化の構造的記述) ──
         self._stabilization_desc_state = create_stabilization_description_state()
@@ -1230,6 +1242,19 @@ class PsycheOrchestrator:
             self._perceptual_context.describe_features()
         except Exception as e:
             logger.debug("Perceptual context describe skipped: %s", e)
+
+        # Phase 14f: internal_contradiction_description — 内部状態の矛盾並置の構造的記述（3ティック毎）
+        # 複数の内省系モジュールの出力を READ-ONLY で参照し、数値的に反対方向を同時に
+        # 示している断面対を検出し、解消せず、評価せず、そのまま対として記述する。
+        # 矛盾を解消しない。矛盾に優先度を付けない。矛盾を評価しない。パターンを抽出しない。
+        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
+        try:
+            contradiction_inputs = self._build_contradiction_inputs()
+            self._last_contradiction_result = self._contradiction_processor.process(
+                contradiction_inputs
+            )
+        except Exception as e:
+            logger.debug("Internal contradiction description skipped: %s", e)
 
         logger.debug(
             "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
@@ -2434,6 +2459,14 @@ class PsycheOrchestrator:
                             )
             except Exception:
                 pass
+        # #34 internal_contradiction_description — 矛盾対の等価列挙（強調禁止・解消禁止・判断非接続）
+        if self._contradiction_processor is not None:
+            try:
+                ic_text = self._contradiction_processor.get_enrichment_text()
+                if ic_text and "待機中" not in ic_text:
+                    memory_lines.append(f"矛盾並置: {ic_text}")
+            except Exception:
+                pass
         if len(memory_lines) > 1:
             sections.append("\n".join(memory_lines))
 
@@ -3320,6 +3353,113 @@ class PsycheOrchestrator:
         # ── ティック処理 ──
         pc.tick(inputs, current_tick=self._tick_count)
 
+    def _build_contradiction_inputs(self) -> ContradictionInputs:
+        """矛盾並置に必要な入力を構築する。
+
+        全てREAD-ONLY参照。いかなるモジュールの内部状態にも書き込まない。
+        判断・行動・責任の各処理系統に接続しない。
+        """
+        # 1. 自己モデルの統合ビュー（感情側面の出力）
+        sm_intensity = 0.0
+        sm_spread = 0.0
+        sm_conflict = False
+        if self._last_self_view is not None:
+            emo_view = self._last_self_view.emotional
+            spread_map = {"focused": 0.2, "mixed": 0.5, "diffuse": 0.8, "undefined": 0.0}
+            sm_spread = spread_map.get(emo_view.spread.value, 0.0)
+            intensity_map = {"calm": 0.15, "moderate": 0.5, "intense": 0.85, "overwhelming": 1.0, "undefined": 0.0}
+            sm_intensity = intensity_map.get(emo_view.intensity.value, 0.0)
+            sm_conflict = emo_view.has_coexisting_pairs
+
+        # 2. メタ感情認知の変動候補列挙
+        me_change_speed = 0.0
+        me_dominant_stability = 0.0
+        if self._last_meta_emotion is not None:
+            me_state = self._meta_emotion_processor.state
+            if me_state.cognition_history:
+                latest = me_state.cognition_history[-1]
+                me_change_speed = getattr(latest, "change_speed", 0.0)
+                me_dominant_stability = getattr(latest, "dominant_stability", 0.0)
+
+        # 3. 自己像統合の暫定的自己像
+        si_stability = 0.5
+        si_continuity = 0.5
+        si_emotional_tone = 0.5
+        if self._last_self_image is not None:
+            stability_map = {"grounded": 1.0, "mostly_settled": 0.7, "shifting": 0.3, "turbulent": 0.0}
+            si_stability = stability_map.get(self._last_self_image.stability_feeling.value, 0.5)
+            continuity_map = {"continuous": 1.0, "mostly_familiar": 0.7, "fading": 0.3, "disconnected": 0.0}
+            si_continuity = continuity_map.get(self._last_self_image.continuity_feeling.value, 0.5)
+            tone_map = {"calm": 1.0, "stirred": 0.6, "intense": 0.2}
+            si_emotional_tone = tone_map.get(self._last_self_image.emotional_tone.value, 0.5)
+
+        # 4. 同一性揺らぎ認知の揺らぎ状態
+        ic_active_shifts = 0
+        ic_level = 0.0
+        if self._last_coherence is not None:
+            coherence_map = {"stable": 0.0, "slightly_shifting": 0.3, "unsettled": 0.6, "disconnected": 1.0}
+            ic_level = coherence_map.get(self._last_coherence.level.value, 0.0)
+            if hasattr(self._last_coherence, "shift_overlap") and self._last_coherence.shift_overlap is not None:
+                ic_active_shifts = self._last_coherence.shift_overlap.active_count
+
+        # 5. 時間的自己差分の差分規模
+        td_magnitude = 0.0
+        if self._last_diff_summary is not None:
+            magnitude_map = {"negligible": 0.0, "noticeable": 0.3, "significant": 0.6, "substantial": 1.0}
+            td_magnitude = magnitude_map.get(self._last_diff_summary.magnitude.value, 0.0)
+
+        # 6. 連続性負荷の負荷水準
+        cs_level = 0.0
+        if self._last_strain is not None:
+            strain_map = {"at_ease": 0.0, "unsettled": 0.3, "dissonant": 0.6, "alienated": 1.0}
+            cs_level = strain_map.get(self._last_strain.level.value, 0.0)
+
+        # 7. 内省断面横断記述のスナップショット（6断面の数値化）
+        cross_section_values: dict[str, float] = {}
+        if self._introspection_cross_section is not None:
+            latest_snap = self._introspection_cross_section.get_latest_snapshot()
+            if latest_snap and "sections" in latest_snap:
+                # 断面テキストの長さから相対的な活性度を推定
+                sections = latest_snap["sections"]
+                if sections:
+                    max_len = max(len(str(v)) for v in sections.values()) if sections.values() else 1
+                    if max_len > 0:
+                        for key, val in sections.items():
+                            cross_section_values[key] = min(len(str(val)) / max(max_len, 1), 1.0)
+
+        # 8. 安定化の構造的記述
+        stab_signal_count = 0
+        stab_diff_degree = 0.0
+        if self._stabilization_desc_state is not None:
+            try:
+                latest_rec = None
+                if hasattr(self._stabilization_desc_state, "record_window") and self._stabilization_desc_state.record_window:
+                    latest_rec = self._stabilization_desc_state.record_window[-1]
+                if latest_rec is not None:
+                    stab_signal_count = getattr(latest_rec, "active_signal_count", 0)
+                    stab_diff_degree = getattr(latest_rec, "diff_degree", 0.0)
+            except Exception:
+                pass
+
+        return ContradictionInputs(
+            self_model_emotion_intensity=sm_intensity,
+            self_model_emotion_spread=sm_spread,
+            self_model_emotion_conflict=sm_conflict,
+            meta_emotion_change_speed=me_change_speed,
+            meta_emotion_dominant_stability=me_dominant_stability,
+            self_image_stability=si_stability,
+            self_image_continuity=si_continuity,
+            self_image_emotional_tone=si_emotional_tone,
+            identity_coherence_active_shifts=ic_active_shifts,
+            identity_coherence_level=ic_level,
+            temporal_diff_magnitude=td_magnitude,
+            continuity_strain_level=cs_level,
+            cross_section_values=cross_section_values,
+            stabilization_signal_count=stab_signal_count,
+            stabilization_diff_degree=stab_diff_degree,
+            current_tick=self._tick_count,
+        )
+
     def _build_meta_emotion_inputs(self) -> MetaEmotionInputs:
         """メタ感情認知に必要な8断面の入力を構築する。
 
@@ -3550,7 +3690,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 28,
+            "version": 29,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3628,6 +3768,8 @@ class PsycheOrchestrator:
             "behavioral_diversity_state": self._behavioral_diversity_state.to_dict() if self._behavioral_diversity_state else {},
             # Version 28 fields
             "spontaneous_recall_state": self._spontaneous_recall.state.to_dict() if self._spontaneous_recall else {},
+            # Version 29 fields
+            "internal_contradiction_state": self._contradiction_processor.save() if self._contradiction_processor else {},
         }
 
         save_path.write_text(
@@ -3810,6 +3952,10 @@ class PsycheOrchestrator:
             # Version 28+ fields
             if data.get("spontaneous_recall_state"):
                 self._spontaneous_recall.state = SpontaneousRecallState.from_dict(data["spontaneous_recall_state"])
+
+            # Version 29+ fields
+            if data.get("internal_contradiction_state"):
+                self._contradiction_processor.load(data["internal_contradiction_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

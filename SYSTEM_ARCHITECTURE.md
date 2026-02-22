@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~137,000行
-総テスト数: 5,262テスト
+総コード行数: ~141,000行
+総テスト数: 5,326テスト
 
 ---
 
@@ -114,6 +114,7 @@
 | 13u | behavioral_diversity_description.py | 664 | テスト内 | 内省 | 行動多様性の構造的記述（3断面横断読み取り・結果断面キー種類数/選択ラベル種類数/候補群サイズ分散度・段階値列挙型・FIFO蓄積・enrichment直接露出遮断・頻度情報構造的排除・安全弁8種） |
 | 13v | spontaneous_recall.py | 1,025 | テスト内 | 記憶 | 記憶の自発的想起（4段パイプライン・3経路想起・感情変動連想/動機連想/揺らぎ連想・外部入力非依存・ルーミネーション防止・経路等価性・multi_path_recall経路分離・安全弁7種） |
 | 13w | internal_contradiction_description.py | 787 | テスト内 | 内省 | 内部状態の矛盾並置記述（5段パイプライン・6断面対定義・数値的乖離検出・矛盾解消禁止・全記録等価・収束監視・evaluative語彙除去・安全弁7種） |
+| 13x | interaction_accumulation.py | 678 | テスト内 | 相互作用 | 相互作用の蓄積記述（4段パイプライン・時間的隣接対構成・因果帰属禁止・全記録等価・FIFO自然消失・ルーミネーション防止・パターン抽出排除・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -153,7 +154,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 3,965 | 54 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 57システム, save/load v29(54項目永続化), enrichment(5セクション/34項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,022 | 55 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 58システム, save/load v30(55項目永続化), enrichment(5セクション/35項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4082,7 +4083,20 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁7種: 全記録等価/解消経路不在/意味判断禁止/パターン抽出禁止/enrichment直接露出遮断/忘却経路遮断/出力経路不拡張
 - orchestrator: Phase 14f（3ティック周期、introspection_cross_section後）、enrichment #34（感情・トーンセクション）、save/load v29 (54フィールド)
 
+#### ㉜ 相互作用の蓄積記述 ✅完了
+
+- 設計書: design_interaction_accumulation.md
+- 討論結果: 条件付き推奨（自他境界の構造化に貢献、discussion_next_gaps_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_interaction_accumulation_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_interaction_accumulation_impl_fixation_20260222.md）
+- 自己行動知覚（表出テキスト）と他者モデルリアルフィード（他者反応）の時系列隣接対を構成・蓄積する層
+- 入力2系統（全READ-ONLY）: self_action_perception記録、other_model_real_feed観測断片
+- 4段パイプライン: 隣接対構成（時間的近接のみ・内容判定禁止）→対の記述（事実列挙）→FIFO蓄積（上限付き・選択的保持禁止）→参照受渡（enrichment等価列挙+READ-ONLYアクセサ）
+- action_result_observationとの責務分離: action_result_observationは汎用「ポリシー→多断面結果」で判断系へ微弱シグナル供給、本機能は特定「表出テキスト→他者反応」で判断系への経路を一切持たない
+- 安全弁5種: 全記録等価性/FIFO自然消失/ルーミネーション防止/パターン抽出構造的排除/判断系経路遮断
+- orchestrator: Phase 25d（other_model_dialogue_learning後）、enrichment #35（相互作用セクション）、save/load v30 (55フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~137,000行 / テスト数: 5,262*
+*総コード行数: ~141,000行 / テスト数: 5,326*

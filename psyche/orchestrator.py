@@ -498,6 +498,14 @@ from .internal_contradiction_description import (
     create_contradiction_processor,
 )
 
+# Interaction accumulation (相互作用の蓄積記述)
+from .interaction_accumulation import (
+    InteractionAccumulationProcessor,
+    InteractionAccumulationState,
+    create_interaction_accumulation_processor,
+    get_interaction_summary,
+)
+
 # Stabilization description (安定化の構造的記述)
 from .stabilization_description import (
     StabilizationDescriptionConfig,
@@ -796,6 +804,9 @@ class PsycheOrchestrator:
         # ── Behavioral diversity description (行動多様性の構造的記述) ──
         self._behavioral_diversity_state = create_behavioral_diversity_state()
         self._behavioral_diversity_config = BehavioralDiversityConfig()
+
+        # ── Interaction accumulation (相互作用の蓄積記述) ──
+        self._interaction_accumulation = create_interaction_accumulation_processor()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1739,6 +1750,26 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Dialogue learning skipped: %s", e)
 
+        # Phase 25d: interaction_accumulation — 相互作用の蓄積記述
+        # 自己行動知覚の記録と他者モデルリアルフィードの観測記録を時系列的隣接関係として
+        # 対構成し蓄積する。自己行動知覚の記録更新と他者モデルリアルフィードの観測更新が
+        # 完了した後に実行する。因果帰属を行わない。パターン抽出を行わない。
+        # 出力はenrichmentへの等価列挙と内省系構造へのREAD-ONLY参照のみ。
+        try:
+            ia_self_records = []
+            if self._self_action_recorder is not None:
+                ia_self_records = self._self_action_recorder.get_reference_history()
+            ia_other_units = []
+            if self._real_feed_processor is not None:
+                ia_other_units = list(self._real_feed_processor.state.units)
+            self._interaction_accumulation.process(
+                self_records=ia_self_records,
+                other_units=ia_other_units,
+                current_tick=self._tick_count,
+            )
+        except Exception as e:
+            logger.debug("Interaction accumulation skipped: %s", e)
+
         # Phase 25: other_agent_model — 他者モデル仮説更新 (入力供給経由)
         try:
             # 入力供給更新: percept / STM / dynamics / psyche から計算
@@ -2465,6 +2496,26 @@ class PsycheOrchestrator:
                 ic_text = self._contradiction_processor.get_enrichment_text()
                 if ic_text and "待機中" not in ic_text:
                     memory_lines.append(f"矛盾並置: {ic_text}")
+            except Exception:
+                pass
+        # #35 interaction_accumulation — 相互作用隣接対の等価列挙（因果帰属禁止・パターン抽出禁止・判断非接続）
+        if self._interaction_accumulation is not None:
+            try:
+                ia_data = self._interaction_accumulation.get_enrichment_data()
+                ia_text = ia_data.get("summary_text", "")
+                if ia_text and "待機中" not in ia_text:
+                    memory_lines.append(f"相互作用: {ia_text}")
+                # 直近隣接対を等価に列挙（強調・選別・要約なし）
+                ia_entries = ia_data.get("entries", [])
+                if ia_entries:
+                    for entry in ia_entries:
+                        self_preview = entry.get("self_text", "")[:40]
+                        other_preview = entry.get("other_reaction", "")[:40]
+                        policy = entry.get("self_policy", "")
+                        if self_preview or other_preview:
+                            memory_lines.append(
+                                f"  [{policy}] {self_preview} → {other_preview}"
+                            )
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -3690,7 +3741,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 29,
+            "version": 30,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3770,6 +3821,8 @@ class PsycheOrchestrator:
             "spontaneous_recall_state": self._spontaneous_recall.state.to_dict() if self._spontaneous_recall else {},
             # Version 29 fields
             "internal_contradiction_state": self._contradiction_processor.save() if self._contradiction_processor else {},
+            # Version 30 fields
+            "interaction_accumulation_state": self._interaction_accumulation.state.to_dict() if self._interaction_accumulation else {},
         }
 
         save_path.write_text(
@@ -3956,6 +4009,10 @@ class PsycheOrchestrator:
             # Version 29+ fields
             if data.get("internal_contradiction_state"):
                 self._contradiction_processor.load(data["internal_contradiction_state"])
+
+            # Version 30+ fields
+            if data.get("interaction_accumulation_state"):
+                self._interaction_accumulation.state = InteractionAccumulationState.from_dict(data["interaction_accumulation_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -486,10 +486,12 @@ class TestPersistence:
             "spontaneous_recall_state",
             # v29
             "internal_contradiction_state",
+            # v30
+            "interaction_accumulation_state",
         ]
         for key in expected_keys:
             assert key in data, f"Missing save field: {key}"
-        assert data["version"] == 29
+        assert data["version"] == 30
 
     def test_roundtrip_json_match(self, tmp_path):
         """save → load → save で JSON が一致する（全フィールド復元確認）。

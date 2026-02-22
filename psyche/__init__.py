@@ -1440,6 +1440,17 @@ from .behavioral_diversity_description import (
     load_state as load_behavioral_diversity_state,
 )
 
+# Interaction Accumulation (相互作用の蓄積記述)
+from .interaction_accumulation import (
+    AdjacentPair,
+    BufferEntry,
+    InteractionAccumulationState,
+    InteractionAccumulationConfig,
+    InteractionAccumulationProcessor,
+    get_interaction_summary,
+    create_interaction_accumulation_processor,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -2009,6 +2020,11 @@ __all__ = [
     "InternalContradictionProcessor",
     "get_contradiction_summary", "create_contradiction_processor",
     "CONTRADICTION_PAIR_DEFINITIONS", "CONTRADICTION_PAIR_LABELS",
+    # Interaction Accumulation (相互作用の蓄積記述)
+    "AdjacentPair", "BufferEntry",
+    "InteractionAccumulationState", "InteractionAccumulationConfig",
+    "InteractionAccumulationProcessor",
+    "get_interaction_summary", "create_interaction_accumulation_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

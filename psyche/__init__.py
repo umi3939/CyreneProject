@@ -1548,6 +1548,58 @@ from .expectation_lifecycle_description import (
     create_expectation_lifecycle_processor,
 )
 
+# Input Pathway Balance (入力経路間の均衡記述)
+from .input_pathway_balance import (
+    InputPathwayBalanceConfig,
+    InputPathwayBalanceState,
+    UsageFact,
+    PathwaySnapshot,
+    PathwayVariation,
+    UsageLevel,
+    BiasLevel,
+    PATHWAY_TEXT,
+    PATHWAY_SCREEN,
+    PATHWAY_SPONTANEOUS,
+    ALL_PATHWAYS,
+    determine_usage_level,
+    determine_bias_level,
+    compute_bias_value,
+    collect_usage_fact,
+    read_text_dialogue_usage,
+    read_spontaneous_usage,
+    compose_snapshot,
+    derive_variation,
+    process_input_pathway_balance,
+    get_latest_snapshot as get_latest_pathway_snapshot,
+    get_snapshot_history as get_pathway_snapshot_history,
+    get_latest_variation as get_latest_pathway_variation,
+    get_pathway_balance_summary,
+    get_enrichment_text as get_pathway_balance_enrichment_text,
+    save_state as save_input_pathway_balance_state,
+    load_state as load_input_pathway_balance_state,
+    create_input_pathway_balance_state,
+    create_input_pathway_balance_config,
+)
+
+# Responsibility Temporal Trace (責任の時間的推移記述)
+from .responsibility_temporal_trace import (
+    VariationLevel,
+    ResponsibilitySnapshot,
+    ResponsibilityTemporalTraceState,
+    ResponsibilityTemporalTraceConfig,
+    ResponsibilityTemporalTraceProcessor,
+    get_trace_summary,
+    create_responsibility_temporal_trace,
+    SECTION_ORDER as RESPONSIBILITY_TRACE_SECTION_ORDER,
+    SECTION_TOTAL_WEIGHT_VARIATION,
+    SECTION_PENDING_DECISIONS_RETENTION,
+    SECTION_HARM_VARIATION,
+    SECTION_CONFIDENCE_VARIATION,
+    SECTION_DISPERSION_ACTIVITY_DENSITY,
+    SECTION_LABELS as RESPONSIBILITY_TRACE_SECTION_LABELS,
+    VARIATION_LABELS,
+)
+
 # Orchestrator (全モジュール統合管理)
 from .orchestrator import PsycheOrchestrator
 
@@ -2132,6 +2184,31 @@ __all__ = [
     "ExpectationLifecycleState", "ExpectationLifecycleConfig",
     "ExpectationLifecycleDescriptionProcessor",
     "get_lifecycle_summary", "create_expectation_lifecycle_processor",
+    # Input Pathway Balance (入力経路間の均衡記述)
+    "InputPathwayBalanceConfig", "InputPathwayBalanceState",
+    "UsageFact", "PathwaySnapshot", "PathwayVariation",
+    "UsageLevel", "BiasLevel",
+    "PATHWAY_TEXT", "PATHWAY_SCREEN", "PATHWAY_SPONTANEOUS", "ALL_PATHWAYS",
+    "determine_usage_level", "determine_bias_level", "compute_bias_value",
+    "collect_usage_fact", "read_text_dialogue_usage", "read_spontaneous_usage",
+    "compose_snapshot", "derive_variation",
+    "process_input_pathway_balance",
+    "get_latest_pathway_snapshot", "get_pathway_snapshot_history",
+    "get_latest_pathway_variation", "get_pathway_balance_summary",
+    "get_pathway_balance_enrichment_text",
+    "save_input_pathway_balance_state", "load_input_pathway_balance_state",
+    "create_input_pathway_balance_state", "create_input_pathway_balance_config",
+    # Responsibility Temporal Trace (責任の時間的推移記述)
+    "VariationLevel",
+    "ResponsibilitySnapshot",
+    "ResponsibilityTemporalTraceState", "ResponsibilityTemporalTraceConfig",
+    "ResponsibilityTemporalTraceProcessor",
+    "get_trace_summary", "create_responsibility_temporal_trace",
+    "RESPONSIBILITY_TRACE_SECTION_ORDER",
+    "SECTION_TOTAL_WEIGHT_VARIATION", "SECTION_PENDING_DECISIONS_RETENTION",
+    "SECTION_HARM_VARIATION", "SECTION_CONFIDENCE_VARIATION",
+    "SECTION_DISPERSION_ACTIVITY_DENSITY",
+    "RESPONSIBILITY_TRACE_SECTION_LABELS", "VARIATION_LABELS",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

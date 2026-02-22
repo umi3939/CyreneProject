@@ -306,6 +306,8 @@ from .responsibility_dispersion import (
     to_dict as dispersion_to_dict,
     from_dict as dispersion_from_dict,
     get_dispersion_summary,
+    get_active_units as get_dispersion_active_units,
+    get_total_active_weight as get_dispersion_active_weight,
 )
 
 # Policy candidate expansion
@@ -564,6 +566,28 @@ from .behavioral_diversity_description import (
     process_behavioral_diversity,
     create_behavioral_diversity_state,
     get_diversity_summary,
+)
+
+# Input pathway balance (入力経路間の均衡記述)
+from .input_pathway_balance import (
+    InputPathwayBalanceConfig,
+    InputPathwayBalanceState,
+    process_input_pathway_balance,
+    get_enrichment_text as get_pathway_balance_enrichment_text,
+    save_state as save_input_pathway_balance_state,
+    load_state as load_input_pathway_balance_state,
+    create_input_pathway_balance_state,
+    PATHWAY_TEXT,
+    PATHWAY_SCREEN,
+    PATHWAY_SPONTANEOUS,
+)
+
+# Responsibility temporal trace (責任の時間的推移記述)
+from .responsibility_temporal_trace import (
+    ResponsibilityTemporalTraceProcessor,
+    ResponsibilityTemporalTraceState,
+    create_responsibility_temporal_trace,
+    get_trace_summary as get_responsibility_trace_summary,
 )
 
 
@@ -855,6 +879,10 @@ class PsycheOrchestrator:
         self._behavioral_diversity_state = create_behavioral_diversity_state()
         self._behavioral_diversity_config = BehavioralDiversityConfig()
 
+        # ── Input pathway balance (入力経路間の均衡記述) ──
+        self._input_pathway_balance_state = create_input_pathway_balance_state()
+        self._input_pathway_balance_config = InputPathwayBalanceConfig()
+
         # ── Interaction accumulation (相互作用の蓄積記述) ──
         self._interaction_accumulation = create_interaction_accumulation_processor()
 
@@ -869,6 +897,9 @@ class PsycheOrchestrator:
         # ── Expectation lifecycle description (予期の成立・消失の事後記述) ──
         self._expectation_lifecycle_processor = create_expectation_lifecycle_processor()
 
+        # ── Responsibility temporal trace (責任の時間的推移記述) ──
+        self._responsibility_temporal_trace = create_responsibility_temporal_trace()
+
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
         self._last_tone_mod: Optional[ToneModifier] = None
@@ -877,7 +908,7 @@ class PsycheOrchestrator:
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
-            "fields=47",
+            "fields=48",
             fear.value, fear.dominant_fear,
         )
 
@@ -1147,6 +1178,34 @@ class PsycheOrchestrator:
                 )
         except Exception as e:
             logger.debug("Situational self-presentation skipped: %s", e)
+
+        # Phase 7e: input_pathway_balance — 入力経路間均衡記述（毎ティック）
+        # 3経路の使用事実が確定した後に実行する。
+        # 安全弁3: 経路選択遮断。安全弁4: 判断層遮断。
+        # 本機能の出力は経路選択・判断バイアス計算に接続されない。
+        try:
+            # 現在のサイクルで使用された経路を判定
+            current_pathway = ""
+            if percept.text:
+                current_pathway = PATHWAY_TEXT
+            has_screen = bool(percept.intent and percept.intent != "expression")
+
+            self._input_pathway_balance_state = process_input_pathway_balance(
+                self._input_pathway_balance_state,
+                current_pathway=current_pathway,
+                text_dialogue_state=(
+                    self._text_dialogue_processor.state
+                    if self._text_dialogue_processor else None
+                ),
+                spontaneous_state=(
+                    self._spontaneous_processor.state
+                    if self._spontaneous_processor else None
+                ),
+                has_screen_input=has_screen,
+                config=self._input_pathway_balance_config,
+            )
+        except Exception as e:
+            logger.debug("Input pathway balance skipped: %s", e)
 
         logger.debug(
             "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
@@ -2124,6 +2183,36 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Expectation lifecycle description skipped: %s", e)
 
+        # Phase 26g: responsibility_temporal_trace — 責任の時間的推移記述
+        # 責任管理構造と責任分散構造からREAD-ONLYで値を読み取り、
+        # スナップショットとして時系列蓄積し、変動度合いを段階値で記述する。
+        # 責任管理構造・責任分散構造への書き込み経路を一切持たない（READ-ONLY）。
+        # 段階値を判断バイアス計算・方針選択・安定弁に接続しない。
+        # パターン抽出禁止、統計量算出禁止、方向性記述排除。
+        try:
+            resp_summary = self._responsibility_mgr.get_summary(user_id)
+            disp_active_weight = 0.0
+            disp_active_count = 0
+            disp_transformation_count = 0
+            if self._dispersion_state is not None:
+                disp_active_weight = get_dispersion_active_weight(self._dispersion_state)
+                disp_active_count = len(get_dispersion_active_units(self._dispersion_state))
+                disp_transformation_count = self._dispersion_state.transformation_count
+
+            self._responsibility_temporal_trace.record_snapshot(
+                tick=self._tick_count,
+                total_weight=resp_summary["total_weight"],
+                pending_decisions=resp_summary["pending_decisions"],
+                accumulated_harm=resp_summary["accumulated_harm"],
+                accumulated_confidence=resp_summary["accumulated_confidence"],
+                dispersion_active_weight=disp_active_weight,
+                dispersion_active_count=disp_active_count,
+                dispersion_transformation_count=disp_transformation_count,
+            )
+            self._responsibility_temporal_trace.describe_variation()
+        except Exception as e:
+            logger.debug("Responsibility temporal trace skipped: %s", e)
+
         logger.debug(
             "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
             "episodes=%s, expectations=%s",
@@ -2277,6 +2366,15 @@ class PsycheOrchestrator:
             disp_summary = get_dispersion_summary(self._dispersion_state)
             if disp_summary:
                 psyche_lines.append(f"責任拡散: {disp_summary}")
+        # #42 responsibility_temporal_trace — 責任推移の段階値等価列挙（強調禁止・パターン抽出禁止・統計量算出禁止・方向性記述排除・判断非接続）
+        if self._responsibility_temporal_trace is not None:
+            try:
+                rtt_data = self._responsibility_temporal_trace.get_enrichment_data()
+                rtt_text = rtt_data.get("summary_text", "")
+                if rtt_text and "待機中" not in rtt_text:
+                    psyche_lines.append(f"責任推移: {rtt_text}")
+            except Exception:
+                pass
         # #6 stability_valve
         try:
             valve_bias = self._stability_valve.generate_bias()
@@ -2690,6 +2788,16 @@ class PsycheOrchestrator:
                 eb_text = eb_data.get("summary_text", "")
                 if eb_text and "待機中" not in eb_text:
                     memory_lines.append(f"感情基調: {eb_text}")
+            except Exception:
+                pass
+        # #41 input_pathway_balance — 入力経路均衡記述（段階値の等価列挙のみ・件数非露出・比率非露出・順位非露出・評価的語彙禁止・経路選択遮断・判断層遮断）
+        if self._input_pathway_balance_state is not None:
+            try:
+                ipb_text = get_pathway_balance_enrichment_text(
+                    self._input_pathway_balance_state
+                )
+                if ipb_text and "待機中" not in ipb_text:
+                    memory_lines.append(f"経路均衡: {ipb_text}")
             except Exception:
                 pass
         if len(memory_lines) > 1:
@@ -4067,7 +4175,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 34,
+            "version": 36,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -4157,6 +4265,10 @@ class PsycheOrchestrator:
             "drive_variation_state": self._drive_variation_processor.save() if self._drive_variation_processor else {},
             # Version 34 fields
             "expectation_lifecycle_state": self._expectation_lifecycle_processor.state.to_dict() if self._expectation_lifecycle_processor else {},
+            # Version 35 fields
+            "input_pathway_balance_state": save_input_pathway_balance_state(self._input_pathway_balance_state) if self._input_pathway_balance_state else {},
+            # Version 36 fields
+            "responsibility_temporal_trace_state": self._responsibility_temporal_trace.save() if self._responsibility_temporal_trace else {},
         }
 
         save_path.write_text(
@@ -4366,6 +4478,14 @@ class PsycheOrchestrator:
             # Version 34+ fields
             if data.get("expectation_lifecycle_state"):
                 self._expectation_lifecycle_processor.state = ExpectationLifecycleState.from_dict(data["expectation_lifecycle_state"])
+
+            # Version 35+ fields
+            if data.get("input_pathway_balance_state"):
+                self._input_pathway_balance_state = load_input_pathway_balance_state(data["input_pathway_balance_state"])
+
+            # Version 36+ fields
+            if data.get("responsibility_temporal_trace_state"):
+                self._responsibility_temporal_trace.load(data["responsibility_temporal_trace_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

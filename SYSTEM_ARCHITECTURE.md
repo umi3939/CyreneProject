@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~151,000行
-総テスト数: 5,773テスト
+総コード行数: ~155,000行
+総テスト数: 5,949テスト
 
 ---
 
@@ -120,6 +120,8 @@
 | 13aa | introspection_longitudinal_view.py | 506 | テスト内 | 内省 | 内省の時間的縦断参照（3段パイプライン・横断→縦断変換・独自状態なし・全断面等価・全時点等価・パターン抽出禁止・安全弁5種） |
 | 13ab | drive_variation_description.py | 1,079 | テスト内 | 駆動 | 駆動の変動記述（4段パイプライン・スライディングウィンドウ・8断面入力・段階的鮮度減衰・等価列挙のみ・移動平均禁止・安全弁5種・経路遮断6種） |
 | 13ac | expectation_lifecycle_description.py | 904 | テスト内 | 予期 | 予期の成立・消失の事後記述（スナップショット比較・5状態遷移検出・FIFO蓄積・均一減衰・因果帰属禁止・統計量算出禁止・安全弁5種） |
+| 13ad | input_pathway_balance.py | 813 | テスト内 | 入力 | 入力経路間の均衡記述（3経路横断読み取り・窓内カウント・段階値列挙型・FIFO蓄積・規範なし事実記述・パターン抽出禁止・安全弁5種） |
+| 13ae | responsibility_temporal_trace.py | 653 | テスト内 | 責任 | 責任の時間的推移記述（スナップショット蓄積・段階値記述・FIFO・責任分散操作非介入・パターン抽出禁止・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -159,7 +161,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,375 | 59 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 63システム, save/load v34(59項目永続化), enrichment(5セクション/40項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,495 | 61 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 65システム, save/load v36(61項目永続化), enrichment(5セクション/42項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4168,7 +4170,27 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種: 蓄積上限/均一減衰/収束監視/enrichment出力量制限/内容記述長制限
 - orchestrator: Phase 26f（5ティック周期、intent_action_gap後）、enrichment #40（動機・目標セクション）、save/load v34 (59フィールド)
 
+#### ㊳ 入力経路間の均衡記述 ✅完了
+
+- 設計書: design_input_pathway_balance.md
+- 討論結果: 条件付き推奨（3入力経路の使用実績の事後認知、discussion_next_gaps_cycle2_20260222.md）
+- テキスト経路/画面知覚経路/自発起動経路の3入力経路がどの程度使用されているかの構造的記述
+- 窓内カウント方式（単方向累積禁止）、段階値列挙型
+- 「均衡すべき」という規範なし — 事実記述のみ
+- 安全弁5種
+- orchestrator: Phase 7e（毎ティック）、enrichment #41、save/load v35 (60フィールド)
+
+#### ㊴ 責任の時間的推移記述 ✅完了
+
+- 設計書: design_responsibility_temporal_trace.md
+- 討論結果: 条件付き推奨（責任に特化した推移の記述構造が不在、discussion_next_gaps_cycle2_20260222.md）
+- 責任重量・分布の時間的変遷をスナップショット蓄積し横断参照に供する層
+- responsibility/responsibility_dispersionからREAD-ONLY参照
+- 段階値記述、FIFO蓄積、責任分散操作への書き込み経路遮断
+- 安全弁5種
+- orchestrator: Phase 26g（5ティック周期、expectation_lifecycle後）、enrichment #42（責任セクション）、save/load v36 (61フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~151,000行 / テスト数: 5,773*
+*総コード行数: ~155,000行 / テスト数: 5,949*

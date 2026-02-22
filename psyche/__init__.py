@@ -1689,6 +1689,43 @@ from .forgetting_recall_balance import (
     create_forgetting_recall_balance_config,
 )
 
+# Goal Hierarchy Propagation (目的階層間の隣接状態変化記述)
+from .goal_hierarchy_propagation import (
+    GoalHierarchyPropagationProcessor,
+    GoalHierarchyPropagationState,
+    GoalHierarchyPropagationConfig,
+    AdjacencyRecord,
+    Layer1ChangeType,
+    Layer2ChangeType,
+    Layer3ChangeType,
+    create_goal_hierarchy_propagation_processor,
+    save_state as save_goal_hierarchy_propagation_state,
+    load_state as load_goal_hierarchy_propagation_state,
+)
+
+# Hypothesis-Observation Pairing (他者モデル仮説の事後検証経路)
+from .hypothesis_observation_pairing import (
+    HypothesisSnapshot,
+    ObservationDescription,
+    AdjacentPair as HypothesisObservationPair,
+    HypothesisObservationPairingConfig,
+    HypothesisObservationPairingState,
+    HypothesisObservationPairingProcessor,
+    acquire_hypothesis_snapshots,
+    update_snapshot_buffer,
+    acquire_observation_descriptions,
+    compose_adjacent_pairs,
+    accumulate_pairs_by_user,
+    apply_freshness_decay as apply_hypothesis_observation_freshness_decay,
+    prepare_enrichment_pairs as prepare_hypothesis_observation_enrichment_pairs,
+    get_reference_history as get_hypothesis_observation_reference_history,
+    get_pairing_summary_text,
+    save_pairing_state,
+    load_pairing_state,
+    create_hypothesis_observation_pairing_processor,
+    get_hypothesis_observation_pairing_summary,
+)
+
 # Orchestrator (全モジュール統合管理)
 from .orchestrator import PsycheOrchestrator
 
@@ -2340,6 +2377,12 @@ __all__ = [
     "get_frb_balance_summary", "get_frb_enrichment_text",
     "save_frb_state", "load_frb_state",
     "create_forgetting_recall_balance_state", "create_forgetting_recall_balance_config",
+    # Goal Hierarchy Propagation (目的階層間の隣接状態変化記述)
+    "GoalHierarchyPropagationProcessor", "GoalHierarchyPropagationState",
+    "GoalHierarchyPropagationConfig", "AdjacencyRecord",
+    "Layer1ChangeType", "Layer2ChangeType", "Layer3ChangeType",
+    "create_goal_hierarchy_propagation_processor",
+    "save_goal_hierarchy_propagation_state", "load_goal_hierarchy_propagation_state",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

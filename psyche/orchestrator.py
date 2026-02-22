@@ -540,6 +540,13 @@ from .expectation_lifecycle_description import (
     get_lifecycle_summary,
 )
 
+# Goal hierarchy propagation (目的階層間の隣接状態変化記述)
+from .goal_hierarchy_propagation import (
+    GoalHierarchyPropagationProcessor,
+    GoalHierarchyPropagationState,
+    create_goal_hierarchy_propagation_processor,
+)
+
 # Drive variation description (駆動の変動記述)
 from .drive_variation_description import (
     DriveVariationProcessor,
@@ -606,6 +613,14 @@ from .other_boundary_accumulation import (
     BoundaryAccumulationResult,
     create_other_boundary_accumulation_processor,
     get_boundary_accumulation_summary,
+)
+
+# Hypothesis-observation pairing (他者モデル仮説の事後検証経路)
+from .hypothesis_observation_pairing import (
+    HypothesisObservationPairingProcessor,
+    HypothesisObservationPairingState as HOPairingState,
+    create_hypothesis_observation_pairing_processor,
+    get_hypothesis_observation_pairing_summary,
 )
 
 # Forgetting-recall balance (忘却と想起の均衡記述)
@@ -948,6 +963,9 @@ class PsycheOrchestrator:
         self._other_boundary_accumulation = create_other_boundary_accumulation_processor()
         self._last_boundary_accumulation: Optional[BoundaryAccumulationResult] = None
 
+        # ── Hypothesis-observation pairing (他者モデル仮説の事後検証経路) ──
+        self._hypothesis_observation_pairing = create_hypothesis_observation_pairing_processor()
+
         # ── Forgetting-recall balance (忘却と想起の均衡記述) ──
         self._frb_state = create_forgetting_recall_balance_state()
         self._frb_config = ForgettingRecallBalanceConfig()
@@ -955,6 +973,9 @@ class PsycheOrchestrator:
         # ── Attention distribution description (注意配分の構造的記述) ──
         self._att_dist_state = create_attention_distribution_state()
         self._att_dist_config = AttDistConfig()
+
+        # ── Goal hierarchy propagation (目的階層間の隣接状態変化記述) ──
+        self._goal_hierarchy_propagation = create_goal_hierarchy_propagation_processor()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -2101,6 +2122,24 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Other boundary accumulation skipped: %s", e)
 
+        # Phase 25f: hypothesis_observation_pairing — 他者モデル仮説の事後検証経路
+        # other_agent_modelから仮説群をREAD-ONLYで取得し、
+        # other_model_real_feedの最新結果から観測断片をREAD-ONLYで取得し、
+        # 時間的隣接に基づいて仮説-観測の隣接対を構成・蓄積する。
+        # 仮説の正誤判定を行わない。整合性を算出しない。パターン抽出を行わない。
+        # 出力はenrichmentへの等価列挙とREAD-ONLY参照のみ。
+        try:
+            hop_hypothesis_source = self._last_other_model if self._last_other_model is not None else None
+            hop_observation_source = self._real_feed_processor if self._real_feed_processor is not None else None
+            self._hypothesis_observation_pairing.process(
+                hypothesis_source=hop_hypothesis_source,
+                observation_source=hop_observation_source,
+                user_id_source=user_id,
+                current_cycle=self._tick_count,
+            )
+        except Exception as e:
+            logger.debug("Hypothesis-observation pairing skipped: %s", e)
+
         # Phase 25: other_agent_model — 他者モデル仮説更新 (入力供給経由)
         try:
             # 入力供給更新: percept / STM / dynamics / psyche から計算
@@ -2370,6 +2409,72 @@ class PsycheOrchestrator:
             self._responsibility_temporal_trace.describe_variation()
         except Exception as e:
             logger.debug("Responsibility temporal trace skipped: %s", e)
+
+        # Phase 26h: goal_hierarchy_propagation — 目的階層間の隣接状態変化記述
+        # 3層（transient_goal, persistent_commitment, value_orientation）の状態が
+        # すべて確定した後のタイミングでスナップショット取得と変化検出を行う。
+        # 3層からの読み取りはREAD-ONLYであり、各層の公開済みアクセサのみを使用する。
+        # enrichmentへの直接露出を遮断する（内省系構造からのREAD-ONLY参照のみ）。
+        # 3層への書き戻し経路なし。ポリシー候補生成・バイアス適用・スコアリングに入力されない。
+        try:
+            # 第1層: transient_goal のスナップショット情報
+            tg_data: dict = {}
+            try:
+                active_goal = self._transient_goal_mgr.state.active_goal
+                if active_goal is not None:
+                    tg_data = {
+                        "has_active": True,
+                        "category": active_goal.candidate_category.value,
+                        "direction_signature": dict(active_goal.direction_alignment),
+                        "strength": active_goal.selection_strength,
+                    }
+                else:
+                    tg_data = {"has_active": False}
+            except Exception:
+                pass
+
+            # 第2層: persistent_commitment のスナップショット情報
+            pc_data: dict = {}
+            try:
+                pc = self._persistent_commitment
+                active_items = [it for it in pc.state.items if not it.released]
+                items_list = [
+                    {
+                        "item_id": it.item_id,
+                        "category": it.category,
+                        "strength": it.strength,
+                    }
+                    for it in active_items
+                ]
+                recent_types = [
+                    r.record_type for r in pc.state.cognition_records[-3:]
+                ] if pc.state.cognition_records else []
+                pc_data = {
+                    "items": items_list,
+                    "recent_cognition_types": recent_types,
+                }
+            except Exception:
+                pass
+
+            # 第3層: value_orientation のスナップショット情報
+            vo_data: dict = {}
+            try:
+                vo = self._value_orientation
+                vo_data = {
+                    "dimensions": vo.get_all_dimensions(),
+                    "confidences": vo.get_all_confidences(),
+                    "update_count": vo.update_count,
+                }
+            except Exception:
+                pass
+
+            self._goal_hierarchy_propagation.process(
+                transient_goal_data=tg_data if tg_data else None,
+                persistent_commitment_data=pc_data if pc_data else None,
+                value_orientation_data=vo_data if vo_data else None,
+            )
+        except Exception as e:
+            logger.debug("Goal hierarchy propagation skipped: %s", e)
 
         logger.debug(
             "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
@@ -2800,6 +2905,15 @@ class PsycheOrchestrator:
                 oba_text = oba_data.get("summary_text", "")
                 if oba_text and "待機中" not in oba_text:
                     memory_lines.append(f"境界蓄積: {oba_text}")
+            except Exception:
+                pass
+        # #48 hypothesis_observation_pairing — 仮説-観測隣接対の等価列挙（正誤判定禁止・整合性算出禁止・パターン抽出禁止・判断非接続）
+        if self._hypothesis_observation_pairing is not None:
+            try:
+                hop_data = self._hypothesis_observation_pairing.get_enrichment_data()
+                hop_text = hop_data.get("summary_text", "")
+                if hop_text and "待機中" not in hop_text:
+                    memory_lines.append(f"仮説-観測対: {hop_text}")
             except Exception:
                 pass
         # #23 meta_emotion_cognition
@@ -4388,7 +4502,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 40,
+            "version": 42,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -4490,6 +4604,10 @@ class PsycheOrchestrator:
             "forgetting_recall_balance_state": save_frb_state(self._frb_state) if self._frb_state else {},
             # Version 40 fields
             "attention_distribution_state": save_att_dist_state(self._att_dist_state) if self._att_dist_state else {},
+            # Version 41 fields
+            "goal_hierarchy_propagation_state": self._goal_hierarchy_propagation.state.to_dict() if self._goal_hierarchy_propagation else {},
+            # Version 42 fields
+            "hypothesis_observation_pairing_state": self._hypothesis_observation_pairing.state.to_dict() if self._hypothesis_observation_pairing else {},
         }
 
         save_path.write_text(
@@ -4725,6 +4843,14 @@ class PsycheOrchestrator:
             # Version 40+ fields
             if data.get("attention_distribution_state"):
                 self._att_dist_state = load_att_dist_state(data["attention_distribution_state"])
+
+            # Version 41+ fields
+            if data.get("goal_hierarchy_propagation_state"):
+                self._goal_hierarchy_propagation.state = GoalHierarchyPropagationState.from_dict(data["goal_hierarchy_propagation_state"])
+
+            # Version 42+ fields
+            if data.get("hypothesis_observation_pairing_state"):
+                self._hypothesis_observation_pairing._state = HOPairingState.from_dict(data["hypothesis_observation_pairing_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

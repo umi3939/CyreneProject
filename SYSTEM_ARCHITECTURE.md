@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~163,000行
-総テスト数: 6,336テスト
+総コード行数: ~167,000行
+総テスト数: 6,533テスト
 
 ---
 
@@ -126,6 +126,8 @@
 | 13ag | other_boundary_accumulation.py | 1,043 | テスト内 | 他者認知 | 他者境界の多相蓄積（相手別分離・自他境界変動記述・FIFO・鮮度減衰・境界制御禁止・安全弁5種） |
 | 13ah | forgetting_recall_balance.py | 729 | テスト内 | 記憶 | 忘却と想起の均衡記述（忘却速度/想起頻度の事実記述・窓内カウント・規範なし・パラメータ非介入・安全弁5種） |
 | 13ai | attention_distribution_description.py | 920 | テスト内 | 自己認知 | 注意配分の構造的記述（処理帯域集中/分散記述・横断読み取り・段階値・FIFO・帯域制御禁止・安全弁5種） |
+| 13aj | goal_hierarchy_propagation.py | 1,083 | テスト内 | 目標 | 目的階層間の隣接状態変化記述（3層限定・6段パイプライン・スナップショット比較・因果帰属禁止・enrichment直接露出遮断・安全弁7種） |
+| 13ak | hypothesis_observation_pairing.py | 1,010 | テスト内 | 他者認知 | 仮説-観測の隣接対構成（6段パイプライン・時間的隣接のみ・正誤判定禁止・確認バイアス排除・相手別分離・ルーミネーション防止・安全弁7種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -165,7 +167,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,734 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 69システム, save/load v40(65項目永続化), enrichment(5セクション/46項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,860 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v42(66項目永続化), enrichment(5セクション/48項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4233,7 +4235,32 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁5種: 蓄積上限/窓サイズ固定/収束監視/enrichment出力量制限/段階値更新制限
 - orchestrator: Phase 7f（毎ティック、input_pathway_balance後）、enrichment #46（自己認知セクション）、save/load v40 (65フィールド)
 
+#### ㊹ 目的階層間の隣接状態変化記述 ✅完了
+
+- 設計書: design_goal_hierarchy_propagation.md
+- 討論結果: 条件付き推奨（7層目的階層の伝搬が未認知、discussion_next_gaps_cycle3_20260223.md）
+- 設計解析結果: 低固定化リスク（analysis_goal_hierarchy_propagation_design_fixation_20260223.md）
+- transient_goal→persistent_commitment→value_orientationの3層に限定して、隣接層の状態変化の時間的同時性を事後的に記録する層
+- 6段パイプライン: スナップショット取得→変化検出→隣接同時性記録構成→FIFO蓄積+鮮度減衰→収束監視→参照提供
+- 段階値のみ使用（生の数値を含めない）、因果帰属禁止、パターン抽出禁止
+- enrichment直接露出遮断（reference_frequency_descriptionと同パターン）
+- 安全弁7種: 全記録等価/因果帰属排除/enrichment直接露出遮断/FIFO有限性/3層逆流経路不在/段階値限定/収束監視内部限定
+- orchestrator: Phase 26h（5ティック周期、responsibility_temporal_trace後）、enrichmentなし（直接露出遮断）、save/load v41 (66フィールド)
+
+#### ㊺ 仮説-観測の隣接対構成 ✅完了
+
+- 設計書: design_hypothesis_observation_pairing.md
+- 討論結果: 条件付き推奨（仮説と後続観測の対応付けが不在、discussion_next_gaps_cycle3_20260223.md）
+- 設計解析結果: 低固定化リスク（analysis_hypothesis_observation_pairing_design_fixation_20260223.md）
+- other_agent_modelの仮説と後続のother_model_real_feedの観測断片を時間的隣接のみで対構成し、相手別に分離蓄積する層
+- 6段パイプライン: 仮説スナップショット取得→観測記述取得→隣接対構成→相手別分離蓄積→鮮度管理→受渡準備
+- 仮説の正誤判定禁止、確認バイアスの構造的排除（内容的整合性を対構成基準に用いない）
+- interaction_accumulationパターン流用（因果帰属禁止・FIFO・ルーミネーション防止）
+- other_model_dialogue_learningとの単方向参照保証
+- 安全弁7種: 等価性/確認バイアス排除/FIFO消失/ルーミネーション防止/パターン抽出排除/単方向参照保証/判断系経路遮断
+- orchestrator: Phase 25f（5ティック周期、other_boundary_accumulation後）、enrichment #48（他者認知セクション）、save/load v42 (66フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~163,000行 / テスト数: 6,336*
+*総コード行数: ~167,000行 / テスト数: 6,533*

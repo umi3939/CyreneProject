@@ -3,7 +3,7 @@
 作成日: 2026-02-09
 更新日: 2026-02-21
 総コード行数: ~130,000行
-総テスト数: 4,985テスト
+総テスト数: 5,056テスト
 
 ---
 
@@ -3683,6 +3683,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ㉔ | 参照頻度の構造的記述 ✅完了 | 低 | - | reference_frequency_description.py (782行/93テスト) 12箇所横断読み取り専用集約層・断面構成（集中度/偏在度）・FIFO断面履歴（30件上限）・変動記述（再導出型）・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種。orchestrator Phase 24b、save/load v24 (49フィールド)。反固定化第3段階。討論結果: 条件付き推奨。設計解析: 低固定化リスク。実装解析: 低固定化リスク |
 | ㉕ | 持続的コミットメント ✅完了 | 中→低（修正済） | ⑧ | persistent_commitment.py (1,037行/73テスト) transient_goal昇格が唯一生成経路・複数並行保持（上限付き）・強度依存非線形減衰（飽和構造）・慣性時間減衰・4解除条件（時間/内部状態/競合/達成認知）・認知記録FIFO・資源競合（揺らぎ付き帯域分配）・バイアス上限<VO(+-5%)・安全弁6種・自己強化ループ4重遮断。orchestrator Phase 12b/35b2、enrichment #32、save/load v25 (50フィールド)。Agency第2段階。討論結果: 条件付き推奨（7条件）。設計解析: 低固定化リスク。実装解析: 中→修正後低 |
 | ㉗ | Agency Stage 3: 不整合度サマリー ✅完了 | - | ㉕ | 討論結果: 要再検討（新モジュール不要）。定量評価: 既存構造(persistent_commitment+stability_valve+context_sensitivity)で-20~-30%の間接的抵抗カバー済み。残ギャップ「不整合の明示的記述」をenrichment追加で解消。orchestrator get_prompt_enrichment()に内部-外部間張力サマリー追加（32行）。保持方向バイアス/外部文脈慎重度/価値軸傾斜の3断面をREAD-ONLY参照。張力情報なしの場合は出力しない。テスト+2 (4,985) |
+| ㉘ | 安定化の構造的記述 ✅完了 | 低 | ㉔ | stabilization_description.py (512行/71テスト) 2断面限定（信号源多寡+時間的変動幅）・横断読み取り層（6信号源二値読み取り+temporal_self_difference差分参照）・3段パイプライン（読み取り→断面構成→FIFO蓄積）・enrichment直接露出遮断・忘却経路遮断・パターン抽出禁止・全記録等価・安全弁5種。orchestrator Phase 15b、save/load v26 (51フィールド)。反固定化第4段階。討論結果: 条件付き推奨（7条件）。設計解析: 低固定化リスク。実装解析: 低固定化リスク |
 | ㉖ | 結合テスト強化 ✅完了 | - | - | orchestratorスモークテスト14件（全パス通過・select_policy_dict・Phase発火・enrichment検証・連続稼働安定性）+ Phase間連鎖動作テスト48件（every-tick/3-tick/5-tick/10-tick/policy-selection/cross-phase data flow）。test_orchestrator.py (1,229行) + test_phase_chain_integration.py (825行)。総テスト数: 4,983 |
 
 ### 9.2 各項目の詳細
@@ -4020,7 +4021,22 @@ value_orientation_validation.py (1,211行/88テスト)
   - TestPolicySelectionPhaseChain: Phase 30-35c の全Phase実行検証
   - TestCrossPhaseDataFlow: Phase間データフロー・save/load後再開
 
+#### ㉘ 安定化の構造的記述 ✅完了
+
+- 設計書: design_stabilization_description.md
+- 討論結果: 条件付き推奨（反固定化第4段階、discussion_stabilization_description_20260222.md、7条件付き）
+- 設計解析結果: 低固定化リスク（analysis_stabilization_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_stabilization_impl_fixation_20260222.md）
+- 4断面提案→2断面に限定（信号源多寡 + 時間的変動幅）。「競合の有無」はstability_valveのdecision_fixationと重複、「方向の一致度」は断面間相関計算禁止原則に抵触のため除外
+- 横断的読み取り層（reference_frequency_descriptionの設計思想に倣う）
+- 断面1（信号源多寡）: 感情/STM/一時的目的/持続的取り組み/自発起動/外部入力の6信号源から非ゼロ/ゼロの二値のみ読み取りカウント。記憶系はreference_frequency_descriptionと重複するため除外
+- 断面2（時間的変動幅）: temporal_self_differenceの差分サマリーをREAD-ONLY参照。新たな変動幅計算は行わない（パターン抽出禁止原則の維持）
+- 3段パイプライン: 読み取り→断面構成→FIFO蓄積（上限30件、最古押し出し）
+- enrichment直接露出遮断（get_enrichment_data()メソッドを持たない）
+- 安全弁5種: 全記録等価/パターン抽出禁止/enrichment直接露出遮断/忘却経路遮断/出力経路不拡張
+- orchestrator: Phase 15b（temporal_self_difference更新後・continuity_strain前）、save/load v26 (51フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~130,000行 / テスト数: 4,985*
+*総コード行数: ~132,000行 / テスト数: 5,056*

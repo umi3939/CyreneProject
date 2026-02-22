@@ -482,6 +482,15 @@ from .persistent_commitment import (
     get_commitment_summary,
 )
 
+# Stabilization description (安定化の構造的記述)
+from .stabilization_description import (
+    StabilizationDescriptionConfig,
+    StabilizationDescriptionState,
+    process_stabilization_description,
+    create_stabilization_description_state,
+    get_stabilization_summary,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -747,6 +756,10 @@ class PsycheOrchestrator:
 
         # ── Persistent commitment (持続的取り組み保持構造) ──
         self._persistent_commitment = create_persistent_commitment_processor()
+
+        # ── Stabilization description (安定化の構造的記述) ──
+        self._stabilization_desc_state = create_stabilization_description_state()
+        self._stabilization_desc_config = StabilizationDescriptionConfig()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -1217,6 +1230,67 @@ class PsycheOrchestrator:
                 )
         except Exception as e:
             logger.debug("Temporal diff skipped: %s", e)
+
+        # Phase 15b: stabilization_description — 安定化の構造的記述
+        # temporal_self_differenceの更新完了後に配置する（設計書の指示通り）。
+        # enrichmentへの直接露出を行わない（安全弁3）。
+        # 忘却パイプラインとの経路遮断（安全弁4）。
+        # 出力先は内省系構造への参照情報のみに限定する（安全弁5）。
+        try:
+            # 断面1用: 6信号源のREAD-ONLY読み取り
+            _sd_emo_intensity = 0.0
+            try:
+                _sd_emo_intensity = max(
+                    self._psyche.emotions.as_dict().values()
+                ) if self._psyche.emotions else 0.0
+            except Exception:
+                pass
+
+            _sd_stm_count = 0
+            try:
+                if self._loop_state and self._loop_state.memory:
+                    _sd_stm_count = len(self._loop_state.memory.entries)
+            except Exception:
+                pass
+
+            _sd_transient_active = False
+            try:
+                _sd_transient_active = self._transient_goal_mgr.state.active_goal is not None
+            except Exception:
+                pass
+
+            _sd_commitment_count = 0
+            try:
+                _sd_commitment_count = len([
+                    it for it in self._persistent_commitment.state.items
+                    if not it.released
+                ])
+            except Exception:
+                pass
+
+            _sd_spontaneous = False
+            try:
+                if self._last_activation_result is not None:
+                    _sd_spontaneous = bool(self._last_activation_result.candidates)
+            except Exception:
+                pass
+
+            _sd_has_external = self._last_percept is not None
+
+            self._stabilization_desc_state = process_stabilization_description(
+                self._stabilization_desc_state,
+                emotion_intensity=_sd_emo_intensity,
+                stm_entry_count=_sd_stm_count,
+                transient_goal_active=_sd_transient_active,
+                persistent_commitment_unreleased_count=_sd_commitment_count,
+                spontaneous_candidate_exists=_sd_spontaneous,
+                has_external_input=_sd_has_external,
+                diff_summary=self._last_diff_summary,
+                tick=self._tick_count,
+                config=self._stabilization_desc_config,
+            )
+        except Exception as e:
+            logger.debug("Stabilization description skipped: %s", e)
 
         # Phase 16: continuity_strain — 連続性負荷判定
         try:
@@ -3345,7 +3419,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 25,
+            "version": 26,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -3417,6 +3491,8 @@ class PsycheOrchestrator:
             "reference_frequency_state": self._reference_frequency_state.to_dict() if self._reference_frequency_state else {},
             # Version 25 fields
             "persistent_commitment_state": self._persistent_commitment.state.to_dict() if self._persistent_commitment else {},
+            # Version 26 fields
+            "stabilization_description_state": self._stabilization_desc_state.to_dict() if self._stabilization_desc_state else {},
         }
 
         save_path.write_text(
@@ -3587,6 +3663,10 @@ class PsycheOrchestrator:
             if data.get("persistent_commitment_state"):
                 self._persistent_commitment._state = PersistentCommitmentState.from_dict(data["persistent_commitment_state"])
                 self._persistent_commitment.validate_on_load()
+
+            # Version 26+ fields
+            if data.get("stabilization_description_state"):
+                self._stabilization_desc_state = StabilizationDescriptionState.from_dict(data["stabilization_description_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -1361,6 +1361,32 @@ from .persistent_commitment import (
     get_commitment_summary,
 )
 
+# Stabilization Description (安定化の構造的記述)
+from .stabilization_description import (
+    StabilizationDescriptionConfig,
+    StabilizationDescriptionState,
+    StabilizationRecord,
+    process_stabilization_description,
+    read_signal_sources,
+    read_diff_reference,
+    compose_record as compose_stabilization_record,
+    accumulate_record as accumulate_stabilization_record,
+    get_latest_record as get_latest_stabilization_record,
+    get_record_history as get_stabilization_record_history,
+    get_stabilization_summary,
+    create_stabilization_description_state,
+    create_stabilization_description_config,
+    save_state as save_stabilization_state,
+    load_state as load_stabilization_state,
+    SIGNAL_EMOTION,
+    SIGNAL_STM_ENTRIES,
+    SIGNAL_TRANSIENT_GOAL,
+    SIGNAL_PERSISTENT_COMMITMENT,
+    SIGNAL_SPONTANEOUS_CANDIDATE,
+    SIGNAL_EXTERNAL_INPUT,
+    ALL_SIGNAL_KEYS,
+)
+
 # Scoring Fluctuation (スコアリングの構造的揺らぎ)
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
@@ -1893,6 +1919,19 @@ __all__ = [
     "PersistentCommitmentProcessor", "CommitmentItem", "CognitionRecord",
     "CommitmentCrossSectionInputs",
     "create_persistent_commitment_processor", "get_commitment_summary",
+    # Stabilization Description (安定化の構造的記述)
+    "StabilizationDescriptionConfig", "StabilizationDescriptionState",
+    "StabilizationRecord",
+    "process_stabilization_description",
+    "read_signal_sources", "read_diff_reference",
+    "compose_stabilization_record", "accumulate_stabilization_record",
+    "get_latest_stabilization_record", "get_stabilization_record_history",
+    "get_stabilization_summary",
+    "create_stabilization_description_state", "create_stabilization_description_config",
+    "save_stabilization_state", "load_stabilization_state",
+    "SIGNAL_EMOTION", "SIGNAL_STM_ENTRIES", "SIGNAL_TRANSIENT_GOAL",
+    "SIGNAL_PERSISTENT_COMMITMENT", "SIGNAL_SPONTANEOUS_CANDIDATE",
+    "SIGNAL_EXTERNAL_INPUT", "ALL_SIGNAL_KEYS",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

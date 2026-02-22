@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-02-22
-総コード行数: ~149,000行
-総テスト数: 5,697テスト
+総コード行数: ~151,000行
+総テスト数: 5,773テスト
 
 ---
 
@@ -119,6 +119,7 @@
 | 13z | situational_self_presentation.py | 901 | テスト内 | 自己認知 | 状況依存的自己呈示の認知（3段パイプライン・相手別分離蓄積・種類数段階値・鮮度減衰・マッピング形成禁止・パターン抽出禁止・安全弁8種） |
 | 13aa | introspection_longitudinal_view.py | 506 | テスト内 | 内省 | 内省の時間的縦断参照（3段パイプライン・横断→縦断変換・独自状態なし・全断面等価・全時点等価・パターン抽出禁止・安全弁5種） |
 | 13ab | drive_variation_description.py | 1,079 | テスト内 | 駆動 | 駆動の変動記述（4段パイプライン・スライディングウィンドウ・8断面入力・段階的鮮度減衰・等価列挙のみ・移動平均禁止・安全弁5種・経路遮断6種） |
+| 13ac | expectation_lifecycle_description.py | 904 | テスト内 | 予期 | 予期の成立・消失の事後記述（スナップショット比較・5状態遷移検出・FIFO蓄積・均一減衰・因果帰属禁止・統計量算出禁止・安全弁5種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
@@ -158,7 +159,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,337 | 58 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 62システム, save/load v33(58項目永続化), enrichment(5セクション/39項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,375 | 59 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 63システム, save/load v34(59項目永続化), enrichment(5セクション/40項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -4154,7 +4155,20 @@ value_orientation_validation.py (1,211行/88テスト)
 - 経路遮断6種: 駆動値/反応パラメータ/動機生成入力/ポリシー拡張供給/感情パイプライン/記憶忘却パラメータ
 - orchestrator: Phase 14i（3ティック周期、emotional_backdrop_cognition後）、enrichment #39（動機・目標セクション）、save/load v33 (58フィールド)
 
+#### ㊲ 予期の成立・消失の事後記述 ✅完了
+
+- 設計書: design_expectation_lifecycle_description.md
+- 討論結果: 推奨（予期のライフサイクル記述は構造的に明確な欠落、discussion_next_gaps_cycle2_20260222.md）
+- 設計解析結果: 低固定化リスク（analysis_expectation_lifecycle_design_fixation_20260222.md）
+- 実装解析結果: 低固定化リスク（analysis_expectation_lifecycle_impl_fixation_20260222.md）
+- expectation_formationの予期のライフサイクル全体（生成→減衰→消失 or 的中 or 修正）の軌跡を事後的に記録する層
+- スナップショット比較による5種類の状態遷移検出: 生成(generation)、消失(disappearance)、修正(revision)、強度変化(strength_change)、鮮度変化(freshness_change)
+- FIFO蓄積（上限200件）、均一鮮度減衰（遷移種別による差別なし）
+- 因果帰属禁止（予期が的中した「理由」を推測しない）、統計量算出禁止（的中率・精度等）
+- 安全弁5種: 蓄積上限/均一減衰/収束監視/enrichment出力量制限/内容記述長制限
+- orchestrator: Phase 26f（5ティック周期、intent_action_gap後）、enrichment #40（動機・目標セクション）、save/load v34 (59フィールド)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~149,000行 / テスト数: 5,697*
+*総コード行数: ~151,000行 / テスト数: 5,773*

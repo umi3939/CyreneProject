@@ -530,6 +530,14 @@ from .emotional_backdrop_cognition import (
     get_backdrop_summary,
 )
 
+# Expectation lifecycle description (予期の成立・消失の事後記述)
+from .expectation_lifecycle_description import (
+    ExpectationLifecycleDescriptionProcessor,
+    ExpectationLifecycleState,
+    create_expectation_lifecycle_processor,
+    get_lifecycle_summary,
+)
+
 # Drive variation description (駆動の変動記述)
 from .drive_variation_description import (
     DriveVariationProcessor,
@@ -857,6 +865,9 @@ class PsycheOrchestrator:
         # ── Drive variation description (駆動の変動記述) ──
         self._drive_variation_processor = create_drive_variation_processor()
         self._last_drive_variation_result: Optional[DriveVariationResult] = None
+
+        # ── Expectation lifecycle description (予期の成立・消失の事後記述) ──
+        self._expectation_lifecycle_processor = create_expectation_lifecycle_processor()
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -2101,6 +2112,18 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Intent-action gap skipped: %s", e)
 
+        # Phase 26f: expectation_lifecycle_description — 予期の成立・消失の事後記述
+        # 予期形成が保持する予期集合のスナップショットを前回と比較し、
+        # 生成・消失・修正・強度変化・鮮度変化の遷移を検出して記録する。
+        # 予期形成への書き込み経路を持たない（READ-ONLY）。
+        # 遷移記録→ポリシー選択・バイアス適用・スコアリングへの接続禁止。
+        # 遷移記録→予期形成パラメータへの書き込み禁止。
+        # 因果帰属禁止、的中率等の統計量算出禁止。
+        try:
+            self._expectation_lifecycle_processor.process(self._last_expectations)
+        except Exception as e:
+            logger.debug("Expectation lifecycle description skipped: %s", e)
+
         logger.debug(
             "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
             "episodes=%s, expectations=%s",
@@ -2412,6 +2435,15 @@ class PsycheOrchestrator:
                 dv_text = dv_data.get("summary_text", "")
                 if dv_text and "待機中" not in dv_text:
                     motive_lines.append(f"駆動変動: {dv_text}")
+            except Exception:
+                pass
+        # #40 expectation_lifecycle_description — 予期のライフサイクル事後記述（事実記述のみ・因果帰属禁止・的中率算出禁止・予期形成パラメータ変更禁止・判断非接続）
+        if self._expectation_lifecycle_processor is not None:
+            try:
+                el_data = self._expectation_lifecycle_processor.get_enrichment_data()
+                el_text = el_data.get("summary_text", "")
+                if el_text and "待機中" not in el_text:
+                    motive_lines.append(f"予期ライフサイクル: {el_text}")
             except Exception:
                 pass
         if len(motive_lines) > 1:
@@ -4035,7 +4067,7 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": 33,
+            "version": 34,
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -4123,6 +4155,8 @@ class PsycheOrchestrator:
             "situational_self_presentation_state": self._situational_self_presentation.state.to_dict() if self._situational_self_presentation else {},
             # Version 33 fields
             "drive_variation_state": self._drive_variation_processor.save() if self._drive_variation_processor else {},
+            # Version 34 fields
+            "expectation_lifecycle_state": self._expectation_lifecycle_processor.state.to_dict() if self._expectation_lifecycle_processor else {},
         }
 
         save_path.write_text(
@@ -4328,6 +4362,10 @@ class PsycheOrchestrator:
             if data.get("drive_variation_state"):
                 self._drive_variation_processor.load(data["drive_variation_state"])
                 self._drive_variation_processor.state.apply_session_decay()
+
+            # Version 34+ fields
+            if data.get("expectation_lifecycle_state"):
+                self._expectation_lifecycle_processor.state = ExpectationLifecycleState.from_dict(data["expectation_lifecycle_state"])
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

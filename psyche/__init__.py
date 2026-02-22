@@ -1532,6 +1532,22 @@ from .scoring_fluctuation import (
     create_fluctuation_config,
 )
 
+# Expectation Lifecycle Description (予期の成立・消失の事後記述)
+from .expectation_lifecycle_description import (
+    TransitionType as LifecycleTransitionType,
+    RecordFreshness as LifecycleRecordFreshness,
+    ConvergenceLevel as LifecycleConvergenceLevel,
+    TransitionRecord as LifecycleTransitionRecord,
+    LifecycleView,
+    ConvergenceRecord as LifecycleConvergenceRecord,
+    SnapshotEntry as LifecycleSnapshotEntry,
+    ExpectationLifecycleState,
+    ExpectationLifecycleConfig,
+    ExpectationLifecycleDescriptionProcessor,
+    get_lifecycle_summary,
+    create_expectation_lifecycle_processor,
+)
+
 # Orchestrator (全モジュール統合管理)
 from .orchestrator import PsycheOrchestrator
 
@@ -2109,6 +2125,13 @@ __all__ = [
     "DriveVariationInputs", "DriveVariationState", "DriveVariationResult", "DriveVariationConfig",
     "DriveVariationProcessor",
     "get_drive_variation_summary", "create_drive_variation_processor",
+    # Expectation Lifecycle Description (予期の成立・消失の事後記述)
+    "LifecycleTransitionType", "LifecycleRecordFreshness", "LifecycleConvergenceLevel",
+    "LifecycleTransitionRecord", "LifecycleView",
+    "LifecycleConvergenceRecord", "LifecycleSnapshotEntry",
+    "ExpectationLifecycleState", "ExpectationLifecycleConfig",
+    "ExpectationLifecycleDescriptionProcessor",
+    "get_lifecycle_summary", "create_expectation_lifecycle_processor",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

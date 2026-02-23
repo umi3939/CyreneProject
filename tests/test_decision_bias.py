@@ -348,7 +348,7 @@ class TestThoughtIntegration:
 
             # Same structure regardless of bias
             assert isinstance(candidates, list)
-            assert len(candidates) <= 3
+            assert len(candidates) <= 5
             for c in candidates:
                 assert "policy_label" in c
                 assert "_score" in c

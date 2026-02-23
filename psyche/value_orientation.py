@@ -222,6 +222,16 @@ class ValueOrientationConfig:
         "話題を変える": {"e": 0.2, "c": 0.1},   # Topic change: change, immediate
         "感想を述べる": {"a": 0.1},             # Opinion: slightly bold
         "沈黙する": {"a": -0.2, "e": -0.1},     # Silence: cautious, stability
+        # ── 追加9件: ポリシー候補構造の動的化 ──
+        "黙って聞く": {"a": -0.2, "e": -0.1},
+        "自分の経験を話す": {"a": 0.2, "d": 0.1},
+        "確認する": {"d": 0.2, "b": 0.1},
+        "冗談を言う": {"a": 0.3, "c": 0.2},
+        "謝る": {"a": -0.3, "b": 0.2},
+        "提案する": {"a": 0.1, "e": 0.2},
+        "見守る": {"a": -0.1, "e": -0.2},
+        "同意する": {"b": 0.3, "a": -0.1},
+        "反論する": {"a": 0.3, "b": -0.2},
     })
 
     # Default influence for unmapped policies

@@ -3264,29 +3264,56 @@ class PsycheOrchestrator:
             config=self._decision_bias_config,
         )
 
+        # Phase 30直前: cross_section_inputs計算（thought.py + expansion両方で使用）
+        try:
+            cs_inputs = self._build_cross_section_inputs(
+                percept, recalled_memories, resp_influence, user_id,
+            )
+        except Exception:
+            cs_inputs = None
+
         # Phase 30: thought — 候補ポリシー生成
+        # extended_inputs を構築してthought.pyに渡す
+        extended_inputs = None
+        if cs_inputs is not None:
+            extended_inputs = {
+                "self_image_stability": cs_inputs.self_image_stability,
+                "coherence_level": cs_inputs.coherence_level,
+                "strain_level": cs_inputs.strain_level,
+                "narrative_coherence": cs_inputs.narrative_coherence,
+                "tendency_count": cs_inputs.tendency_count,
+                "dominant_tendency": cs_inputs.dominant_tendency,
+                "tendency_strength": cs_inputs.tendency_strength,
+                "other_count": cs_inputs.other_model_count,
+                "boundary_clarity": cs_inputs.other_boundary_clarity,
+                "has_active_goal": cs_inputs.has_active_goal,
+                "goal_strength": cs_inputs.goal_strength,
+                "motive_count": cs_inputs.motive_count,
+                "me_supply_strength": cs_inputs.meta_emotion_supply_strength,
+            }
+
         candidates = generate_thought_candidates(
             state=self._psyche,
             percept=percept,
             recalled=recalled_memories,
             responsibility_influence=resp_influence,
             decision_bias=decision_bias,
+            extended_inputs=extended_inputs,
         )
 
         # Phase 30b: policy_candidate_expansion — 内面反映候補拡張
-        try:
-            cs_inputs = self._build_cross_section_inputs(
-                percept, recalled_memories, resp_influence, user_id,
-            )
-            expanded = self._policy_expander.expand_candidates(
-                base_candidates=candidates,
-                inputs=cs_inputs,
-            )
-            candidates.extend(expanded)
-            # 拡張後にスコア降順で再ソート
-            candidates.sort(key=lambda c: c.get("_score", 0), reverse=True)
-        except Exception as e:
-            logger.debug("Policy expansion skipped: %s", e)
+        # cs_inputsを再利用（既にtry/exceptの外で計算済み）
+        if cs_inputs is not None:
+            try:
+                expanded = self._policy_expander.expand_candidates(
+                    base_candidates=candidates,
+                    inputs=cs_inputs,
+                )
+                candidates.extend(expanded)
+                # 拡張後にスコア降順で再ソート
+                candidates.sort(key=lambda c: c.get("_score", 0), reverse=True)
+            except Exception as e:
+                logger.debug("Policy expansion skipped: %s", e)
 
         # Phase 32: tone — トーン修飾子計算
         tone_mod = compute_tone_bias(

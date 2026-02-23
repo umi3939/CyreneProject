@@ -73,6 +73,61 @@ POLICIES: list[dict[str, Any]] = [
         "drive_target": "social",
         "expected_drive_change": {"social": -0.10, "curiosity": -0.01, "expression": -0.03},
     },
+    # ── 追加9件: ポリシー候補構造の動的化 ──
+    {
+        "policy_label": "黙って聞く",
+        "rationale_template": "相手の発話を受け止める",
+        "drive_target": "safety",
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.02, "expression": -0.01},
+    },
+    {
+        "policy_label": "自分の経験を話す",
+        "rationale_template": "自身の記憶を参照して提示する",
+        "drive_target": "expression",
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.03, "expression": -0.09},
+    },
+    {
+        "policy_label": "確認する",
+        "rationale_template": "相手の意図の理解を照合する",
+        "drive_target": "safety",
+        "expected_drive_change": {"social": -0.05, "curiosity": -0.06, "expression": -0.02},
+    },
+    {
+        "policy_label": "冗談を言う",
+        "rationale_template": "場の空気を変える発話を試みる",
+        "drive_target": "expression",
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.02, "expression": -0.09},
+    },
+    {
+        "policy_label": "謝る",
+        "rationale_template": "過去の行動の不適切さを認める",
+        "drive_target": "safety",
+        "expected_drive_change": {"social": -0.07, "curiosity": -0.01, "expression": -0.04},
+    },
+    {
+        "policy_label": "提案する",
+        "rationale_template": "相手の状況に対して選択肢を提示する",
+        "drive_target": "curiosity",
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.08, "expression": -0.03},
+    },
+    {
+        "policy_label": "見守る",
+        "rationale_template": "状況の推移を能動的に観察しつつ介入しない",
+        "drive_target": "autonomy",
+        "expected_drive_change": {"social": -0.03, "curiosity": -0.03, "expression": -0.01},
+    },
+    {
+        "policy_label": "同意する",
+        "rationale_template": "相手の見解に同調を示す",
+        "drive_target": "social",
+        "expected_drive_change": {"social": -0.07, "curiosity": -0.02, "expression": -0.03},
+    },
+    {
+        "policy_label": "反論する",
+        "rationale_template": "相手の見解に対して異なる視点を提示する",
+        "drive_target": "autonomy",
+        "expected_drive_change": {"social": -0.03, "curiosity": -0.04, "expression": -0.07},
+    },
 ]
 
 # ── Fallback text per policy ──────────────────────────────────
@@ -84,6 +139,16 @@ _FALLBACK_TEXT: dict[str, str] = {
     "話題を変える": "そういえば、ほかに何かあった？",
     "感想を述べる": "あたしはね...そう思うの",
     "励ます": "大丈夫、あたしがそばにいるから♪",
+    # ── 追加9件 ──
+    "黙って聞く": "...うん、聞いてるよ",
+    "自分の経験を話す": "...あたしもね、こういうことがあってさ",
+    "確認する": "...ちょっと確認なんだけど、こういうこと？",
+    "冗談を言う": "...ふふ、ちょっと思いついちゃった",
+    "謝る": "...ごめんね、さっきのは良くなかったかも",
+    "提案する": "...こういうのはどう？",
+    "見守る": "...うん、見てるからね",
+    "同意する": "...そうだよね、あたしもそう思う",
+    "反論する": "...でもさ、こういう見方もあると思うの",
 }
 
 
@@ -95,12 +160,15 @@ def generate_thought_candidates(
     recalled: list[dict],
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
     decision_bias: Optional[DecisionBias] = None,
+    extended_inputs: Optional[dict] = None,
 ) -> list[dict]:
     """Generate response policy candidates from local state analysis.
 
     **No LLM calls.**  All logic is deterministic from state + percept.
     責任の影響がある場合、判断に慎重さと共感バイアスが加わる。
     短期記憶/ダイナミクス由来のバイアスがある場合、スコアに微調整が加わる。
+    extended_inputsがある場合、自己観測・傾向・他者推定・目的断面の
+    情報がスコアリングに追加反映される。
 
     Args:
         state: Current psychological state.
@@ -108,6 +176,7 @@ def generate_thought_candidates(
         recalled: Retrieved memories.
         responsibility_influence: Optional responsibility influence on decisions.
         decision_bias: Optional bias from short-term memory and dynamics.
+        extended_inputs: Optional dict of cross-section inputs for extended scoring.
 
     Returns a list of candidate dicts, each with:
       - policy_label, rationale, expected_drive_change, text
@@ -117,7 +186,8 @@ def generate_thought_candidates(
     for policy_def in POLICIES:
         label = policy_def["policy_label"]
         score = _score_candidate(
-            policy_def, state, percept, recalled, responsibility_influence, decision_bias
+            policy_def, state, percept, recalled,
+            responsibility_influence, decision_bias, extended_inputs,
         )
         candidates.append({
             "policy_label": label,
@@ -129,8 +199,32 @@ def generate_thought_candidates(
 
     # Sort by score descending
     candidates.sort(key=lambda c: c["_score"], reverse=True)
-    # Return top 3 candidates
-    return candidates[:3]
+
+    # ── 安全弁: スコア差過大時の減衰 ──
+    if len(candidates) >= 2:
+        gap = candidates[0]["_score"] - candidates[1]["_score"]
+        if gap > 5.0:
+            candidates[0]["_score"] *= 0.9
+            # 再ソート
+            candidates.sort(key=lambda c: c["_score"], reverse=True)
+
+    # ── 動的選出: スコア差に基づいて3-5件 ──
+    MIN_SELECT = 3
+    MAX_SELECT = 5
+    if len(candidates) <= MIN_SELECT:
+        return candidates
+
+    top_score = candidates[0]["_score"]
+    selected = candidates[:MIN_SELECT]
+    for i in range(MIN_SELECT, min(MAX_SELECT, len(candidates))):
+        gap = top_score - candidates[i]["_score"]
+        # スコア差がtop_scoreの30%以内なら追加
+        if top_score > 0 and gap / max(top_score, 0.01) < 0.3:
+            selected.append(candidates[i])
+        else:
+            break
+
+    return selected
 
 
 def select_policy(
@@ -179,6 +273,7 @@ def _score_candidate(
     recalled: list[dict],
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
     decision_bias: Optional[DecisionBias] = None,
+    extended_inputs: Optional[dict] = None,
 ) -> float:
     """Score a candidate policy against current state.  Pure function.
 
@@ -189,6 +284,9 @@ def _score_candidate(
     短期記憶/ダイナミクス由来のバイアスがある場合:
     - 直近の感情の余韻がスコアに影響
     - ピーク/反動状態が選択傾向を微調整
+
+    extended_inputsがある場合:
+    - 自己観測・傾向・他者推定・目的断面の情報がスコアリングに追加反映
     """
     score = 0.0
     drives = state.drives
@@ -198,7 +296,31 @@ def _score_candidate(
 
     # 1. Drive satisfaction: high drive + policy satisfies it → bonus
     target_drive = policy_def["drive_target"]
-    drive_val = getattr(drives, target_drive, 0.5)
+    if target_drive in ("social", "curiosity", "expression"):
+        # 既存3軸: 既存のまま
+        drive_val = getattr(drives, target_drive, 0.5)
+    elif target_drive == "safety":
+        # 新軸 safety: fear + caution_bias + (1 - self_image_stability) の平均値
+        caution_bias = 0.0
+        if responsibility_influence:
+            caution_bias = responsibility_influence.caution_bias
+        self_image_stability = 0.5
+        if extended_inputs:
+            self_image_stability = extended_inputs.get("self_image_stability", 0.5)
+        drive_val = (fear + caution_bias + (1.0 - self_image_stability)) / 3.0
+    elif target_drive == "autonomy":
+        # 新軸 autonomy: tendency_strength + goal_strength + coherence_level の平均値
+        t_str = 0.0
+        g_str = 0.0
+        c_lvl = 0.5
+        if extended_inputs:
+            t_str = extended_inputs.get("tendency_strength", 0.0)
+            g_str = extended_inputs.get("goal_strength", 0.0)
+            c_lvl = extended_inputs.get("coherence_level", 0.5)
+        drive_val = (t_str + g_str + c_lvl) / 3.0
+    else:
+        drive_val = 0.5
+
     if drive_val > 0.6:
         score += drive_val * 2.0
     elif drive_val > 0.4:
@@ -289,5 +411,63 @@ def _score_candidate(
     # バイアスは一時的で、時間経過により自然に減衰する
     if decision_bias is not None:
         score = apply_bias_to_score(score, decision_bias, label, policy_def)
+
+    # ── 追加条件 #11-16: 内部状態断面の反映 ──
+
+    # 11. 自己像負荷反応
+    if extended_inputs:
+        stability = extended_inputs.get("self_image_stability", 0.5)
+        strain = extended_inputs.get("strain_level", 0.0)
+        if stability < 0.4 or strain > 0.5:
+            if label in ("黙って聞く", "確認する", "謝る"):
+                score += (1.0 - stability + strain) * 1.5
+
+    # 12. 傾向親和性
+    if extended_inputs:
+        t_strength = extended_inputs.get("tendency_strength", 0.0)
+        if t_strength > 0.3:
+            if label in ("自分の経験を話す", "感想を述べる"):
+                score += t_strength * 1.5
+
+    # 13. 他者境界反応
+    if extended_inputs:
+        o_count = extended_inputs.get("other_count", 0)
+        b_clarity = extended_inputs.get("boundary_clarity", 0.5)
+        if o_count > 0 and b_clarity < 0.5:
+            if label == "確認する":
+                score += (1.0 - b_clarity) * 2.0
+            elif label in ("見守る", "反論する"):
+                score += (1.0 - b_clarity) * 1.0
+
+    # 14. 目的指向親和性
+    if extended_inputs:
+        has_goal = extended_inputs.get("has_active_goal", False)
+        g_strength = extended_inputs.get("goal_strength", 0.0)
+        m_count = extended_inputs.get("motive_count", 0)
+        if has_goal and g_strength > 0.3:
+            if label in ("提案する", "見守る"):
+                score += g_strength * 1.5
+        if m_count > 2:
+            if label in ("提案する", "質問で会話を広げる"):
+                score += min(m_count * 0.2, 1.0)
+
+    # 15. 一貫性水準反応
+    if extended_inputs:
+        coherence = extended_inputs.get("coherence_level", 0.5)
+        narr_coh = extended_inputs.get("narrative_coherence", 0.5)
+        avg_coherence = (coherence + narr_coh) / 2
+        if avg_coherence > 0.6:
+            if label in ("自分の経験を話す", "感想を述べる", "反論する"):
+                score += avg_coherence * 1.0
+        elif avg_coherence < 0.3:
+            if label in ("黙って聞く", "確認する", "同意する"):
+                score += (1.0 - avg_coherence) * 1.0
+
+    # 16. メタ感情供給反応
+    if extended_inputs:
+        me_supply = extended_inputs.get("me_supply_strength", 0.0)
+        if me_supply > 0.3:
+            if label in ("自分の経験を話す", "冗談を言う"):
+                score += me_supply * 1.5
 
     return score

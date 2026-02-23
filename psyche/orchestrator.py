@@ -651,6 +651,8 @@ from .enrichment_compression import (
     build_compressed_enrichment,
     detect_item_changed,
     apply_item_granularity,
+    normalize_section_items,
+    prepend_freshness_annotation,
     ORIGINAL_FOOTER,
 )
 
@@ -987,6 +989,10 @@ class PsycheOrchestrator:
 
         # ── Enrichment compression (前回テキストキャッシュ、save/load対象外) ──
         self._enrichment_prev_cache: dict[str, str] = {}
+
+        # ── Session boundary freshness (save/load対象外、毎セッション再算出) ──
+        self._session_gap_seconds: Optional[float] = None
+        self._session_resume_tick: Optional[int] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -3322,8 +3328,7 @@ class PsycheOrchestrator:
     def get_prompt_enrichment(self, user_id: str = "viewer") -> str:
         """Gemini プロンプト用の心理状態テキストを生成する。
 
-        enrichment項目を収集後、圧縮パイプライン（第1段: 変動度算出、
-        第2段: 粒度選択、第3段: フォーマット圧縮）を適用する。
+        enrichment項目を収集後、空状態統一→圧縮パイプライン→鮮度注釈を適用する。
         圧縮結果のフィードバック経路は構造的に遮断されている。
 
         brain.py の _format_psyche_for_prompt を置き換える。
@@ -3333,6 +3338,10 @@ class PsycheOrchestrator:
         """
         # 項目収集（既存ロジックの構造を維持）
         sections_data = self._collect_enrichment_items(user_id)
+
+        # 起動品質A: 空状態記述の統一（各項目テキストの表層置換）
+        for section in sections_data:
+            section["items"] = normalize_section_items(section["items"])
 
         footer = ORIGINAL_FOOTER
 
@@ -3345,6 +3354,14 @@ class PsycheOrchestrator:
 
         # キャッシュ更新（1ティック分のみ保持）
         self._enrichment_prev_cache = new_cache
+
+        # 起動品質B: セッション境界の鮮度注釈
+        compressed_text = prepend_freshness_annotation(
+            enrichment_text=compressed_text,
+            session_gap_seconds=self._session_gap_seconds,
+            session_resume_tick=self._session_resume_tick,
+            current_tick=self._tick_count,
+        )
 
         return compressed_text
 
@@ -4694,6 +4711,7 @@ class PsycheOrchestrator:
 
         data = {
             "version": 42,
+            "save_timestamp": time.time(),
             "tick_count": self._tick_count,
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
@@ -5042,6 +5060,16 @@ class PsycheOrchestrator:
             # Version 42+ fields
             if data.get("hypothesis_observation_pairing_state"):
                 self._hypothesis_observation_pairing._state = HOPairingState.from_dict(data["hypothesis_observation_pairing_state"])
+
+            # Session boundary freshness: compute gap from saved timestamp
+            saved_ts = data.get("save_timestamp")
+            if saved_ts is not None:
+                self._session_gap_seconds = time.time() - saved_ts
+                self._session_resume_tick = self._tick_count
+            else:
+                # No timestamp in snapshot (pre-existing data) — no annotation
+                self._session_gap_seconds = None
+                self._session_resume_tick = None
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -566,7 +566,7 @@ class TestPersistence:
         # emotion_cooccurrence_state: load時に apply_session_decay() が適用される
         # other_boundary_accumulation_state: load時に apply_session_decay() が適用される
         # psyche.fear_index: from_dict が個別リスク値を復元しない制約
-        skip_keys = {"meta_emotion_state", "emotional_backdrop_state", "drive_variation_state", "emotion_cooccurrence_state", "other_boundary_accumulation_state", "psyche"}
+        skip_keys = {"meta_emotion_state", "emotional_backdrop_state", "drive_variation_state", "emotion_cooccurrence_state", "other_boundary_accumulation_state", "psyche", "save_timestamp"}
         for key in json_a:
             if key in skip_keys:
                 continue

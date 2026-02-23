@@ -251,6 +251,7 @@ class ActionResultPair:
     creation_time: float = field(default_factory=time.time)
     last_reference_time: float = 0.0
     pattern_key: str = ""  # 行動パターン分類キー
+    input_pathway_label: str = ""  # 入力経路ラベル（text/screen/spontaneous/空文字）
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -267,6 +268,7 @@ class ActionResultPair:
             "creation_time": self.creation_time,
             "last_reference_time": self.last_reference_time,
             "pattern_key": self.pattern_key,
+            "input_pathway_label": self.input_pathway_label,
         }
 
     @classmethod
@@ -285,6 +287,7 @@ class ActionResultPair:
             creation_time=data.get("creation_time", time.time()),
             last_reference_time=data.get("last_reference_time", 0.0),
             pattern_key=data.get("pattern_key", ""),
+            input_pathway_label=data.get("input_pathway_label", ""),
         )
 
 
@@ -398,6 +401,11 @@ class ActionResultInputs:
     # 9. テキスト断面（自己行動知覚から供給される出力テキスト情報）
     # 既存の8断面と同列であり、優先順位を持たない
     output_text: str = ""
+
+    # 入力経路ラベル: どの経路から入力が発生したか（text/screen/spontaneous/空文字）
+    # 行動-結果対に入力経路情報を併記するためのもの。
+    # 経路の優劣判定は行わない。単なるラベル記録。
+    input_pathway_label: str = ""
 
     # メタデータ
     current_tick: int = 0
@@ -698,6 +706,7 @@ class ActionResultObservationProcessor:
             creation_tick=inputs.current_tick,
             creation_time=time.time(),
             pattern_key=inputs.selected_policy_axis or inputs.selected_policy_label,
+            input_pathway_label=inputs.input_pathway_label,
         )
 
         self._state.composition_buffer.append(pair)

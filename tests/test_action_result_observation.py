@@ -1350,3 +1350,145 @@ class TestGetEnrichmentData:
             "signal_supply_strength", "summary_text",
         }
         assert set(data.keys()) == expected_keys
+
+
+# =====================================================================
+# Input Pathway Label Tests
+# =====================================================================
+
+class TestInputPathwayLabel:
+    def test_inputs_default_empty_string(self):
+        """ActionResultInputs の input_pathway_label はデフォルトで空文字。"""
+        inputs = ActionResultInputs()
+        assert inputs.input_pathway_label == ""
+
+    def test_inputs_with_pathway_label(self):
+        """input_pathway_label 付きの ActionResultInputs 生成。"""
+        inputs = _make_inputs(input_pathway_label="text")
+        assert inputs.input_pathway_label == "text"
+
+    def test_inputs_with_screen_pathway(self):
+        """screen 経路ラベル付きの ActionResultInputs 生成。"""
+        inputs = _make_inputs(input_pathway_label="screen")
+        assert inputs.input_pathway_label == "screen"
+
+    def test_inputs_with_spontaneous_pathway(self):
+        """spontaneous 経路ラベル付きの ActionResultInputs 生成。"""
+        inputs = _make_inputs(input_pathway_label="spontaneous")
+        assert inputs.input_pathway_label == "spontaneous"
+
+    def test_pathway_label_propagated_to_pair(self):
+        """record_action で input_pathway_label が対構成バッファに伝搬する。"""
+        proc = _make_processor()
+        inputs = _make_inputs(current_tick=5, input_pathway_label="text")
+        proc.record_action(inputs)
+        assert len(proc.state.composition_buffer) == 1
+        assert proc.state.composition_buffer[0].input_pathway_label == "text"
+
+    def test_pathway_label_empty_propagated(self):
+        """空文字の input_pathway_label も正しく伝搬する。"""
+        proc = _make_processor()
+        inputs = _make_inputs(current_tick=5, input_pathway_label="")
+        proc.record_action(inputs)
+        assert proc.state.composition_buffer[0].input_pathway_label == ""
+
+    def test_pathway_label_in_composed_pair(self):
+        """対構成後にも input_pathway_label が保持される。"""
+        proc = _make_processor(min_buffer_ticks=1)
+        proc.record_action(_make_inputs(current_tick=0, input_pathway_label="screen"))
+        result = proc.process(_make_inputs(current_tick=5))
+        assert len(result.newly_composed_pairs) == 1
+        assert result.newly_composed_pairs[0].input_pathway_label == "screen"
+
+    def test_pathway_label_in_active_pairs(self):
+        """get_active_pairs で取得した対にも input_pathway_label がある。"""
+        proc = _make_processor(min_buffer_ticks=1)
+        proc.record_action(_make_inputs(current_tick=0, input_pathway_label="spontaneous"))
+        proc.process(_make_inputs(current_tick=5))
+        active = proc.get_active_pairs()
+        assert len(active) == 1
+        assert active[0].input_pathway_label == "spontaneous"
+
+    def test_pathway_label_to_dict(self):
+        """ActionResultPair.to_dict に input_pathway_label が含まれる。"""
+        pair = ActionResultPair(
+            action=ActionDescription(policy_label="test"),
+            input_pathway_label="text",
+        )
+        d = pair.to_dict()
+        assert "input_pathway_label" in d
+        assert d["input_pathway_label"] == "text"
+
+    def test_pathway_label_from_dict_roundtrip(self):
+        """to_dict / from_dict で input_pathway_label が保存復元される。"""
+        pair = ActionResultPair(
+            action=ActionDescription(policy_label="test"),
+            input_pathway_label="screen",
+        )
+        d = pair.to_dict()
+        restored = ActionResultPair.from_dict(d)
+        assert restored.input_pathway_label == "screen"
+
+    def test_pathway_label_from_dict_backward_compat(self):
+        """from_dict で input_pathway_label が存在しない場合は空文字（後方互換）。"""
+        d = {
+            "pair_id": "abc123",
+            "action": {"policy_label": "test"},
+            "status": "active",
+        }
+        restored = ActionResultPair.from_dict(d)
+        assert restored.input_pathway_label == ""
+
+    def test_enrichment_does_not_contain_pathway_label(self):
+        """enrichment に input_pathway_label 情報が含まれない（逆流遮断）。"""
+        proc = _make_processor(min_buffer_ticks=1)
+        proc.record_action(_make_inputs(current_tick=0, input_pathway_label="text"))
+        proc.process(_make_inputs(current_tick=5))
+        data = proc.get_enrichment_data()
+        assert "input_pathway_label" not in data
+        # summary_text にも経路情報が含まれないことを確認
+        assert "text" not in data["summary_text"].lower() or "テキスト" not in data["summary_text"]
+
+    def test_enrichment_summary_no_pathway_info(self):
+        """get_action_result_summary に input_pathway_label 情報が含まれない。"""
+        proc = _make_processor(min_buffer_ticks=1)
+        proc.record_action(_make_inputs(current_tick=0, input_pathway_label="spontaneous"))
+        proc.process(_make_inputs(current_tick=5))
+        summary = get_action_result_summary(proc.state)
+        # summary should not mention pathway labels directly
+        assert "spontaneous" not in summary
+
+    def test_multiple_pairs_different_pathway_labels(self):
+        """異なる経路ラベルの複数対が独立に保持される。"""
+        proc = _make_processor(min_buffer_ticks=1)
+        proc.record_action(_make_inputs(current_tick=0, input_pathway_label="text"))
+        proc.process(_make_inputs(current_tick=5))
+        proc.record_action(_make_inputs(current_tick=10, input_pathway_label="screen"))
+        proc.process(_make_inputs(current_tick=15))
+        proc.record_action(_make_inputs(current_tick=20, input_pathway_label=""))
+        proc.process(_make_inputs(current_tick=25))
+        assert len(proc.state.pairs) == 3
+        assert proc.state.pairs[0].input_pathway_label == "text"
+        assert proc.state.pairs[1].input_pathway_label == "screen"
+        assert proc.state.pairs[2].input_pathway_label == ""
+
+    def test_pathway_label_survives_state_roundtrip(self):
+        """State の to_dict / from_dict 経由で input_pathway_label が保持される。"""
+        proc = _make_processor(min_buffer_ticks=1)
+        proc.record_action(_make_inputs(current_tick=0, input_pathway_label="text"))
+        proc.process(_make_inputs(current_tick=5))
+
+        state_dict = proc.state.to_dict()
+        restored_state = ActionResultObservationState.from_dict(state_dict)
+        assert len(restored_state.pairs) == 1
+        assert restored_state.pairs[0].input_pathway_label == "text"
+
+    def test_pathway_label_in_buffer_state_roundtrip(self):
+        """構成バッファ内の対も State roundtrip で input_pathway_label が保持される。"""
+        proc = _make_processor(min_buffer_ticks=100)  # 構成されないようにする
+        proc.record_action(_make_inputs(current_tick=0, input_pathway_label="screen"))
+
+        state_dict = proc.state.to_dict()
+        restored_state = ActionResultObservationState.from_dict(state_dict)
+        assert len(restored_state.composition_buffer) == 1
+        assert restored_state.composition_buffer[0].input_pathway_label == "screen"

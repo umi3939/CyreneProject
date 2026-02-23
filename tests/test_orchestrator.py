@@ -1626,3 +1626,74 @@ class TestSelectionAttributionBiasLabels:
         restored_latest = orch2._selection_attribution_recorder.get_latest_record()
         assert restored_latest is not None
         assert restored_latest.bias_source_labels == original_labels
+
+
+class TestPhase7aInputPathwayLabel:
+    """Phase 7a で input_pathway_label が ActionResultPair に渡されることの確認。"""
+
+    def test_text_percept_sets_text_pathway(self, tmp_path):
+        """テキスト入力のある percept で input_pathway_label='text' が記録される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept(text="テスト入力テキスト")
+        # 数回更新してポリシー選択が行われる状態にする
+        for _ in range(5):
+            orch.post_response_update(percept, delta_time=1.0)
+        # ポリシー選択 → _last_selected_policy_label が設定される
+        orch.select_policy_dict(percept, [])
+        # もう1回更新して Phase 7a の record_action が実行される
+        orch.post_response_update(percept, delta_time=1.0)
+
+        # 構成バッファ内の対に input_pathway_label が設定されていることを確認
+        buffer = orch._action_result_observer.state.composition_buffer
+        assert len(buffer) >= 1
+        # テキストありの percept なので "text" が記録されるはず
+        labels = [p.input_pathway_label for p in buffer]
+        assert "text" in labels
+
+    def test_empty_percept_sets_empty_pathway(self, tmp_path):
+        """テキストも intent もない percept で input_pathway_label='' が記録される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept_with_text = _make_percept(text="テスト")
+        # ポリシー選択が行われる状態にする
+        for _ in range(5):
+            orch.post_response_update(percept_with_text, delta_time=1.0)
+        orch.select_policy_dict(percept_with_text, [])
+
+        # 空の percept で更新
+        empty_percept = Percept(
+            text="",
+            meaning="",
+            emotion="neutral",
+            intent="expression",
+            emotion_valence=0.0,
+        )
+        orch.post_response_update(empty_percept, delta_time=1.0)
+
+        buffer = orch._action_result_observer.state.composition_buffer
+        if buffer:
+            # 空テキスト + intent=expression → 空文字ラベル
+            last_label = buffer[-1].input_pathway_label
+            assert last_label == ""
+
+    def test_screen_percept_sets_screen_pathway(self, tmp_path):
+        """intent が 'expression' でない percept で input_pathway_label='screen'。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept(text="テスト")
+        for _ in range(5):
+            orch.post_response_update(percept, delta_time=1.0)
+        orch.select_policy_dict(percept, [])
+
+        # intent が expression でなく、テキストも空の percept
+        screen_percept = Percept(
+            text="",
+            meaning="screen content",
+            emotion="neutral",
+            intent="observation",
+            emotion_valence=0.0,
+        )
+        orch.post_response_update(screen_percept, delta_time=1.0)
+
+        buffer = orch._action_result_observer.state.composition_buffer
+        if buffer:
+            last_label = buffer[-1].input_pathway_label
+            assert last_label == "screen"

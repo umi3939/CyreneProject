@@ -1202,10 +1202,18 @@ class PsycheOrchestrator:
         # 結果記述の結合は低頻度処理帯（Phase 26c）に行い、同一周期内での即時構成を禁止する。
         if self._last_selected_policy_label:
             try:
+                # 入力経路の判定（Phase 7e と同じロジック）
+                current_pathway_label = ""
+                if percept.text:
+                    current_pathway_label = "text"
+                elif bool(percept.intent and percept.intent != "expression"):
+                    current_pathway_label = "screen"
+
                 record_inputs = ActionResultInputs(
                     selected_policy_label=self._last_selected_policy_label,
                     selected_policy_axis=self._last_selected_policy_axis,
                     current_tick=self._tick_count,
+                    input_pathway_label=current_pathway_label,
                 )
                 self._action_result_observer.record_action(record_inputs)
             except Exception as e:

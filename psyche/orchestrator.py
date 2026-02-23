@@ -2051,6 +2051,14 @@ class PsycheOrchestrator:
                     self._forgetting_fixation_processor.state
                     if self._forgetting_fixation_processor else None
                 ),
+                multi_path_recall_state=(
+                    self._multi_path_recall.state
+                    if self._multi_path_recall else None
+                ),
+                spontaneous_recall_state=(
+                    self._spontaneous_recall.state
+                    if self._spontaneous_recall else None
+                ),
                 config=self._reference_frequency_config,
             )
         except Exception as e:

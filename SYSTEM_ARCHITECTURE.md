@@ -3,7 +3,7 @@
 作成日: 2026-02-09
 更新日: 2026-02-22
 総コード行数: ~167,000行
-総テスト数: 6,743テスト
+総テスト数: 6,785テスト
 
 ---
 
@@ -98,9 +98,9 @@
 | 13e | spontaneous_activation.py | 1,549 | 84 | 起動 | 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁） |
 | 13f | value_orientation_validation.py | 1,211 | 88 | 検証 | 価値方向性実運用検証（8断面・6段パイプライン・差分並立・安全弁） |
 | 13g | memory_forgetting_fixation.py | 1,052 | 85 | 記憶 | 記憶の忘却と固定化（8断面・6段パイプライン・段階忘却・復帰経路・安全弁） |
-| 13h | action_result_observation.py | 1,626 | 109 | 観測 | 行動-結果の観測と蓄積（8断面・6段パイプライン・非正誤判定・時系列隣接記録・安全弁4種） |
+| 13h | action_result_observation.py | 1,638 | 128 | 観測 | 行動-結果の観測と蓄積（8断面・6段パイプライン・非正誤判定・時系列隣接記録・入力経路ラベル併記・安全弁4種） |
 | 13i | other_model_dialogue_learning.py | 1,625 | 135 | 内省 | 他者観測の長期蓄積と仮説補助（8断面・8段パイプライン・相手別分離・仮説再生成方式・安全弁4種） |
-| 13j | meta_emotion_cognition.py | 1,608 | 141 | 感情 | メタ感情認知と変動候補生成（8断面・7段パイプライン・常時等価列挙・Phase 1-2不変性保証・安全弁4種） |
+| 13j | meta_emotion_cognition.py | 1,628 | 155 | 感情 | メタ感情認知と変動候補生成（8断面・7段パイプライン・常時等価列挙・Phase 1-2不変性保証・境界値到達記述追加・安全弁4種） |
 | 13k | self_action_perception.py | 395 | 114 | 知覚 | 自己行動知覚（3段パイプライン・全記録等価・テキスト非解釈・判断系非接続・brain.py通知経路） |
 | 13l | intent_action_gap.py | 397 | 129 | 知覚 | 意図-行動間の乖離認知（3段パイプライン・対構成→多断面記述→蓄積参照・全記録等価・パターン抽出禁止・3経路遮断・安全弁5種） |
 | 13m | temporal_cognition.py | 809 | 212 | 知覚 | 時間認知構造（3段パイプライン・経過蓄積→8断面特徴量記述→参照提供・スライディングウィンドウ・段階値列挙型・帯域キャッシュ鮮度+入力経路間隔断面追加・パターン抽出禁止・4経路遮断・安全弁5種） |
@@ -109,7 +109,7 @@
 | 13p | perceptual_context.py | 646 | 116 | 知覚 | 知覚入力の内部文脈化（3段パイプライン・4断面段階値列挙型・感情変化頻度/意図変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・4経路遮断・安全弁7種） |
 | 13q | scoring_fluctuation.py | 647 | テスト内 | 判断 | スコアリングの構造的揺らぎ（5段パイプライン・内部状態由来の非決定性・感情/STM/drives/経過時間から変動度導出・振幅上限<ValueOrientation・状態蓄積なし・安全弁5種） |
 | 13r | selection_attribution.py | 413 | 87 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル+バイアス源構成蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙（バイアス情報遮断）・安全弁5種） |
-| 13s | reference_frequency_description.py | 782 | テスト内 | 内省 | 参照頻度の構造的記述（12箇所横断読み取り・断面構成・集中度/偏在度記述・変動記述・FIFO断面履歴・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種） |
+| 13s | reference_frequency_description.py | 822 | 106 | 内省 | 参照頻度の構造的記述（15箇所横断読み取り・断面構成・集中度/偏在度記述・変動記述・FIFO断面履歴・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・multi_path_recall/spontaneous_recall追加・安全弁5種） |
 | 13t | persistent_commitment.py | 1,037 | テスト内 | 目標 | 持続的取り組み保持（transient_goal昇格が唯一生成経路・複数並行保持・強度依存非線形減衰・慣性時間減衰・4解除条件・認知記録FIFO・資源競合・バイアス上限<VO・安全弁6種・自己強化ループ4重遮断） |
 | 13u | behavioral_diversity_description.py | 664 | テスト内 | 内省 | 行動多様性の構造的記述（3断面横断読み取り・結果断面キー種類数/選択ラベル種類数/候補群サイズ分散度・段階値列挙型・FIFO蓄積・enrichment直接露出遮断・頻度情報構造的排除・安全弁8種） |
 | 13v | spontaneous_recall.py | 1,025 | テスト内 | 記憶 | 記憶の自発的想起（4段パイプライン・3経路想起・感情変動連想/動機連想/揺らぎ連想・外部入力非依存・ルーミネーション防止・経路等価性・multi_path_recall経路分離・安全弁7種） |
@@ -167,7 +167,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,906 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v42(66項目永続化), enrichment(5セクション/48項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,922 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v42(66項目永続化), enrichment(5セクション/48項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3790,7 +3790,8 @@ value_orientation_validation.py (1,211行/88テスト)
 - orchestrator Phase 21c、save/load v13 (37フィールド)、enrichment #20
 
 #### ⑩ 行動-結果の観測と蓄積 ✅完了
-- action_result_observation.py: 1,626行 / 109テスト
+- action_result_observation.py: 1,638行 / 128テスト
+- Cycle 3候補6拡張: input_pathway_label（入力経路ラベル）を行動記録に併記。enrichment遮断
 - 8断面入力: 直近行動、外部反応、内部状態変化、感情推移、文脈、時間経過、他者観測、記憶参照
 - 6段パイプライン: 対構成→多断面評価記述→文脈帰属付与→整列蓄積→減衰忘却→受渡準備
 - 非正誤判定: 結果を成功/失敗で二値評価しない。複数断面で並立記述
@@ -3814,7 +3815,8 @@ value_orientation_validation.py (1,211行/88テスト)
 - orchestrator Phase 25c（Phase 25aと25の間）、save/load v15 (39フィールド)、enrichment #22
 
 #### ⑫ メタ感情認知と変動候補生成 ✅完了
-- meta_emotion_cognition.py: 1,608行 / 141テスト
+- meta_emotion_cognition.py: 1,628行 / 155テスト
+- Cycle 3候補8拡張: boundary_dimensions/boundary_count（境界値到達の事実記述）をTransitionFeatureに追加。enrichment遮断
 - 元の計画名「感情調整戦略」から討論を経て名称変更（「調整」は規範的暗示を含むため）
 - Phase 1-2のパラメータを一切変更しない（不変性保証）
 - 入力8断面: 感情状態、ダイナミクス相、STM-感情連動結果、自己モデル感情記述、振幅状態、対話文脈、記憶参照、蓄積鮮度（全てREAD-ONLY）
@@ -3998,8 +4000,9 @@ value_orientation_validation.py (1,211行/88テスト)
 - 討論結果: 条件付き推奨（反固定化第3段階、discussion_anti_fixation_vs_self_formation_20260220.md）
 - 設計解析結果: 低固定化リスク（analysis_reference_frequency_fixation_20260220.md）
 - 実装解析結果: 低固定化リスク（analysis_reference_frequency_impl_fixation_20260220.md）
-- 12箇所の既存モジュールのreference_countを横断的に読み取り専用で収集する集約層
-- 収集元: episodic_memory/emotional_memory_binding(結合+痕跡)/introspection_consumption/expectation_formation/intrinsic_motivation(動機+衝動)/self_narrative/other_agent_model/self_reference/action_result_observation/other_model_dialogue_learning/memory_forgetting_fixation
+- Cycle 3候補9拡張: multi_path_recall/spontaneous_recallの経路別カウントを読み取り対象に追加（12→15箇所）
+- 15箇所の既存モジュールのreference_countを横断的に読み取り専用で収集する集約層
+- 収集元: episodic_memory/emotional_memory_binding(結合+痕跡)/introspection_consumption/expectation_formation/intrinsic_motivation(動機+衝動)/self_narrative/other_agent_model/self_reference/action_result_observation/other_model_dialogue_learning/memory_forgetting_fixation/multi_path_recall/spontaneous_recall
 - 断面構成: 集中度（ジニ係数）+ 構造別偏在度（構造間ジニ係数）
 - 断面履歴: FIFO（30件上限）、変動記述は毎回再導出（累積蓄積しない）
 - enrichmentへの直接露出を遮断（安全弁5）
@@ -4268,4 +4271,4 @@ value_orientation_validation.py (1,211行/88テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~167,000行 / テスト数: 6,743*
+*総コード行数: ~167,000行 / テスト数: 6,785*

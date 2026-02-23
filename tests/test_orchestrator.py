@@ -1697,3 +1697,34 @@ class TestPhase7aInputPathwayLabel:
         if buffer:
             last_label = buffer[-1].input_pathway_label
             assert last_label == "screen"
+
+
+# ── Phase 24b: reference_frequency_description に想起状態が渡されるテスト ──
+
+
+class TestPhase24bRecallParams:
+    """Phase 24b で multi_path_recall_state と spontaneous_recall_state が
+    process_reference_frequency に渡されることの確認テスト。"""
+
+    def test_recall_states_passed_to_reference_frequency(self, tmp_path):
+        """Phase 24b で想起モジュールの状態が参照頻度記述に渡される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+
+        # 数サイクル実行してモジュールを初期化
+        for _ in range(3):
+            orch.post_response_update(percept, delta_time=1.0)
+        orch.select_policy_dict(percept, [])
+
+        # multi_path_recall と spontaneous_recall が存在することを確認
+        assert orch._multi_path_recall is not None
+        assert orch._spontaneous_recall is not None
+
+        # reference_frequency_state のスナップショット履歴が存在すること
+        rf_state = orch._reference_frequency_state
+        assert rf_state is not None
+        if rf_state.snapshot_history:
+            latest = rf_state.snapshot_history[-1]
+            # multi_path_recall と spontaneous_recall の構造キーが含まれること
+            assert "multi_path_recall" in latest.structure_counts
+            assert "spontaneous_recall" in latest.structure_counts

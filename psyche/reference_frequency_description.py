@@ -5,7 +5,7 @@ psyche/reference_frequency_description.py - 参照頻度の構造的記述
 その分布の構造的特徴を非評価的に記述する集約層。
 
 設計原則 (design_reference_frequency_description.md 準拠):
-- 12箇所の参照回数を読み取り専用で収集する
+- 15箇所の参照回数を読み取り専用で収集する
 - 参照回数の多寡から記録間の優劣を確定しない
 - 安定化を推奨しない。固定化を矯正しない
 - 経験に意味や価値を付与しない
@@ -72,10 +72,10 @@ class ReferenceFrequencyConfig:
 
 
 # =============================================================================
-# 構造識別子（12箇所）
+# 構造識別子（15箇所）
 # =============================================================================
 
-# 設計書で列挙された12箇所の参照回数源を構造種別として定義する。
+# 設計書で列挙された15箇所の参照回数源を構造種別として定義する。
 # 「高頻度」「低頻度」などの段階的区分は行わない（設計書の禁止事項）。
 
 STRUCTURE_EPISODIC = "episodic_memory"
@@ -91,6 +91,8 @@ STRUCTURE_SELF_REFERENCE = "self_reference"
 STRUCTURE_ACTION_RESULT = "action_result_observation"
 STRUCTURE_DIALOGUE_LEARNING = "other_model_dialogue_learning"
 STRUCTURE_FORGETTING = "memory_forgetting_fixation"
+STRUCTURE_MULTI_PATH_RECALL = "multi_path_recall"
+STRUCTURE_SPONTANEOUS_RECALL = "spontaneous_recall"
 
 ALL_STRUCTURE_KEYS = [
     STRUCTURE_EPISODIC,
@@ -106,6 +108,8 @@ ALL_STRUCTURE_KEYS = [
     STRUCTURE_ACTION_RESULT,
     STRUCTURE_DIALOGUE_LEARNING,
     STRUCTURE_FORGETTING,
+    STRUCTURE_MULTI_PATH_RECALL,
+    STRUCTURE_SPONTANEOUS_RECALL,
 ]
 
 
@@ -265,6 +269,8 @@ def collect_reference_counts(
     action_result_state: Any = None,
     dialogue_learning_state: Any = None,
     forgetting_state: Any = None,
+    multi_path_recall_state: Any = None,
+    spontaneous_recall_state: Any = None,
 ) -> dict[str, list[int]]:
     """各構造から参照回数の現在値を読み取り専用で収集する。
 
@@ -387,6 +393,36 @@ def collect_reference_counts(
         ]
     else:
         result[STRUCTURE_FORGETTING] = []
+
+    # 14. 多経路想起の各経路別カウント
+    if multi_path_recall_state is not None:
+        path_stats = getattr(multi_path_recall_state, "path_stats", None)
+        if path_stats is not None:
+            counts = [
+                getattr(path_stats, "emotional_count", 0),
+                getattr(path_stats, "contextual_count", 0),
+                getattr(path_stats, "temporal_count", 0),
+            ]
+            result[STRUCTURE_MULTI_PATH_RECALL] = counts
+        else:
+            result[STRUCTURE_MULTI_PATH_RECALL] = []
+    else:
+        result[STRUCTURE_MULTI_PATH_RECALL] = []
+
+    # 15. 自発的想起の各経路別カウント
+    if spontaneous_recall_state is not None:
+        path_stats = getattr(spontaneous_recall_state, "path_stats", None)
+        if path_stats is not None:
+            counts = [
+                getattr(path_stats, "emotion_delta_count", 0),
+                getattr(path_stats, "motive_assoc_count", 0),
+                getattr(path_stats, "fluctuation_assoc_count", 0),
+            ]
+            result[STRUCTURE_SPONTANEOUS_RECALL] = counts
+        else:
+            result[STRUCTURE_SPONTANEOUS_RECALL] = []
+    else:
+        result[STRUCTURE_SPONTANEOUS_RECALL] = []
 
     return result
 
@@ -575,6 +611,8 @@ def process_reference_frequency(
     action_result_state: Any = None,
     dialogue_learning_state: Any = None,
     forgetting_state: Any = None,
+    multi_path_recall_state: Any = None,
+    spontaneous_recall_state: Any = None,
     config: Optional[ReferenceFrequencyConfig] = None,
     timestamp: Optional[float] = None,
 ) -> ReferenceFrequencyState:
@@ -617,6 +655,8 @@ def process_reference_frequency(
         action_result_state=action_result_state,
         dialogue_learning_state=dialogue_learning_state,
         forgetting_state=forgetting_state,
+        multi_path_recall_state=multi_path_recall_state,
+        spontaneous_recall_state=spontaneous_recall_state,
     )
 
     # ── 断面構成 ──

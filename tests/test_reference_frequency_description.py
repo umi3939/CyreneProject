@@ -31,9 +31,11 @@ from psyche.reference_frequency_description import (
     STRUCTURE_INTROSPECTION,
     STRUCTURE_MOTIVE_ENTRY,
     STRUCTURE_MOTIVE_IMPULSE,
+    STRUCTURE_MULTI_PATH_RECALL,
     STRUCTURE_NARRATIVE,
     STRUCTURE_OTHER_MODEL,
     STRUCTURE_SELF_REFERENCE,
+    STRUCTURE_SPONTANEOUS_RECALL,
     ReferenceFrequencyConfig,
     ReferenceFrequencyState,
     ReferenceSnapshot,
@@ -176,6 +178,34 @@ class MockForgettingState:
     series_index: list = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class MockPathStatistics:
+    """multi_path_recall の PathStatistics 相当のモック。"""
+    emotional_count: int = 0
+    contextual_count: int = 0
+    temporal_count: int = 0
+
+
+@dataclass
+class MockMultiPathRecallState:
+    """multi_path_recall の state 相当のモック。"""
+    path_stats: Optional[MockPathStatistics] = None
+
+
+@dataclass(frozen=True)
+class MockSpontaneousRecallPathStatistics:
+    """spontaneous_recall の SpontaneousRecallPathStatistics 相当のモック。"""
+    emotion_delta_count: int = 0
+    motive_assoc_count: int = 0
+    fluctuation_assoc_count: int = 0
+
+
+@dataclass
+class MockSpontaneousRecallState:
+    """spontaneous_recall の state 相当のモック。"""
+    path_stats: Optional[MockSpontaneousRecallPathStatistics] = None
+
+
 # =============================================================================
 # Helper: 全構造のモックを作成
 # =============================================================================
@@ -194,6 +224,8 @@ def _make_full_mocks(
     action_counts: list[int] | None = None,
     dialogue_counts: list[int] | None = None,
     forgetting_counts: list[int] | None = None,
+    multi_path_recall_counts: tuple[int, int, int] | None = None,
+    spontaneous_recall_counts: tuple[int, int, int] | None = None,
 ) -> dict[str, Any]:
     """テスト用のモックオブジェクト群を作成する。"""
     # Episodic
@@ -265,6 +297,30 @@ def _make_full_mocks(
         series_index=[MockMemorySeriesRecord(c) for c in (forgetting_counts or [])]
     )
 
+    # Multi Path Recall
+    if multi_path_recall_counts is not None:
+        mpr = MockMultiPathRecallState(
+            path_stats=MockPathStatistics(
+                emotional_count=multi_path_recall_counts[0],
+                contextual_count=multi_path_recall_counts[1],
+                temporal_count=multi_path_recall_counts[2],
+            )
+        )
+    else:
+        mpr = None
+
+    # Spontaneous Recall
+    if spontaneous_recall_counts is not None:
+        sr = MockSpontaneousRecallState(
+            path_stats=MockSpontaneousRecallPathStatistics(
+                emotion_delta_count=spontaneous_recall_counts[0],
+                motive_assoc_count=spontaneous_recall_counts[1],
+                fluctuation_assoc_count=spontaneous_recall_counts[2],
+            )
+        )
+    else:
+        sr = None
+
     return {
         "episodic_store": ep,
         "binding_store": bind,
@@ -277,6 +333,8 @@ def _make_full_mocks(
         "action_result_state": action,
         "dialogue_learning_state": dialogue,
         "forgetting_state": forgetting,
+        "multi_path_recall_state": mpr,
+        "spontaneous_recall_state": sr,
     }
 
 
@@ -489,7 +547,7 @@ class TestCollectReferenceCounts:
         assert result[STRUCTURE_FORGETTING] == [1, 9]
 
     def test_full_collection(self):
-        """全構造から収集した場合、全13キーが揃う。"""
+        """全構造から収集した場合、全15キーが揃う。"""
         mocks = _make_full_mocks(
             ep_counts=[1, 2],
             bind_counts=[3],
@@ -504,6 +562,8 @@ class TestCollectReferenceCounts:
             action_counts=[14],
             dialogue_counts=[15],
             forgetting_counts=[16],
+            multi_path_recall_counts=(17, 18, 19),
+            spontaneous_recall_counts=(20, 21, 22),
         )
         result = collect_reference_counts(**mocks)
         assert result[STRUCTURE_EPISODIC] == [1, 2]
@@ -519,6 +579,60 @@ class TestCollectReferenceCounts:
         assert result[STRUCTURE_ACTION_RESULT] == [14]
         assert result[STRUCTURE_DIALOGUE_LEARNING] == [15]
         assert result[STRUCTURE_FORGETTING] == [16]
+        assert result[STRUCTURE_MULTI_PATH_RECALL] == [17, 18, 19]
+        assert result[STRUCTURE_SPONTANEOUS_RECALL] == [20, 21, 22]
+
+    def test_multi_path_recall_collection(self):
+        """多経路想起の各経路別カウントが収集される。"""
+        state = MockMultiPathRecallState(
+            path_stats=MockPathStatistics(
+                emotional_count=3,
+                contextual_count=7,
+                temporal_count=2,
+            )
+        )
+        result = collect_reference_counts(multi_path_recall_state=state)
+        assert result[STRUCTURE_MULTI_PATH_RECALL] == [3, 7, 2]
+
+    def test_multi_path_recall_none_returns_empty(self):
+        """multi_path_recall_state が None の場合、空リストを返す。"""
+        result = collect_reference_counts()
+        assert result[STRUCTURE_MULTI_PATH_RECALL] == []
+
+    def test_multi_path_recall_no_path_stats(self):
+        """path_stats が None の MultiPathRecallState の場合、空リストを返す。"""
+        state = MockMultiPathRecallState(path_stats=None)
+        result = collect_reference_counts(multi_path_recall_state=state)
+        assert result[STRUCTURE_MULTI_PATH_RECALL] == []
+
+    def test_spontaneous_recall_collection(self):
+        """自発的想起の各経路別カウントが収集される。"""
+        state = MockSpontaneousRecallState(
+            path_stats=MockSpontaneousRecallPathStatistics(
+                emotion_delta_count=5,
+                motive_assoc_count=1,
+                fluctuation_assoc_count=4,
+            )
+        )
+        result = collect_reference_counts(spontaneous_recall_state=state)
+        assert result[STRUCTURE_SPONTANEOUS_RECALL] == [5, 1, 4]
+
+    def test_spontaneous_recall_none_returns_empty(self):
+        """spontaneous_recall_state が None の場合、空リストを返す。"""
+        result = collect_reference_counts()
+        assert result[STRUCTURE_SPONTANEOUS_RECALL] == []
+
+    def test_spontaneous_recall_no_path_stats(self):
+        """path_stats が None の SpontaneousRecallState の場合、空リストを返す。"""
+        state = MockSpontaneousRecallState(path_stats=None)
+        result = collect_reference_counts(spontaneous_recall_state=state)
+        assert result[STRUCTURE_SPONTANEOUS_RECALL] == []
+
+    def test_both_recall_none_returns_empty_lists(self):
+        """両方の想起状態が None の場合、両方の構造キーで空リストを返す。"""
+        result = collect_reference_counts()
+        assert result[STRUCTURE_MULTI_PATH_RECALL] == []
+        assert result[STRUCTURE_SPONTANEOUS_RECALL] == []
 
     def test_read_only_no_side_effects(self):
         """収集後、元のモックオブジェクトの参照回数が変化しないことを確認。"""
@@ -787,6 +901,33 @@ class TestProcessReferenceFrequency:
         new_state = process_reference_frequency(state, **mocks)
         assert len(state.snapshot_history) == 0  # 元のstateは変更されない
         assert len(new_state.snapshot_history) == 1
+
+    def test_recall_states_in_snapshot(self):
+        """process_reference_frequency に渡された想起状態がスナップショットに含まれる。"""
+        state = create_reference_frequency_state()
+        mpr_state = MockMultiPathRecallState(
+            path_stats=MockPathStatistics(
+                emotional_count=4,
+                contextual_count=6,
+                temporal_count=2,
+            )
+        )
+        sr_state = MockSpontaneousRecallState(
+            path_stats=MockSpontaneousRecallPathStatistics(
+                emotion_delta_count=3,
+                motive_assoc_count=1,
+                fluctuation_assoc_count=5,
+            )
+        )
+        new_state = process_reference_frequency(
+            state,
+            multi_path_recall_state=mpr_state,
+            spontaneous_recall_state=sr_state,
+            timestamp=1.0,
+        )
+        snap = new_state.snapshot_history[0]
+        assert snap.structure_counts[STRUCTURE_MULTI_PATH_RECALL] == [4, 6, 2]
+        assert snap.structure_counts[STRUCTURE_SPONTANEOUS_RECALL] == [3, 1, 5]
 
     def test_variation_recalculated_each_time(self):
         """安全弁3: 変動記述は毎回再導出される。"""
@@ -1203,8 +1344,8 @@ class TestEdgeCases:
 
 class TestStructureKeys:
     def test_all_keys_present(self):
-        """13の構造キーが全て定義されていること。"""
-        assert len(ALL_STRUCTURE_KEYS) == 13
+        """15の構造キーが全て定義されていること。"""
+        assert len(ALL_STRUCTURE_KEYS) == 15
 
     def test_keys_are_unique(self):
         """全ての構造キーがユニークであること。"""

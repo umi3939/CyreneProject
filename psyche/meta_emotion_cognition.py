@@ -155,6 +155,11 @@ class TransitionFeature:
     self_model_intensity: float = 0.0
     self_model_spread: float = 0.0
     self_model_conflict: bool = False
+    # 境界値到達の事実記述
+    # 感情値が 0.0 または 1.0 に到達した感情次元名の一覧
+    # 境界値到達の良し悪しを判定しない。事実記録のみ。
+    boundary_dimensions: list[str] = field(default_factory=list)  # 境界値に達している次元名
+    boundary_count: int = 0  # 境界値に達している次元の数（冗長だが参照利便性のため）
     # メタデータ
     creation_tick: int = 0
     creation_time: float = field(default_factory=time.time)
@@ -185,6 +190,8 @@ class TransitionFeature:
             "self_model_intensity": self.self_model_intensity,
             "self_model_spread": self.self_model_spread,
             "self_model_conflict": self.self_model_conflict,
+            "boundary_dimensions": list(self.boundary_dimensions),
+            "boundary_count": self.boundary_count,
             "creation_tick": self.creation_tick,
             "creation_time": self.creation_time,
             "freshness": self.freshness,
@@ -212,6 +219,8 @@ class TransitionFeature:
             self_model_intensity=data.get("self_model_intensity", 0.0),
             self_model_spread=data.get("self_model_spread", 0.0),
             self_model_conflict=data.get("self_model_conflict", False),
+            boundary_dimensions=list(data.get("boundary_dimensions", [])),
+            boundary_count=data.get("boundary_count", 0),
             creation_tick=data.get("creation_tick", 0),
             creation_time=data.get("creation_time", time.time()),
             freshness=data.get("freshness", 1.0),
@@ -914,6 +923,15 @@ class MetaEmotionProcessor:
         dynamics_phase_map = {"normal": 0.0, "peak": 1.0, "rebound": 0.5}
         dynamics_phase_value = dynamics_phase_map.get(inputs.dynamics_phase, 0.0)
 
+        # 境界値到達の事実記述:
+        # 感情値が 0.0 以下または 1.0 以上に到達した感情次元名を列挙する。
+        # クリッピング境界（0.0, 1.0）そのものを閾値とする。
+        # 境界値到達自体を「問題」として扱わない。事実の記録のみ。
+        boundary_dims: list[str] = []
+        for dim_name, dim_val in inputs.emotion_values.items():
+            if dim_val <= 0.0 or dim_val >= 1.0:
+                boundary_dims.append(dim_name)
+
         feature = TransitionFeature(
             duration_ticks=len(snapshots),
             change_speed=change_speed,
@@ -932,6 +950,8 @@ class MetaEmotionProcessor:
             self_model_intensity=inputs.self_model_intensity,
             self_model_spread=inputs.self_model_spread,
             self_model_conflict=inputs.self_model_conflict,
+            boundary_dimensions=boundary_dims,
+            boundary_count=len(boundary_dims),
             creation_tick=inputs.current_tick,
             creation_time=now,
         )

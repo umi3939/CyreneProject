@@ -285,8 +285,9 @@ class TestTransitionFeature:
         f = TransitionFeature()
         d = f.to_dict()
         # すべてのキーは数値フィールドまたはメタデータのみ
+        # boundary_dimensions は事実記述リストのため除外
         for key, val in d.items():
-            if key in ("feature_id", "freshness_stage"):
+            if key in ("feature_id", "freshness_stage", "boundary_dimensions"):
                 continue
             assert isinstance(val, (int, float, bool)), (
                 f"Field {key} should be numeric, got {type(val)}"
@@ -1425,6 +1426,168 @@ class TestIntegration:
         for i in range(20):
             p.tick(_make_inputs(current_tick=i))
         assert len(p.state.recovery_candidates) <= 3
+
+
+# =================================================================
+# Boundary Dimensions Tests (境界値到達の事実記述)
+# =================================================================
+
+class TestBoundaryDimensions:
+    """境界値到達フィールドのテスト。
+
+    感情値が 0.0 または 1.0 に到達した感情次元名を事実として記録する。
+    境界値到達自体を「問題」として扱わない。
+    """
+
+    def test_boundary_empty_when_no_boundary_reached(self):
+        """全感情が 0.0-1.0 の間にある場合、boundary_dimensions は空。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 0.5, "anger": 0.3, "sorrow": 0.2},
+        ))
+        f = result.current_feature
+        assert f.boundary_dimensions == []
+        assert f.boundary_count == 0
+
+    def test_boundary_detected_at_upper_limit(self):
+        """感情値が 1.0 の次元が boundary_dimensions に含まれる。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 1.0, "anger": 0.3},
+        ))
+        f = result.current_feature
+        assert "joy" in f.boundary_dimensions
+        assert "anger" not in f.boundary_dimensions
+        assert f.boundary_count == 1
+
+    def test_boundary_detected_at_lower_limit(self):
+        """感情値が 0.0 の次元が boundary_dimensions に含まれる。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 0.0, "anger": 0.5},
+        ))
+        f = result.current_feature
+        assert "joy" in f.boundary_dimensions
+        assert "anger" not in f.boundary_dimensions
+        assert f.boundary_count == 1
+
+    def test_boundary_multiple_dimensions(self):
+        """複数次元が同時に境界値に達している場合。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 1.0, "anger": 0.0, "sorrow": 0.5},
+        ))
+        f = result.current_feature
+        assert "joy" in f.boundary_dimensions
+        assert "anger" in f.boundary_dimensions
+        assert "sorrow" not in f.boundary_dimensions
+        assert f.boundary_count == 2
+
+    def test_boundary_all_at_upper(self):
+        """全次元が上限に達している場合。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 1.0, "anger": 1.0, "sorrow": 1.0},
+        ))
+        f = result.current_feature
+        assert f.boundary_count == 3
+        assert set(f.boundary_dimensions) == {"joy", "anger", "sorrow"}
+
+    def test_boundary_all_at_lower(self):
+        """全次元が下限に達している場合。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 0.0, "anger": 0.0, "sorrow": 0.0},
+        ))
+        f = result.current_feature
+        assert f.boundary_count == 3
+        assert set(f.boundary_dimensions) == {"joy", "anger", "sorrow"}
+
+    def test_boundary_empty_emotion_values(self):
+        """感情値が空の場合、boundary_dimensions は空。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(emotion_values={}))
+        f = result.current_feature
+        assert f.boundary_dimensions == []
+        assert f.boundary_count == 0
+
+    def test_boundary_count_matches_list_length(self):
+        """boundary_count は boundary_dimensions の長さと一致する。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 1.0, "anger": 0.0, "sorrow": 0.7},
+        ))
+        f = result.current_feature
+        assert f.boundary_count == len(f.boundary_dimensions)
+
+    def test_boundary_to_dict_from_dict_roundtrip(self):
+        """to_dict / from_dict で boundary_dimensions/boundary_count が保存復元される。"""
+        f = TransitionFeature(
+            boundary_dimensions=["joy", "anger"],
+            boundary_count=2,
+        )
+        d = f.to_dict()
+        assert d["boundary_dimensions"] == ["joy", "anger"]
+        assert d["boundary_count"] == 2
+
+        f2 = TransitionFeature.from_dict(d)
+        assert f2.boundary_dimensions == ["joy", "anger"]
+        assert f2.boundary_count == 2
+
+    def test_boundary_from_dict_backward_compatible(self):
+        """boundary_dimensions なしの from_dict が空リスト/0 になる（後方互換性）。"""
+        d = {
+            "feature_id": "old_feature",
+            "change_speed": 0.3,
+            # boundary_dimensions, boundary_count は含まれていない
+        }
+        f = TransitionFeature.from_dict(d)
+        assert f.boundary_dimensions == []
+        assert f.boundary_count == 0
+
+    def test_boundary_not_in_enrichment(self):
+        """enrichment に boundary 情報が含まれないことの確認。"""
+        p = _make_processor()
+        p.tick(_make_inputs(
+            emotion_values={"joy": 1.0, "anger": 0.0},
+        ))
+        data = p.get_enrichment_data()
+        # enrichment トップレベルに boundary キーが存在しない
+        assert "boundary_dimensions" not in data
+        assert "boundary_count" not in data
+        # latest_feature 内にはシリアライズされた形式で存在するが、
+        # enrichment は latest_feature.to_dict() をそのまま返すため、
+        # 直接的な boundary_dimensions の露出経路にはならない。
+        # enrichment の summary_text にも boundary 文言が含まれない。
+        assert "boundary" not in data.get("summary_text", "").lower()
+
+    def test_boundary_defaults_on_dataclass(self):
+        """TransitionFeature のデフォルト値確認。"""
+        f = TransitionFeature()
+        assert f.boundary_dimensions == []
+        assert f.boundary_count == 0
+
+    def test_boundary_near_but_not_at_limit(self):
+        """境界値に近いが到達していない場合は含まれない。"""
+        p = _make_processor()
+        result = p.tick(_make_inputs(
+            emotion_values={"joy": 0.999, "anger": 0.001},
+        ))
+        f = result.current_feature
+        assert f.boundary_dimensions == []
+        assert f.boundary_count == 0
+
+    def test_boundary_accessible_via_cognition_history(self):
+        """境界値情報は内省系参照経路（feature_history）でのみ参照可能。"""
+        p = _make_processor()
+        p.tick(_make_inputs(
+            emotion_values={"joy": 1.0, "anger": 0.3},
+        ))
+        # feature_history から参照可能
+        assert len(p.state.feature_history) == 1
+        f = p.state.feature_history[0]
+        assert "joy" in f.boundary_dimensions
+        assert f.boundary_count == 1
 
 
 # =================================================================

@@ -3,7 +3,7 @@
 作成日: 2026-02-09
 更新日: 2026-02-22
 総コード行数: ~167,000行
-総テスト数: 6,785テスト
+総テスト数: 6,861テスト
 
 ---
 
@@ -153,7 +153,7 @@
 | 24 | persistence.py | 395 | 22 | 基盤 | 永続化システム |
 | 25 | emotion_amplitude.py | 362 | 24 | 感情 | 感情振幅調整（orchestrator統合済み: dynamics相連動） |
 | 26 | reaction_with_stm.py | 294 | - | 感情 | STM統合反応 |
-| 27 | thought.py | 293 | - | 出力 | 思考候補生成・選択 |
+| 27 | thought.py | 473 | 36 | 出力 | 思考候補生成・選択（15ポリシー動的選択、6断面スコアリング、safety/autonomy軸） |
 | 28 | state.py | 258 | - | 基盤 | 心理状態データ構造 |
 | 29 | snapshot.py | 239 | - | 基盤 | スナップショット管理 |
 | 30 | responsibility_manager.py | 210 | - | 責任 | 責任マネージャー |
@@ -167,7 +167,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,922 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v42(66項目永続化), enrichment(5セクション/48項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,949 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v42(66項目永続化), enrichment(5セクション/48項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3465,7 +3465,7 @@ psyche/
 ├── responsibility_dispersion.py   (1039行) - 責任の発散・昇華
 ├── silence_hesitation.py          (724行)  - 沈黙・躊躇い表現
 ├── tone.py                        (698行)  - トーン・ユーモア制御
-├── thought.py                     (293行)  - 思考候補生成・選択
+├── thought.py                     (473行)  - 思考候補生成・選択（15ポリシー動的選択）
 ├── expression.py                  (156行)  - 表現生成
 ├── snapshot.py                    (239行)  - スナップショット管理
 └── persistence.py                 (395行)  - 永続化システム
@@ -4268,7 +4268,22 @@ value_orientation_validation.py (1,211行/88テスト)
 - 安全弁7種: 等価性/確認バイアス排除/FIFO消失/ルーミネーション防止/パターン抽出排除/単方向参照保証/判断系経路遮断
 - orchestrator: Phase 25f（5ティック周期、other_boundary_accumulation後）、enrichment #48（他者認知セクション）、save/load v42 (66フィールド)
 
+### 9.3 Cycle 4: 既存構造の改善・統合（記述層追加なし）
+
+Cycle 3討論で指摘された限界費用問題（記述層追加の漸減的寄与、enrichment肥大化、Phase数飽和）を踏まえ、新規psycheモジュール追加ゼロ、全項目が既存構造の改善・統合・品質強化。
+
+| # | 項目 | 種別 | 依存 | 概要 |
+|---|------|------|------|------|
+| C4-8 | 結合テスト拡充 ✅完了 | 品質強化 | - | test_integration_extended.py (751行/40テスト) save/load resume・cold-start defaults・enrichment integrity・50-tick stability |
+| C4-1 | thought.pyポリシー動的化 ✅完了 | 動的改善 | C4-8 | POLICIES 6→15、safety/autonomy軸追加、6断面スコアリング条件、動的選択3-5、安全弁。thought.py 293→473行、orchestrator extended_inputs配線、value_orientation 9ラベル追加 |
+| C4-2+6 | enrichment圧縮+プロンプト効率化 | 接続面改善 | C4-1 | 候補2(enrichment階層化)+候補6(expression.pyフォーマット最適化)の統合 |
+| C4-3 | save/load一貫性検証 | 品質強化 | - | persistence_integrity.py拡張: load後自動検証ステップ |
+| C4-9 | self_action_perceptionフィードバック拡充 | 既存統合 | C4-1 | self_model/introspection_consumptionへの参照経路追加（配線のみ） |
+| C4-7 | perception.py知覚強化 | 接続面改善 | - | Perceptの情報密度向上 |
+| C4-4 | orchestrator Phase宣言的定義 | 既存統合 | C4-1 | Phase間依存関係の宣言的データ構造化 |
+| C4-5+10 | 初回起動+セッション再開品質 | 実運用改善 | C4-3 | 候補5(初回起動)+候補10(状態リカバリ)の統合 |
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~167,000行 / テスト数: 6,785*
+*総コード行数: ~167,000行 / テスト数: 6,861*

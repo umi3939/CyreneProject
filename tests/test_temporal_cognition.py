@@ -6,7 +6,7 @@ tests/test_temporal_cognition.py - 時間認知構造のテスト
 - 経過記録蓄積（Stage 1）
 - スライディングウィンドウFIFO
 - 外部入力到着記録
-- 多断面特徴量記述（Stage 2）: 7断面（6断面 + 帯域キャッシュ鮮度）
+- 多断面特徴量記述（Stage 2）: 8断面（6断面 + 帯域キャッシュ鮮度 + 入力経路間隔）
 - 参照情報受渡準備（Stage 3）: enrichment + READ-ONLYアクセサ
 - 直前スナップショットの保持・更新
 - save/load round-trip
@@ -16,6 +16,7 @@ tests/test_temporal_cognition.py - 時間認知構造のテスト
 - エッジケース（空データ、上限超過、ゼロ経過秒等）
 - ファクトリ
 - 帯域キャッシュ鮮度断面（band_freshness）: 段階値、後方互換性、Noneの場合
+- 入力経路間隔断面（pathway_interval）: 段階値、後方互換性、current_pathway
 - 統合テスト
 """
 
@@ -39,6 +40,7 @@ from psyche.temporal_cognition import (
     SECTION_EXTERNAL_INPUT_INTERVAL,
     SECTION_OVERALL_ELAPSED,
     SECTION_BAND_FRESHNESS,
+    SECTION_PATHWAY_INTERVAL,
     SECTION_LABELS,
     DENSITY_LABELS,
     FRESHNESS_LABELS,
@@ -47,6 +49,10 @@ from psyche.temporal_cognition import (
     BAND_EVERY_5,
     BAND_EVERY_10,
     BAND_ORDER,
+    PATHWAY_TEXT,
+    PATHWAY_SCREEN,
+    PATHWAY_SPONTANEOUS,
+    PATHWAY_ORDER,
     _classify_interval_density,
     _classify_frequency,
     _classify_tempo,
@@ -170,6 +176,7 @@ class TestTemporalCognitionState:
         assert state.snapshot == {}
         assert state.previous_snapshot == {}
         assert state.external_input_timestamps == []
+        assert state.pathway_last_used_tick == {}
 
     def test_to_dict(self):
         state = TemporalCognitionState()
@@ -178,6 +185,7 @@ class TestTemporalCognitionState:
         assert d["snapshot"] == {}
         assert d["previous_snapshot"] == {}
         assert d["external_input_timestamps"] == []
+        assert d["pathway_last_used_tick"] == {}
 
     def test_to_dict_with_data(self):
         state = TemporalCognitionState()
@@ -211,6 +219,7 @@ class TestTemporalCognitionState:
         assert state.snapshot == {}
         assert state.previous_snapshot == {}
         assert state.external_input_timestamps == []
+        assert state.pathway_last_used_tick == {}
 
 
 # =============================================================================
@@ -575,18 +584,20 @@ class TestOverallElapsedSection:
 
 class TestAllSectionsPresent:
     def test_all_six_base_sections(self):
-        """describe_features がband_freshness未指定時に6断面すべてを返すこと。"""
+        """describe_features がband_freshness未指定・pathway未使用時に6断面すべてを返すこと。"""
         processor = make_processor()
         accumulate_n(processor, 5)
         snapshot = processor.describe_features()
-        base_sections = [s for s in SECTION_ORDER if s != SECTION_BAND_FRESHNESS]
+        base_sections = [s for s in SECTION_ORDER
+                         if s not in (SECTION_BAND_FRESHNESS, SECTION_PATHWAY_INTERVAL)]
         for section_name in base_sections:
             assert section_name in snapshot
 
-    def test_all_seven_sections_with_band_freshness(self):
-        """describe_features がband_freshness指定時に7断面すべてを返すこと。"""
+    def test_all_eight_sections_with_all_data(self):
+        """describe_features がband_freshness指定・pathway使用時に8断面すべてを返すこと。"""
         processor = make_processor()
-        accumulate_n(processor, 5)
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
         band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
         snapshot = processor.describe_features(band_freshness=band_info)
         for section_name in SECTION_ORDER:
@@ -604,6 +615,14 @@ class TestAllSectionsPresent:
         band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
         snapshot = processor.describe_features(band_freshness=band_info)
         assert len(snapshot) == 7
+
+    def test_section_count_with_band_freshness_and_pathway(self):
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        assert len(snapshot) == 8
 
     def test_all_values_are_valid_density_levels(self):
         processor = make_processor()
@@ -835,6 +854,7 @@ class TestSaveLoad:
         assert restored.snapshot == {}
         assert restored.previous_snapshot == {}
         assert restored.external_input_timestamps == []
+        assert restored.pathway_last_used_tick == {}
 
     def test_roundtrip_with_data(self):
         processor = make_processor()
@@ -941,7 +961,8 @@ class TestSectionEquality:
         accumulate_n(processor, 10)
         snapshot = processor.describe_features()
         valid_values = {dl.value for dl in DensityLevel}
-        base_sections = [s for s in SECTION_ORDER if s != SECTION_BAND_FRESHNESS]
+        base_sections = [s for s in SECTION_ORDER
+                         if s not in (SECTION_BAND_FRESHNESS, SECTION_PATHWAY_INTERVAL)]
         for section_name in base_sections:
             assert section_name in snapshot
             assert snapshot[section_name] in valid_values
@@ -1227,7 +1248,7 @@ class TestClassifyTempo:
 
 class TestConstants:
     def test_section_order_count(self):
-        assert len(SECTION_ORDER) == 7
+        assert len(SECTION_ORDER) == 8
 
     def test_section_labels_complete(self):
         for section_name in SECTION_ORDER:
@@ -1301,6 +1322,7 @@ class TestFactory:
         assert processor.state.snapshot == {}
         assert processor.state.previous_snapshot == {}
         assert processor.state.external_input_timestamps == []
+        assert processor.state.pathway_last_used_tick == {}
 
 
 # =============================================================================
@@ -1570,7 +1592,7 @@ class TestBandFreshnessSection:
         assert parts["every_10"] == FreshnessLevel.SOMEWHAT_STALE.value
 
     def test_band_freshness_does_not_affect_other_sections(self):
-        """帯域鮮度断面の有無が他の6断面に影響しないこと。"""
+        """帯域鮮度断面の有無が他の断面に影響しないこと。"""
         processor = make_processor()
         accumulate_n(processor, 10)
 
@@ -1583,7 +1605,8 @@ class TestBandFreshnessSection:
         )
 
         # 6基本断面の値が一致すること
-        base_sections = [s for s in SECTION_ORDER if s != SECTION_BAND_FRESHNESS]
+        base_sections = [s for s in SECTION_ORDER
+                         if s not in (SECTION_BAND_FRESHNESS, SECTION_PATHWAY_INTERVAL)]
         for section_name in base_sections:
             assert snap_without[section_name] == snap_with[section_name]
 
@@ -1642,6 +1665,277 @@ class TestBandFreshnessConstants:
 
     def test_band_freshness_in_section_order(self):
         assert SECTION_BAND_FRESHNESS in SECTION_ORDER
+
+
+# =============================================================================
+# Test: Pathway Interval Constants (入力経路間隔定数)
+# =============================================================================
+
+
+class TestPathwayIntervalConstants:
+    def test_pathway_order_count(self):
+        assert len(PATHWAY_ORDER) == 3
+
+    def test_pathway_order_unique(self):
+        assert len(PATHWAY_ORDER) == len(set(PATHWAY_ORDER))
+
+    def test_pathway_interval_in_section_labels(self):
+        assert SECTION_PATHWAY_INTERVAL in SECTION_LABELS
+
+    def test_pathway_interval_in_section_order(self):
+        assert SECTION_PATHWAY_INTERVAL in SECTION_ORDER
+
+    def test_pathway_values(self):
+        assert PATHWAY_TEXT == "text"
+        assert PATHWAY_SCREEN == "screen"
+        assert PATHWAY_SPONTANEOUS == "spontaneous"
+
+
+# =============================================================================
+# Test: current_pathway in accumulate_elapsed (入力経路記録)
+# =============================================================================
+
+
+class TestCurrentPathwayAccumulation:
+    def test_current_pathway_records_last_used_tick(self):
+        """current_pathwayを渡すとpathway_last_used_tickが更新される。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        assert processor.state.pathway_last_used_tick["text"] == 1
+
+    def test_current_pathway_empty_no_record(self):
+        """current_pathwayが空文字の場合はpathway_last_used_tickを更新しない。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="")
+        assert processor.state.pathway_last_used_tick == {}
+
+    def test_current_pathway_default_no_record(self):
+        """current_pathway未指定（デフォルト）の場合はpathway_last_used_tickを更新しない（後方互換性）。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0)
+        assert processor.state.pathway_last_used_tick == {}
+
+    def test_current_pathway_invalid_no_record(self):
+        """PATHWAY_ORDERに含まれない経路名は記録されない。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="invalid")
+        assert processor.state.pathway_last_used_tick == {}
+
+    def test_current_pathway_multiple_updates(self):
+        """同じ経路で複数回呼ぶと最新のティックに更新される。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        processor.accumulate_elapsed(tick=5, delta_time=1.0, timestamp=1004.0, current_pathway="text")
+        assert processor.state.pathway_last_used_tick["text"] == 5
+
+    def test_current_pathway_multiple_pathways(self):
+        """異なる経路がそれぞれ独立に記録される。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        processor.accumulate_elapsed(tick=2, delta_time=1.0, timestamp=1001.0, current_pathway="screen")
+        processor.accumulate_elapsed(tick=3, delta_time=1.0, timestamp=1002.0, current_pathway="spontaneous")
+        assert processor.state.pathway_last_used_tick["text"] == 1
+        assert processor.state.pathway_last_used_tick["screen"] == 2
+        assert processor.state.pathway_last_used_tick["spontaneous"] == 3
+
+    def test_backward_compat_no_current_pathway(self):
+        """current_pathwayなしの呼び出しが従来と同じ動作をすること。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0)
+        processor.accumulate_elapsed(tick=2, delta_time=1.0, timestamp=1001.0)
+        assert len(processor.state.elapsed_records) == 2
+        assert processor.state.pathway_last_used_tick == {}
+
+
+# =============================================================================
+# Test: Pathway Interval Section (入力経路間隔断面)
+# =============================================================================
+
+
+class TestPathwayIntervalSection:
+    def test_pathway_interval_absent_without_pathway_data(self):
+        """pathway_last_used_tickが空の場合、入力経路間隔断面は含まれない（後方互換性）。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        snapshot = processor.describe_features()
+        assert SECTION_PATHWAY_INTERVAL not in snapshot
+
+    def test_pathway_interval_present_with_pathway_data(self):
+        """pathway_last_used_tickにデータがある場合、入力経路間隔断面が含まれる。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        snapshot = processor.describe_features()
+        assert SECTION_PATHWAY_INTERVAL in snapshot
+
+    def test_pathway_interval_value_format(self):
+        """入力経路間隔断面の値がカンマ区切りのキー:値形式であること。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        snapshot = processor.describe_features()
+        value = snapshot[SECTION_PATHWAY_INTERVAL]
+        pairs = value.split(",")
+        assert len(pairs) == 3
+        for pair in pairs:
+            assert ":" in pair
+
+    def test_pathway_interval_order_is_pathway_order(self):
+        """入力経路間隔断面内の経路順序がPATHWAY_ORDERに従うこと。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        snapshot = processor.describe_features()
+        value = snapshot[SECTION_PATHWAY_INTERVAL]
+        keys = [pair.split(":")[0] for pair in value.split(",")]
+        assert keys == PATHWAY_ORDER
+
+    def test_pathway_interval_recent_for_just_used(self):
+        """直近のティックで使用された経路はRECENTとなる。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=5, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        snapshot = processor.describe_features()
+        value = snapshot[SECTION_PATHWAY_INTERVAL]
+        parts = {}
+        for pair in value.split(","):
+            k, v = pair.split(":", 1)
+            parts[k] = v
+        assert parts["text"] == FreshnessLevel.RECENT.value
+
+    def test_pathway_interval_stale_for_unused(self):
+        """一度も使用されていない経路はSTALEとなる。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        snapshot = processor.describe_features()
+        value = snapshot[SECTION_PATHWAY_INTERVAL]
+        parts = {}
+        for pair in value.split(","):
+            k, v = pair.split(":", 1)
+            parts[k] = v
+        # screen/spontaneousは未使用なのでSTALE
+        assert parts["screen"] == FreshnessLevel.STALE.value
+        assert parts["spontaneous"] == FreshnessLevel.STALE.value
+
+    def test_pathway_interval_mixed_levels(self):
+        """各経路が異なる経過ティックの場合、対応する段階値が記述される。"""
+        processor = make_processor()
+        # text: tick 10で使用 → 経過0（RECENT）
+        # screen: tick 8で使用 → 経過2（SOMEWHAT_RECENT）
+        # spontaneous: tick 5で使用 → 経過5（MODERATE）
+        processor.accumulate_elapsed(tick=5, delta_time=1.0, timestamp=1000.0, current_pathway="spontaneous")
+        processor.accumulate_elapsed(tick=8, delta_time=1.0, timestamp=1003.0, current_pathway="screen")
+        processor.accumulate_elapsed(tick=10, delta_time=1.0, timestamp=1005.0, current_pathway="text")
+        snapshot = processor.describe_features()
+        value = snapshot[SECTION_PATHWAY_INTERVAL]
+        parts = {}
+        for pair in value.split(","):
+            k, v = pair.split(":", 1)
+            parts[k] = v
+        assert parts["text"] == FreshnessLevel.RECENT.value        # 経過0
+        assert parts["screen"] == FreshnessLevel.SOMEWHAT_RECENT.value  # 経過2
+        assert parts["spontaneous"] == FreshnessLevel.MODERATE.value    # 経過5
+
+    def test_pathway_interval_does_not_affect_other_sections(self):
+        """入力経路間隔断面の有無が他の断面に影響しないこと。"""
+        processor = make_processor()
+        accumulate_n(processor, 10)
+
+        snap_without = processor.describe_features()
+
+        # 同じプロセッサにpathway情報を追加
+        processor2 = make_processor()
+        processor2.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor2, 9, base_tick=2)
+        snap_with = processor2.describe_features()
+
+        # 6基本断面の値が一致すること
+        base_sections = [s for s in SECTION_ORDER
+                         if s not in (SECTION_BAND_FRESHNESS, SECTION_PATHWAY_INTERVAL)]
+        for section_name in base_sections:
+            assert snap_without[section_name] == snap_with[section_name]
+
+    def test_pathway_interval_in_enrichment(self):
+        """入力経路間隔断面がenrichmentのsnapshotに含まれること。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        processor.describe_features()
+        data = processor.get_enrichment_data()
+        assert SECTION_PATHWAY_INTERVAL in data["snapshot"]
+
+    def test_pathway_interval_in_summary_text(self):
+        """入力経路間隔断面がsummary_textに含まれること。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        processor.describe_features()
+        data = processor.get_enrichment_data()
+        summary = data["summary_text"]
+        assert SECTION_LABELS[SECTION_PATHWAY_INTERVAL] in summary
+
+    def test_pathway_interval_summary_no_emphasis(self):
+        """入力経路間隔断面のsummaryに強調表現がないこと。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        accumulate_n(processor, 4, base_tick=2)
+        processor.describe_features()
+        data = processor.get_enrichment_data()
+        summary = data["summary_text"]
+        forbidden = ["注目すべき", "異常な", "重要な", "特筆すべき", "顕著な", "著しい"]
+        for word in forbidden:
+            assert word not in summary
+
+
+# =============================================================================
+# Test: Pathway Last Used Tick Save/Load
+# =============================================================================
+
+
+class TestPathwayLastUsedTickSaveLoad:
+    def test_roundtrip_with_pathway_data(self):
+        """pathway_last_used_tickの保存復元。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        processor.accumulate_elapsed(tick=3, delta_time=1.0, timestamp=1002.0, current_pathway="screen")
+
+        d = processor.state.to_dict()
+        restored = TemporalCognitionState.from_dict(d)
+        assert restored.pathway_last_used_tick == {"text": 1, "screen": 3}
+
+    def test_roundtrip_empty_pathway(self):
+        """pathway_last_used_tickが空の場合の保存復元。"""
+        processor = make_processor()
+        accumulate_n(processor, 3)
+
+        d = processor.state.to_dict()
+        restored = TemporalCognitionState.from_dict(d)
+        assert restored.pathway_last_used_tick == {}
+
+    def test_from_dict_missing_pathway_key(self):
+        """pathway_last_used_tickキーが辞書に存在しない場合（旧バージョンデータ互換）。"""
+        data = {
+            "elapsed_records": [],
+            "snapshot": {},
+            "previous_snapshot": {},
+            "external_input_timestamps": [],
+            # pathway_last_used_tick は含まれない
+        }
+        state = TemporalCognitionState.from_dict(data)
+        assert state.pathway_last_used_tick == {}
+
+    def test_resume_after_load_with_pathway(self):
+        """ロード後にpathway付きのaccumulate_elapsedを再開。"""
+        processor = make_processor()
+        processor.accumulate_elapsed(tick=1, delta_time=1.0, timestamp=1000.0, current_pathway="text")
+        saved = processor.state.to_dict()
+
+        new_processor = make_processor()
+        new_processor.state = TemporalCognitionState.from_dict(saved)
+        assert new_processor.state.pathway_last_used_tick == {"text": 1}
+
+        new_processor.accumulate_elapsed(tick=10, delta_time=1.0, timestamp=2000.0, current_pathway="screen")
+        assert new_processor.state.pathway_last_used_tick == {"text": 1, "screen": 10}
 
 
 # =============================================================================

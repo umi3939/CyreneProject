@@ -1213,11 +1213,18 @@ class PsycheOrchestrator:
 
         # Phase 7b: temporal_cognition — 経過記録の蓄積（毎ティック）
         # 既存のティック数ベース処理を変更しない。出力は参照情報のみ。
+        # 入力経路の判定: text/screenが明確に特定できる場合のみ記録
+        current_pathway_for_tc = ""
+        if percept.text:
+            current_pathway_for_tc = "text"
+        elif percept.intent and percept.intent != "expression":
+            current_pathway_for_tc = "screen"
         try:
             self._temporal_cognition.accumulate_elapsed(
                 tick=self._tick_count,
                 delta_time=delta_time,
                 timestamp=time.time(),
+                current_pathway=current_pathway_for_tc,
             )
         except Exception as e:
             logger.debug("Temporal cognition accumulate skipped: %s", e)

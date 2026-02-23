@@ -16,6 +16,7 @@ psyche/temporal_cognition.py - 時間認知構造（時間的特徴記述）
 - 特徴量のパターン抽出・傾向化・統計処理を行わない
 - 6断面の特徴量を1つの「体感時間」変数に統合しない
 - 7断面の特徴量を1つの「体感時間」変数に統合しない
+- 8断面の特徴量を1つの「体感時間」変数に統合しない
 - enrichment内での強調禁止
 
 3段パイプライン:
@@ -118,12 +119,16 @@ class TemporalCognitionState:
     # 外部入力到着記録: タイムスタンプの時系列リスト
     external_input_timestamps: list[float] = field(default_factory=list)
 
+    # 入力経路別の最終使用ティック: 各経路の最終使用ティック番号
+    pathway_last_used_tick: dict[str, int] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "elapsed_records": [r.to_dict() for r in self.elapsed_records],
             "snapshot": dict(self.snapshot),
             "previous_snapshot": dict(self.previous_snapshot),
             "external_input_timestamps": list(self.external_input_timestamps),
+            "pathway_last_used_tick": dict(self.pathway_last_used_tick),
         }
 
     @classmethod
@@ -137,6 +142,7 @@ class TemporalCognitionState:
             snapshot=dict(data.get("snapshot", {})),
             previous_snapshot=dict(data.get("previous_snapshot", {})),
             external_input_timestamps=list(data.get("external_input_timestamps", [])),
+            pathway_last_used_tick=dict(data.get("pathway_last_used_tick", {})),
         )
 
 
@@ -173,6 +179,7 @@ SECTION_NARRATIVE_INTERVAL = "narrative_interval"
 SECTION_EXTERNAL_INPUT_INTERVAL = "external_input_interval"
 SECTION_OVERALL_ELAPSED = "overall_elapsed"
 SECTION_BAND_FRESHNESS = "band_freshness"
+SECTION_PATHWAY_INTERVAL = "pathway_interval"
 
 # 定義順序（固定、変更禁止）
 SECTION_ORDER = [
@@ -183,6 +190,7 @@ SECTION_ORDER = [
     SECTION_EXTERNAL_INPUT_INTERVAL,
     SECTION_OVERALL_ELAPSED,
     SECTION_BAND_FRESHNESS,
+    SECTION_PATHWAY_INTERVAL,
 ]
 
 # 断面の日本語ラベル（enrichment用、等価に列挙するためのラベル）
@@ -194,6 +202,7 @@ SECTION_LABELS = {
     SECTION_EXTERNAL_INPUT_INTERVAL: "外部入力間隔",
     SECTION_OVERALL_ELAPSED: "総合経過",
     SECTION_BAND_FRESHNESS: "帯域キャッシュ鮮度",
+    SECTION_PATHWAY_INTERVAL: "入力経路間隔",
 }
 
 # 段階値の日本語ラベル
@@ -226,6 +235,18 @@ BAND_ORDER = [
     BAND_EVERY_3,
     BAND_EVERY_5,
     BAND_EVERY_10,
+]
+
+# 入力経路キー名
+PATHWAY_TEXT = "text"
+PATHWAY_SCREEN = "screen"
+PATHWAY_SPONTANEOUS = "spontaneous"
+
+# 入力経路キー定義順序（固定）
+PATHWAY_ORDER = [
+    PATHWAY_TEXT,
+    PATHWAY_SCREEN,
+    PATHWAY_SPONTANEOUS,
 ]
 
 
@@ -350,7 +371,7 @@ class TemporalCognitionProcessor:
 
     3段パイプライン:
     1. 経過情報の蓄積 — ティック番号・経過秒・タイムスタンプを蓄積
-    2. 多断面での時間的特徴量の記述 — 6断面の段階値を記述
+    2. 多断面での時間的特徴量の記述 — 8断面の段階値を記述
     3. 参照情報としての受渡準備 — enrichment + READ-ONLYアクセサ
 
     すべての処理は記述的な特徴量の算出・整理であり、能動的な判断・評価・制御を含まない。
@@ -376,6 +397,7 @@ class TemporalCognitionProcessor:
         tick: int,
         delta_time: float,
         timestamp: Optional[float] = None,
+        current_pathway: str = "",
     ) -> None:
         """毎ティック呼び出し: 経過情報を蓄積する。
 
@@ -385,6 +407,7 @@ class TemporalCognitionProcessor:
             tick: 現在のティック番号
             delta_time: 前回からの経過秒
             timestamp: 蓄積時点のタイムスタンプ（指定なしの場合は現在時刻）
+            current_pathway: 現在のティックで使用された入力経路名（空文字の場合は記録しない）
         """
         now = timestamp if timestamp is not None else time.time()
 
@@ -396,12 +419,16 @@ class TemporalCognitionProcessor:
 
         self._state.elapsed_records.append(record)
 
+        # 入力経路の最終使用ティックを更新（経路名が空でない場合のみ）
+        if current_pathway and current_pathway in PATHWAY_ORDER:
+            self._state.pathway_last_used_tick[current_pathway] = tick
+
         # 上限による押し出し（唯一の消失経路）
         self._apply_elapsed_pushout()
 
         logger.debug(
-            "Elapsed record accumulated: tick=%d, delta_time=%.3f, records=%d",
-            tick, delta_time, len(self._state.elapsed_records),
+            "Elapsed record accumulated: tick=%d, delta_time=%.3f, records=%d, pathway=%s",
+            tick, delta_time, len(self._state.elapsed_records), current_pathway or "(none)",
         )
 
     def _apply_elapsed_pushout(self) -> None:
@@ -445,7 +472,7 @@ class TemporalCognitionProcessor:
         narrative_timestamps: Optional[list[float]] = None,
         band_freshness: Optional[dict[str, int]] = None,
     ) -> dict[str, str]:
-        """7断面の時間的特徴量を記述する。
+        """8断面の時間的特徴量を記述する。
 
         各断面は独立であり、断面間の優先順位・重み付け・統合処理は存在しない。
         すべての断面は等価である。
@@ -459,8 +486,8 @@ class TemporalCognitionProcessor:
                 各値は最終更新からの経過ティック数。Noneの場合は帯域鮮度断面を空にする。
 
         Returns:
-            7断面の特徴量を保持する辞書（断面名→段階値文字列）
-            帯域鮮度断面が空の場合は6断面の辞書（後方互換性）
+            8断面の特徴量を保持する辞書（断面名→段階値文字列）
+            帯域鮮度断面が空の場合、入力経路間隔断面データがない場合は断面数が減少する（後方互換性）
         """
         cfg = self._config
         records = self._state.elapsed_records
@@ -507,6 +534,12 @@ class TemporalCognitionProcessor:
         if band_freshness is not None:
             band_level = self._describe_band_freshness(band_freshness)
             new_snapshot[SECTION_BAND_FRESHNESS] = band_level
+
+        # 入力経路間隔断面: 各入力経路の最終使用からの経過ティック数の段階値記述
+        # pathway_last_used_tickにデータがある場合のみ断面を含める（後方互換性維持）
+        if self._state.pathway_last_used_tick:
+            pathway_level = self._describe_pathway_interval(records)
+            new_snapshot[SECTION_PATHWAY_INTERVAL] = pathway_level
 
         self._state.snapshot = new_snapshot
 
@@ -609,6 +642,33 @@ class TemporalCognitionProcessor:
             parts.append(f"{band_key}:{level.value}")
         return ",".join(parts)
 
+    def _describe_pathway_interval(
+        self, records: list[ElapsedRecord],
+    ) -> str:
+        """入力経路間隔断面: 各入力経路の最終使用からの経過ティック数の段階値。
+
+        3経路それぞれの経過ティック数を段階値で記述する。
+        経路間の優先順位・重み付けは存在しない。
+        経路間比較は行わない（各経路の経過を個別に等価列挙）。
+
+        Returns:
+            3経路の間隔段階値を結合した文字列（経路名:段階値のカンマ区切り）
+        """
+        # 現在のティック番号を取得（最新の経過記録から）
+        current_tick = records[-1].tick if records else 0
+
+        parts: list[str] = []
+        for pathway_key in PATHWAY_ORDER:
+            last_tick = self._state.pathway_last_used_tick.get(pathway_key, -1)
+            if last_tick < 0:
+                # 一度も使用されていない経路はSTALE（最大経過）として記述
+                level = FreshnessLevel.STALE
+            else:
+                elapsed = current_tick - last_tick
+                level = _classify_band_freshness(elapsed)
+            parts.append(f"{pathway_key}:{level.value}")
+        return ",".join(parts)
+
     # ─── Stage 3: 参照情報としての受渡準備 ──────────────────────────
 
     def get_enrichment_data(self) -> dict[str, Any]:
@@ -672,24 +732,34 @@ class TemporalCognitionProcessor:
 # Summary (enrichment 用)
 # =============================================================================
 
+def _format_key_value_freshness_for_summary(value: str) -> str:
+    """キー:値形式の断面値を要約テキストに変換する。
+
+    "key1:recent,key2:moderate,..." の形式で保持されている断面値を
+    各キーの段階値を日本語ラベルに変換して列挙する。
+    帯域キャッシュ鮮度断面・入力経路間隔断面で共通に使用する。
+    """
+    parts: list[str] = []
+    for pair in value.split(","):
+        if ":" not in pair:
+            continue
+        key, level_value = pair.split(":", 1)
+        try:
+            freshness_enum = FreshnessLevel(level_value)
+            freshness_label = FRESHNESS_LABELS.get(freshness_enum, level_value)
+        except ValueError:
+            freshness_label = level_value
+        parts.append(f"{key}={freshness_label}")
+    return " ".join(parts)
+
+
 def _format_band_freshness_for_summary(value: str) -> str:
     """帯域キャッシュ鮮度の断面値を要約テキストに変換する。
 
     帯域鮮度断面は "every_tick:recent,every_3:moderate,..." の形式で保持されている。
     各帯域の段階値を日本語ラベルに変換して列挙する。
     """
-    parts: list[str] = []
-    for pair in value.split(","):
-        if ":" not in pair:
-            continue
-        band_key, level_value = pair.split(":", 1)
-        try:
-            freshness_enum = FreshnessLevel(level_value)
-            freshness_label = FRESHNESS_LABELS.get(freshness_enum, level_value)
-        except ValueError:
-            freshness_label = level_value
-        parts.append(f"{band_key}={freshness_label}")
-    return " ".join(parts)
+    return _format_key_value_freshness_for_summary(value)
 
 
 def get_temporal_summary(state: TemporalCognitionState) -> str:
@@ -713,6 +783,10 @@ def get_temporal_summary(state: TemporalCognitionState) -> str:
                 # 帯域鮮度断面は専用のフォーマッタで処理
                 band_text = _format_band_freshness_for_summary(value)
                 parts.append(f"{label}=[{band_text}]")
+            elif section_name == SECTION_PATHWAY_INTERVAL:
+                # 入力経路間隔断面もキー:値形式のフォーマッタで処理
+                pathway_text = _format_key_value_freshness_for_summary(value)
+                parts.append(f"{label}=[{pathway_text}]")
             else:
                 density_enum = DensityLevel(value)
                 density_label = DENSITY_LABELS.get(density_enum, value)

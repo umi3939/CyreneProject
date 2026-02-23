@@ -1000,6 +1000,71 @@ class TestBandFreshnessInOrchestrator:
                 assert "band_freshness" in snapshot
 
 
+# ── 入力経路間隔テスト ──────────────────────────────────────
+
+
+class TestPathwayIntervalInOrchestrator:
+    """Phase 7b で current_pathway が temporal_cognition に渡されることの確認。"""
+
+    def test_text_pathway_recorded(self):
+        """textを持つPerceptの場合、text経路が記録される。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept(text="Hello")
+        orch.post_response_update(percept, delta_time=1.0)
+        pathway_ticks = orch._temporal_cognition.state.pathway_last_used_tick
+        assert "text" in pathway_ticks
+
+    def test_empty_text_no_text_pathway(self):
+        """textが空のPerceptの場合、text経路は記録されない。"""
+        orch = PsycheOrchestrator()
+        percept = Percept(
+            text="",
+            meaning="",
+            emotion="neutral",
+            intent="expression",
+            emotion_valence=0.0,
+        )
+        orch.post_response_update(percept, delta_time=1.0)
+        pathway_ticks = orch._temporal_cognition.state.pathway_last_used_tick
+        assert "text" not in pathway_ticks
+
+    def test_screen_pathway_recorded(self):
+        """textが空でintentがexpression以外の場合、screen経路が記録される。"""
+        orch = PsycheOrchestrator()
+        percept = Percept(
+            text="",
+            meaning="",
+            emotion="neutral",
+            intent="analysis",
+            emotion_valence=0.0,
+        )
+        orch.post_response_update(percept, delta_time=1.0)
+        pathway_ticks = orch._temporal_cognition.state.pathway_last_used_tick
+        assert "screen" in pathway_ticks
+
+    def test_pathway_updates_across_ticks(self):
+        """複数ティックで経路が正しく更新される。"""
+        orch = PsycheOrchestrator()
+        percept_text = _make_percept(text="Hello")
+        orch.post_response_update(percept_text, delta_time=1.0)
+        tick1 = orch._temporal_cognition.state.pathway_last_used_tick.get("text", -1)
+        assert tick1 == 1
+
+        orch.post_response_update(percept_text, delta_time=1.0)
+        tick2 = orch._temporal_cognition.state.pathway_last_used_tick.get("text", -1)
+        assert tick2 == 2
+
+    def test_pathway_interval_in_snapshot_after_describe(self):
+        """経路情報付きで蓄積した後、describe後のスナップショットに入力経路間隔が含まれる。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept(text="Hello")
+        # 3ティック実行（Phase 14cが発火）
+        for _ in range(3):
+            orch.post_response_update(percept, delta_time=1.0)
+        snapshot = orch._temporal_cognition.get_snapshot()
+        assert "pathway_interval" in snapshot
+
+
 # ── スモークテスト: 全パイプライン通過 ─────────────────────────────
 
 

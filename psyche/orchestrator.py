@@ -1458,10 +1458,28 @@ class PsycheOrchestrator:
             except Exception:
                 pass
 
+            # 帯域別キャッシュ鮮度情報の算出（READ-ONLY）
+            # 各帯域の最終発火ティックを_tick_countとの差分で算出。
+            # 帯域の発火条件: every_tick=毎回, every_3=% 3 == 0, every_5=% 5 == 0, every_10=% 10 == 0
+            band_freshness_info: dict[str, int] = {}
+            try:
+                tc = self._tick_count
+                # every_tick: 毎ティック発火なので経過は常に0
+                band_freshness_info["every_tick"] = 0
+                # every_3: 最後に % 3 == 0 だったティックからの経過
+                band_freshness_info["every_3"] = tc % 3
+                # every_5: 最後に % 5 == 0 だったティックからの経過
+                band_freshness_info["every_5"] = tc % 5
+                # every_10: 最後に % 10 == 0 だったティックからの経過
+                band_freshness_info["every_10"] = tc % 10
+            except Exception:
+                band_freshness_info = {}
+
             self._temporal_cognition.describe_features(
                 episodic_timestamps=ep_timestamps or None,
                 emotion_change_count=emotion_change_count,
                 narrative_timestamps=narr_timestamps or None,
+                band_freshness=band_freshness_info or None,
             )
         except Exception as e:
             logger.debug("Temporal cognition describe skipped: %s", e)

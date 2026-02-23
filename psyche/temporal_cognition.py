@@ -15,6 +15,7 @@ psyche/temporal_cognition.py - 時間認知構造（時間的特徴記述）
 - すべての断面の特徴量は等価であり、特定の断面に重みや重要度を付与しない
 - 特徴量のパターン抽出・傾向化・統計処理を行わない
 - 6断面の特徴量を1つの「体感時間」変数に統合しない
+- 7断面の特徴量を1つの「体感時間」変数に統合しない
 - enrichment内での強調禁止
 
 3段パイプライン:
@@ -49,6 +50,21 @@ class DensityLevel(Enum):
     NORMAL = "normal"
     SOMEWHAT_SPARSE = "somewhat_sparse"
     SPARSE = "sparse"
+
+
+class FreshnessLevel(Enum):
+    """帯域別キャッシュ鮮度の段階値。
+
+    各帯域の最終更新からの経過ティック数を段階的に記述する。
+    数値への還元は行わず、段階的記述として表現する。
+    各段階に重み・スコア・優先度は付与しない（全段階等価）。
+    鮮度の良し悪しの判定は含まない。
+    """
+    RECENT = "recent"
+    SOMEWHAT_RECENT = "somewhat_recent"
+    MODERATE = "moderate"
+    SOMEWHAT_STALE = "somewhat_stale"
+    STALE = "stale"
 
 
 # =============================================================================
@@ -156,6 +172,7 @@ SECTION_EMOTION_FREQUENCY = "emotion_frequency"
 SECTION_NARRATIVE_INTERVAL = "narrative_interval"
 SECTION_EXTERNAL_INPUT_INTERVAL = "external_input_interval"
 SECTION_OVERALL_ELAPSED = "overall_elapsed"
+SECTION_BAND_FRESHNESS = "band_freshness"
 
 # 定義順序（固定、変更禁止）
 SECTION_ORDER = [
@@ -165,6 +182,7 @@ SECTION_ORDER = [
     SECTION_NARRATIVE_INTERVAL,
     SECTION_EXTERNAL_INPUT_INTERVAL,
     SECTION_OVERALL_ELAPSED,
+    SECTION_BAND_FRESHNESS,
 ]
 
 # 断面の日本語ラベル（enrichment用、等価に列挙するためのラベル）
@@ -175,6 +193,7 @@ SECTION_LABELS = {
     SECTION_NARRATIVE_INTERVAL: "物語断片間隔",
     SECTION_EXTERNAL_INPUT_INTERVAL: "外部入力間隔",
     SECTION_OVERALL_ELAPSED: "総合経過",
+    SECTION_BAND_FRESHNESS: "帯域キャッシュ鮮度",
 }
 
 # 段階値の日本語ラベル
@@ -185,6 +204,29 @@ DENSITY_LABELS = {
     DensityLevel.SOMEWHAT_SPARSE: "やや疎",
     DensityLevel.SPARSE: "疎",
 }
+
+# 帯域鮮度段階値の日本語ラベル
+FRESHNESS_LABELS = {
+    FreshnessLevel.RECENT: "直近",
+    FreshnessLevel.SOMEWHAT_RECENT: "やや直近",
+    FreshnessLevel.MODERATE: "中程度",
+    FreshnessLevel.SOMEWHAT_STALE: "やや経過",
+    FreshnessLevel.STALE: "経過",
+}
+
+# 帯域キー名
+BAND_EVERY_TICK = "every_tick"
+BAND_EVERY_3 = "every_3"
+BAND_EVERY_5 = "every_5"
+BAND_EVERY_10 = "every_10"
+
+# 帯域キー定義順序（固定）
+BAND_ORDER = [
+    BAND_EVERY_TICK,
+    BAND_EVERY_3,
+    BAND_EVERY_5,
+    BAND_EVERY_10,
+]
 
 
 # =============================================================================
@@ -276,6 +318,27 @@ def _classify_tempo(avg_interval: float, min_count: int = 3, record_count: int =
         return DensityLevel.SOMEWHAT_SPARSE
     else:
         return DensityLevel.SPARSE
+
+
+def _classify_band_freshness(elapsed_ticks: int) -> FreshnessLevel:
+    """経過ティック数から帯域キャッシュ鮮度の段階値を記述する。
+
+    鮮度の良し悪しの判定は含まない。段階的記述のみ。
+    各段階に重み・スコア・優先度は付与しない（全段階等価）。
+    """
+    if elapsed_ticks < 0:
+        elapsed_ticks = 0
+
+    if elapsed_ticks <= 1:
+        return FreshnessLevel.RECENT
+    elif elapsed_ticks <= 3:
+        return FreshnessLevel.SOMEWHAT_RECENT
+    elif elapsed_ticks <= 5:
+        return FreshnessLevel.MODERATE
+    elif elapsed_ticks <= 10:
+        return FreshnessLevel.SOMEWHAT_STALE
+    else:
+        return FreshnessLevel.STALE
 
 
 # =============================================================================
@@ -380,8 +443,9 @@ class TemporalCognitionProcessor:
         episodic_timestamps: Optional[list[float]] = None,
         emotion_change_count: int = 0,
         narrative_timestamps: Optional[list[float]] = None,
+        band_freshness: Optional[dict[str, int]] = None,
     ) -> dict[str, str]:
-        """6断面の時間的特徴量を記述する。
+        """7断面の時間的特徴量を記述する。
 
         各断面は独立であり、断面間の優先順位・重み付け・統合処理は存在しない。
         すべての断面は等価である。
@@ -390,9 +454,13 @@ class TemporalCognitionProcessor:
             episodic_timestamps: エピソード記憶のタイムスタンプリスト（READ-ONLY参照）
             emotion_change_count: 直近の感情変動回数（READ-ONLY参照）
             narrative_timestamps: 自己物語断片のタイムスタンプリスト（READ-ONLY参照）
+            band_freshness: 帯域別キャッシュ鮮度情報（READ-ONLY参照）。
+                dict形式: {"every_tick": int, "every_3": int, "every_5": int, "every_10": int}
+                各値は最終更新からの経過ティック数。Noneの場合は帯域鮮度断面を空にする。
 
         Returns:
-            6断面の特徴量を保持する辞書（断面名→DensityLevel.value）
+            7断面の特徴量を保持する辞書（断面名→段階値文字列）
+            帯域鮮度断面が空の場合は6断面の辞書（後方互換性）
         """
         cfg = self._config
         records = self._state.elapsed_records
@@ -433,6 +501,12 @@ class TemporalCognitionProcessor:
         # 総合経過断面: 平均ティック間隔
         overall_level = self._describe_overall_elapsed(records, min_count)
         new_snapshot[SECTION_OVERALL_ELAPSED] = overall_level.value
+
+        # 帯域キャッシュ鮮度断面: 各帯域の最終更新からの経過ティック数の段階値記述
+        # band_freshnessがNoneの場合はこの断面を含めない（後方互換性維持）
+        if band_freshness is not None:
+            band_level = self._describe_band_freshness(band_freshness)
+            new_snapshot[SECTION_BAND_FRESHNESS] = band_level
 
         self._state.snapshot = new_snapshot
 
@@ -516,6 +590,25 @@ class TemporalCognitionProcessor:
         avg_interval = total_elapsed / total_ticks
         return _classify_tempo(avg_interval, min_count, total_ticks)
 
+    def _describe_band_freshness(
+        self, band_freshness: dict[str, int],
+    ) -> str:
+        """帯域キャッシュ鮮度断面: 各帯域の最終更新からの経過ティック数の段階値。
+
+        4帯域それぞれの経過ティック数を段階値で記述する。
+        鮮度の良し悪しの判定は含まない。段階値の等価列挙のみ。
+        帯域間の優先順位・重み付けは存在しない。
+
+        Returns:
+            4帯域の鮮度段階値を結合した文字列（帯域名:段階値のカンマ区切り）
+        """
+        parts: list[str] = []
+        for band_key in BAND_ORDER:
+            elapsed = band_freshness.get(band_key, 0)
+            level = _classify_band_freshness(elapsed)
+            parts.append(f"{band_key}:{level.value}")
+        return ",".join(parts)
+
     # ─── Stage 3: 参照情報としての受渡準備 ──────────────────────────
 
     def get_enrichment_data(self) -> dict[str, Any]:
@@ -579,6 +672,26 @@ class TemporalCognitionProcessor:
 # Summary (enrichment 用)
 # =============================================================================
 
+def _format_band_freshness_for_summary(value: str) -> str:
+    """帯域キャッシュ鮮度の断面値を要約テキストに変換する。
+
+    帯域鮮度断面は "every_tick:recent,every_3:moderate,..." の形式で保持されている。
+    各帯域の段階値を日本語ラベルに変換して列挙する。
+    """
+    parts: list[str] = []
+    for pair in value.split(","):
+        if ":" not in pair:
+            continue
+        band_key, level_value = pair.split(":", 1)
+        try:
+            freshness_enum = FreshnessLevel(level_value)
+            freshness_label = FRESHNESS_LABELS.get(freshness_enum, level_value)
+        except ValueError:
+            freshness_label = level_value
+        parts.append(f"{band_key}={freshness_label}")
+    return " ".join(parts)
+
+
 def get_temporal_summary(state: TemporalCognitionState) -> str:
     """時間認知状態の要約（enrichment用）。
 
@@ -596,9 +709,14 @@ def get_temporal_summary(state: TemporalCognitionState) -> str:
         value = state.snapshot.get(section_name, "")
         if value:
             label = SECTION_LABELS.get(section_name, section_name)
-            density_enum = DensityLevel(value)
-            density_label = DENSITY_LABELS.get(density_enum, value)
-            parts.append(f"{label}={density_label}")
+            if section_name == SECTION_BAND_FRESHNESS:
+                # 帯域鮮度断面は専用のフォーマッタで処理
+                band_text = _format_band_freshness_for_summary(value)
+                parts.append(f"{label}=[{band_text}]")
+            else:
+                density_enum = DensityLevel(value)
+                density_label = DENSITY_LABELS.get(density_enum, value)
+                parts.append(f"{label}={density_label}")
 
     if not parts:
         return "時間認知: 待機中"

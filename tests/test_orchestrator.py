@@ -934,6 +934,72 @@ class TestIntegration:
         assert orch.tick_count == 2
 
 
+# ── 帯域キャッシュ鮮度テスト ──────────────────────────────────────
+
+
+class TestBandFreshnessInOrchestrator:
+    """Phase 14c で帯域キャッシュ鮮度が temporal_cognition に渡されることの確認。"""
+
+    def test_band_freshness_present_after_3_ticks(self):
+        """3ティック実行後にtemporal_cognitionのスナップショットに帯域鮮度が含まれる。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(3):
+            orch.post_response_update(percept, delta_time=1.0)
+        snapshot = orch._temporal_cognition.get_snapshot()
+        # Phase 14cはtick_count % 3 == 0で発火し、band_freshnessを渡す
+        assert "band_freshness" in snapshot
+
+    def test_band_freshness_contains_four_bands(self):
+        """帯域鮮度断面に4帯域が含まれること。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(3):
+            orch.post_response_update(percept, delta_time=1.0)
+        snapshot = orch._temporal_cognition.get_snapshot()
+        band_value = snapshot.get("band_freshness", "")
+        pairs = band_value.split(",")
+        assert len(pairs) == 4
+        keys = [p.split(":")[0] for p in pairs]
+        assert "every_tick" in keys
+        assert "every_3" in keys
+        assert "every_5" in keys
+        assert "every_10" in keys
+
+    def test_band_freshness_enrichment_contains_section(self):
+        """enrichmentデータに帯域鮮度断面が含まれること。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(3):
+            orch.post_response_update(percept, delta_time=1.0)
+        data = orch._temporal_cognition.get_enrichment_data()
+        assert "band_freshness" in data["snapshot"]
+
+    def test_band_freshness_at_tick_6(self):
+        """6ティック（2回目の3ティック帯域発火）で帯域鮮度が更新される。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for _ in range(6):
+            orch.post_response_update(percept, delta_time=1.0)
+        snapshot = orch._temporal_cognition.get_snapshot()
+        assert "band_freshness" in snapshot
+        band_value = snapshot["band_freshness"]
+        # tick_count=6: every_tick=0(recent), every_3=0(recent), every_5=1(recent), every_10=6(somewhat_stale)
+        assert "every_tick:recent" in band_value
+        assert "every_3:recent" in band_value  # 6 % 3 == 0
+
+    def test_band_freshness_no_error_at_various_ticks(self):
+        """各種ティック数での帯域鮮度の安定性。"""
+        orch = PsycheOrchestrator()
+        percept = _make_percept()
+        for i in range(15):
+            orch.post_response_update(percept, delta_time=1.0)
+            # 3の倍数のティックではPhase 14cが発火
+            if (i + 1) % 3 == 0:
+                snapshot = orch._temporal_cognition.get_snapshot()
+                assert "band_freshness" in snapshot
+
+
 # ── スモークテスト: 全パイプライン通過 ─────────────────────────────
 
 

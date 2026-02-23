@@ -6,7 +6,7 @@ tests/test_temporal_cognition.py - 時間認知構造のテスト
 - 経過記録蓄積（Stage 1）
 - スライディングウィンドウFIFO
 - 外部入力到着記録
-- 多断面特徴量記述（Stage 2）: 6断面
+- 多断面特徴量記述（Stage 2）: 7断面（6断面 + 帯域キャッシュ鮮度）
 - 参照情報受渡準備（Stage 3）: enrichment + READ-ONLYアクセサ
 - 直前スナップショットの保持・更新
 - save/load round-trip
@@ -15,6 +15,7 @@ tests/test_temporal_cognition.py - 時間認知構造のテスト
 - 自己差分認知との境界維持
 - エッジケース（空データ、上限超過、ゼロ経過秒等）
 - ファクトリ
+- 帯域キャッシュ鮮度断面（band_freshness）: 段階値、後方互換性、Noneの場合
 - 統合テスト
 """
 
@@ -23,6 +24,7 @@ import pytest
 
 from psyche.temporal_cognition import (
     DensityLevel,
+    FreshnessLevel,
     ElapsedRecord,
     TemporalCognitionState,
     TemporalCognitionConfig,
@@ -36,11 +38,19 @@ from psyche.temporal_cognition import (
     SECTION_NARRATIVE_INTERVAL,
     SECTION_EXTERNAL_INPUT_INTERVAL,
     SECTION_OVERALL_ELAPSED,
+    SECTION_BAND_FRESHNESS,
     SECTION_LABELS,
     DENSITY_LABELS,
+    FRESHNESS_LABELS,
+    BAND_EVERY_TICK,
+    BAND_EVERY_3,
+    BAND_EVERY_5,
+    BAND_EVERY_10,
+    BAND_ORDER,
     _classify_interval_density,
     _classify_frequency,
     _classify_tempo,
+    _classify_band_freshness,
 )
 
 
@@ -564,11 +574,21 @@ class TestOverallElapsedSection:
 # =============================================================================
 
 class TestAllSectionsPresent:
-    def test_all_six_sections(self):
-        """describe_features が6断面すべてを返すこと。"""
+    def test_all_six_base_sections(self):
+        """describe_features がband_freshness未指定時に6断面すべてを返すこと。"""
         processor = make_processor()
         accumulate_n(processor, 5)
         snapshot = processor.describe_features()
+        base_sections = [s for s in SECTION_ORDER if s != SECTION_BAND_FRESHNESS]
+        for section_name in base_sections:
+            assert section_name in snapshot
+
+    def test_all_seven_sections_with_band_freshness(self):
+        """describe_features がband_freshness指定時に7断面すべてを返すこと。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
+        snapshot = processor.describe_features(band_freshness=band_info)
         for section_name in SECTION_ORDER:
             assert section_name in snapshot
 
@@ -577,6 +597,13 @@ class TestAllSectionsPresent:
         accumulate_n(processor, 5)
         snapshot = processor.describe_features()
         assert len(snapshot) == 6
+
+    def test_section_count_with_band_freshness(self):
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        assert len(snapshot) == 7
 
     def test_all_values_are_valid_density_levels(self):
         processor = make_processor()
@@ -723,8 +750,8 @@ class TestEnrichment:
         accumulate_n(processor, 10)
         snapshot = processor.describe_features()
         data = processor.get_enrichment_data()
-        # snapshotの全6断面がdataに含まれること
-        for section_name in SECTION_ORDER:
+        # snapshotに含まれる全断面がdataにも含まれること
+        for section_name in snapshot:
             assert section_name in data["snapshot"]
 
 
@@ -909,12 +936,13 @@ class TestSectionEquality:
         assert "importance" not in str(data)
 
     def test_all_sections_same_structure(self):
-        """全断面が同じ構造（断面名→段階値文字列）であること。"""
+        """6基本断面が同じ構造（断面名→DensityLevel段階値文字列）であること。"""
         processor = make_processor()
         accumulate_n(processor, 10)
         snapshot = processor.describe_features()
         valid_values = {dl.value for dl in DensityLevel}
-        for section_name in SECTION_ORDER:
+        base_sections = [s for s in SECTION_ORDER if s != SECTION_BAND_FRESHNESS]
+        for section_name in base_sections:
             assert section_name in snapshot
             assert snapshot[section_name] in valid_values
 
@@ -1050,13 +1078,14 @@ class TestEnrichmentEmphasisProhibition:
             assert word not in summary
 
     def test_equal_listing_in_summary(self):
-        """全ての断面を等価に列挙すること。"""
+        """スナップショットに含まれる全ての断面を等価に列挙すること。"""
         processor = make_processor()
         accumulate_n(processor, 10)
         processor.describe_features()
         data = processor.get_enrichment_data()
         summary = data["summary_text"]
-        for section_name in SECTION_ORDER:
+        # スナップショットに含まれる断面のラベルがsummaryに含まれること
+        for section_name in processor.get_snapshot():
             label = SECTION_LABELS[section_name]
             assert label in summary
 
@@ -1198,7 +1227,7 @@ class TestClassifyTempo:
 
 class TestConstants:
     def test_section_order_count(self):
-        assert len(SECTION_ORDER) == 6
+        assert len(SECTION_ORDER) == 7
 
     def test_section_labels_complete(self):
         for section_name in SECTION_ORDER:
@@ -1245,7 +1274,8 @@ class TestTemporalSummary:
         accumulate_n(processor, 10)
         processor.describe_features()
         summary = get_temporal_summary(processor.state)
-        for section_name in SECTION_ORDER:
+        # スナップショットに含まれる断面がsummaryに含まれること
+        for section_name in processor.get_snapshot():
             label = SECTION_LABELS[section_name]
             assert label in summary
 
@@ -1355,6 +1385,263 @@ class TestEdgeCases:
         new_processor.accumulate_elapsed(tick=100, delta_time=1.0, timestamp=2000.0)
         snapshot = new_processor.describe_features()
         assert len(snapshot) == 6
+
+
+# =============================================================================
+# Test: FreshnessLevel Enum
+# =============================================================================
+
+class TestFreshnessLevel:
+    def test_all_levels(self):
+        levels = list(FreshnessLevel)
+        assert len(levels) == 5
+
+    def test_values(self):
+        assert FreshnessLevel.RECENT.value == "recent"
+        assert FreshnessLevel.SOMEWHAT_RECENT.value == "somewhat_recent"
+        assert FreshnessLevel.MODERATE.value == "moderate"
+        assert FreshnessLevel.SOMEWHAT_STALE.value == "somewhat_stale"
+        assert FreshnessLevel.STALE.value == "stale"
+
+    def test_no_weight_attribute(self):
+        """各段階に重み・スコア・優先度は付与しない。"""
+        for level in FreshnessLevel:
+            assert not hasattr(level, "weight")
+            assert not hasattr(level, "score")
+            assert not hasattr(level, "priority")
+
+
+# =============================================================================
+# Test: _classify_band_freshness Helper
+# =============================================================================
+
+class TestClassifyBandFreshness:
+    def test_zero_elapsed(self):
+        assert _classify_band_freshness(0) == FreshnessLevel.RECENT
+
+    def test_one_elapsed(self):
+        assert _classify_band_freshness(1) == FreshnessLevel.RECENT
+
+    def test_two_elapsed(self):
+        assert _classify_band_freshness(2) == FreshnessLevel.SOMEWHAT_RECENT
+
+    def test_three_elapsed(self):
+        assert _classify_band_freshness(3) == FreshnessLevel.SOMEWHAT_RECENT
+
+    def test_four_elapsed(self):
+        assert _classify_band_freshness(4) == FreshnessLevel.MODERATE
+
+    def test_five_elapsed(self):
+        assert _classify_band_freshness(5) == FreshnessLevel.MODERATE
+
+    def test_six_elapsed(self):
+        assert _classify_band_freshness(6) == FreshnessLevel.SOMEWHAT_STALE
+
+    def test_ten_elapsed(self):
+        assert _classify_band_freshness(10) == FreshnessLevel.SOMEWHAT_STALE
+
+    def test_eleven_elapsed(self):
+        assert _classify_band_freshness(11) == FreshnessLevel.STALE
+
+    def test_large_elapsed(self):
+        assert _classify_band_freshness(100) == FreshnessLevel.STALE
+
+    def test_negative_elapsed(self):
+        """負の値はRECENTとして扱われる（0にクランプ）。"""
+        assert _classify_band_freshness(-1) == FreshnessLevel.RECENT
+
+
+# =============================================================================
+# Test: Band Freshness Section (帯域キャッシュ鮮度断面)
+# =============================================================================
+
+class TestBandFreshnessSection:
+    def test_band_freshness_none_backward_compat(self):
+        """band_freshnessがNoneの場合、帯域鮮度断面は含まれない（後方互換性）。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        snapshot = processor.describe_features(band_freshness=None)
+        assert SECTION_BAND_FRESHNESS not in snapshot
+        assert len(snapshot) == 6
+
+    def test_band_freshness_omitted_backward_compat(self):
+        """band_freshnessを省略した場合、帯域鮮度断面は含まれない（後方互換性）。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        snapshot = processor.describe_features()
+        assert SECTION_BAND_FRESHNESS not in snapshot
+        assert len(snapshot) == 6
+
+    def test_band_freshness_present_with_data(self):
+        """band_freshness指定時に帯域鮮度断面が含まれる。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        assert SECTION_BAND_FRESHNESS in snapshot
+        assert len(snapshot) == 7
+
+    def test_band_freshness_value_format(self):
+        """帯域鮮度断面の値がカンマ区切りのキー:値形式であること。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        value = snapshot[SECTION_BAND_FRESHNESS]
+        pairs = value.split(",")
+        assert len(pairs) == 4
+        for pair in pairs:
+            assert ":" in pair
+
+    def test_band_freshness_all_recent(self):
+        """全帯域が0経過の場合、全てRECENT。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_3": 0, "every_5": 0, "every_10": 0}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        value = snapshot[SECTION_BAND_FRESHNESS]
+        for pair in value.split(","):
+            _, level = pair.split(":", 1)
+            assert level == FreshnessLevel.RECENT.value
+
+    def test_band_freshness_mixed_levels(self):
+        """各帯域が異なる経過ティックの場合、対応する段階値が記述される。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_3": 2, "every_5": 4, "every_10": 9}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        value = snapshot[SECTION_BAND_FRESHNESS]
+        parts = {}
+        for pair in value.split(","):
+            k, v = pair.split(":", 1)
+            parts[k] = v
+        assert parts["every_tick"] == FreshnessLevel.RECENT.value
+        assert parts["every_3"] == FreshnessLevel.SOMEWHAT_RECENT.value
+        assert parts["every_5"] == FreshnessLevel.MODERATE.value
+        assert parts["every_10"] == FreshnessLevel.SOMEWHAT_STALE.value
+
+    def test_band_freshness_stale(self):
+        """大きな経過ティック数の場合、STALEとなる。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 50, "every_3": 50, "every_5": 50, "every_10": 50}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        value = snapshot[SECTION_BAND_FRESHNESS]
+        for pair in value.split(","):
+            _, level = pair.split(":", 1)
+            assert level == FreshnessLevel.STALE.value
+
+    def test_band_freshness_order_is_band_order(self):
+        """帯域鮮度断面内の帯域順序がBAND_ORDERに従うこと。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        value = snapshot[SECTION_BAND_FRESHNESS]
+        keys = [pair.split(":")[0] for pair in value.split(",")]
+        assert keys == BAND_ORDER
+
+    def test_band_freshness_empty_dict(self):
+        """空の辞書の場合でも断面が生成される（帯域はデフォルト0経過）。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        snapshot = processor.describe_features(band_freshness={})
+        assert SECTION_BAND_FRESHNESS in snapshot
+        # 全帯域がデフォルト値（0）としてRECENTになる
+        value = snapshot[SECTION_BAND_FRESHNESS]
+        for pair in value.split(","):
+            _, level = pair.split(":", 1)
+            assert level == FreshnessLevel.RECENT.value
+
+    def test_band_freshness_missing_keys(self):
+        """一部の帯域キーが欠落している場合、デフォルト（0=RECENT）で補完。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        band_info = {"every_tick": 0, "every_10": 8}
+        snapshot = processor.describe_features(band_freshness=band_info)
+        value = snapshot[SECTION_BAND_FRESHNESS]
+        parts = {}
+        for pair in value.split(","):
+            k, v = pair.split(":", 1)
+            parts[k] = v
+        assert parts["every_tick"] == FreshnessLevel.RECENT.value
+        assert parts["every_3"] == FreshnessLevel.RECENT.value  # missing → 0 → RECENT
+        assert parts["every_5"] == FreshnessLevel.RECENT.value  # missing → 0 → RECENT
+        assert parts["every_10"] == FreshnessLevel.SOMEWHAT_STALE.value
+
+    def test_band_freshness_does_not_affect_other_sections(self):
+        """帯域鮮度断面の有無が他の6断面に影響しないこと。"""
+        processor = make_processor()
+        accumulate_n(processor, 10)
+
+        snap_without = processor.describe_features()
+
+        # 新しいdescribeを呼ぶとprevious_snapshotが更新されるので、
+        # 同じデータで帯域鮮度ありでdescribeする
+        snap_with = processor.describe_features(
+            band_freshness={"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5},
+        )
+
+        # 6基本断面の値が一致すること
+        base_sections = [s for s in SECTION_ORDER if s != SECTION_BAND_FRESHNESS]
+        for section_name in base_sections:
+            assert snap_without[section_name] == snap_with[section_name]
+
+    def test_band_freshness_in_enrichment(self):
+        """帯域鮮度断面がenrichmentのsnapshotに含まれること。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        processor.describe_features(
+            band_freshness={"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5},
+        )
+        data = processor.get_enrichment_data()
+        assert SECTION_BAND_FRESHNESS in data["snapshot"]
+
+    def test_band_freshness_in_summary_text(self):
+        """帯域鮮度断面がsummary_textに含まれること。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        processor.describe_features(
+            band_freshness={"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5},
+        )
+        data = processor.get_enrichment_data()
+        summary = data["summary_text"]
+        assert SECTION_LABELS[SECTION_BAND_FRESHNESS] in summary
+
+    def test_band_freshness_summary_no_emphasis(self):
+        """帯域鮮度断面のsummaryに強調表現がないこと。"""
+        processor = make_processor()
+        accumulate_n(processor, 5)
+        processor.describe_features(
+            band_freshness={"every_tick": 0, "every_3": 1, "every_5": 2, "every_10": 5},
+        )
+        data = processor.get_enrichment_data()
+        summary = data["summary_text"]
+        forbidden = ["注目すべき", "異常な", "重要な", "特筆すべき", "顕著な", "著しい"]
+        for word in forbidden:
+            assert word not in summary
+
+
+# =============================================================================
+# Test: Band Freshness Constants
+# =============================================================================
+
+class TestBandFreshnessConstants:
+    def test_band_order_count(self):
+        assert len(BAND_ORDER) == 4
+
+    def test_band_order_unique(self):
+        assert len(BAND_ORDER) == len(set(BAND_ORDER))
+
+    def test_freshness_labels_complete(self):
+        for level in FreshnessLevel:
+            assert level in FRESHNESS_LABELS
+
+    def test_band_freshness_in_section_labels(self):
+        assert SECTION_BAND_FRESHNESS in SECTION_LABELS
+
+    def test_band_freshness_in_section_order(self):
+        assert SECTION_BAND_FRESHNESS in SECTION_ORDER
 
 
 # =============================================================================
@@ -1480,6 +1767,8 @@ class TestIntegration:
         for section in SECTION_ORDER:
             if section == SECTION_EMOTION_FREQUENCY:
                 continue
+            if section not in snap1 or section not in snap2:
+                continue  # 帯域鮮度断面など、未指定の場合はスキップ
             assert snap1[section] == snap2[section]
 
     def test_rapid_succession(self):

@@ -840,11 +840,12 @@ class TestSafetyValves:
         for rec in recorder.state.records:
             d = rec.to_dict()
             # 評価的属性が存在しないこと
+            # bias_source_labels は名前のみの事実記録であり評価的属性ではない
             for key in d:
                 assert key in {
                     "record_id", "selected_policy_label",
                     "candidate_labels", "candidate_count",
-                    "tick", "timestamp",
+                    "tick", "timestamp", "bias_source_labels",
                 }
 
     def test_safety_valve_2_no_pattern_extraction(self):
@@ -975,3 +976,223 @@ class TestPathBlocking:
         history = recorder.get_reference_history()
         history.clear()
         assert len(recorder.state.records) == original_count
+
+
+# =============================================================================
+# bias_source_labels テスト
+# =============================================================================
+
+class TestBiasSourceLabels:
+    """bias_source_labels フィールドのテスト。"""
+
+    def test_record_selection_without_bias_labels(self):
+        """bias_source_labelsを渡さない場合、空リストになる（後方互換性）。"""
+        recorder = SelectionAttributionRecorder()
+        rec = recorder.record_selection(
+            selected_policy_label="policy_A",
+            candidate_labels=["policy_A", "policy_B"],
+            tick=1,
+        )
+        assert rec.bias_source_labels == []
+
+    def test_record_selection_with_bias_labels(self):
+        """bias_source_labelsを渡した場合、正しく記録される。"""
+        recorder = SelectionAttributionRecorder()
+        labels = ["decision_bias", "context_sensitivity", "stability_valve"]
+        rec = recorder.record_selection(
+            selected_policy_label="policy_A",
+            candidate_labels=["policy_A", "policy_B"],
+            tick=1,
+            bias_source_labels=labels,
+        )
+        assert rec.bias_source_labels == labels
+
+    def test_record_selection_with_empty_bias_labels(self):
+        """空リストを明示的に渡した場合。"""
+        recorder = SelectionAttributionRecorder()
+        rec = recorder.record_selection(
+            selected_policy_label="policy_A",
+            candidate_labels=["policy_A"],
+            tick=1,
+            bias_source_labels=[],
+        )
+        assert rec.bias_source_labels == []
+
+    def test_record_selection_with_none_bias_labels(self):
+        """Noneを明示的に渡した場合、空リストになる。"""
+        recorder = SelectionAttributionRecorder()
+        rec = recorder.record_selection(
+            selected_policy_label="policy_A",
+            candidate_labels=["policy_A"],
+            tick=1,
+            bias_source_labels=None,
+        )
+        assert rec.bias_source_labels == []
+
+    def test_bias_labels_in_to_dict(self):
+        """to_dictにbias_source_labelsが含まれる。"""
+        rec = SelectionRecord(
+            selected_policy_label="policy_A",
+            candidate_labels=["policy_A"],
+            candidate_count=1,
+            tick=1,
+            bias_source_labels=["decision_bias", "value_orientation"],
+        )
+        d = rec.to_dict()
+        assert "bias_source_labels" in d
+        assert d["bias_source_labels"] == ["decision_bias", "value_orientation"]
+
+    def test_bias_labels_from_dict(self):
+        """from_dictでbias_source_labelsが復元される。"""
+        d = {
+            "record_id": "test123",
+            "selected_policy_label": "policy_A",
+            "candidate_labels": ["policy_A"],
+            "candidate_count": 1,
+            "tick": 1,
+            "timestamp": 1234567890.0,
+            "bias_source_labels": ["stability_valve", "scoring_fluctuation"],
+        }
+        rec = SelectionRecord.from_dict(d)
+        assert rec.bias_source_labels == ["stability_valve", "scoring_fluctuation"]
+
+    def test_bias_labels_from_dict_missing(self):
+        """from_dictでbias_source_labelsが欠落しても空リストで復元される（後方互換性）。"""
+        d = {
+            "record_id": "test123",
+            "selected_policy_label": "policy_A",
+            "candidate_labels": ["policy_A"],
+            "candidate_count": 1,
+            "tick": 1,
+            "timestamp": 1234567890.0,
+        }
+        rec = SelectionRecord.from_dict(d)
+        assert rec.bias_source_labels == []
+
+    def test_bias_labels_roundtrip(self):
+        """to_dict -> from_dict のラウンドトリップでbias_source_labelsが保持される。"""
+        original = SelectionRecord(
+            selected_policy_label="policy_X",
+            candidate_labels=["policy_X", "policy_Y"],
+            candidate_count=2,
+            tick=5,
+            bias_source_labels=["decision_bias", "context_sensitivity", "scoring_fluctuation"],
+        )
+        d = original.to_dict()
+        restored = SelectionRecord.from_dict(d)
+        assert restored.bias_source_labels == original.bias_source_labels
+
+    def test_bias_labels_state_roundtrip(self):
+        """SelectionAttributionStateのto_dict -> from_dictでbias_source_labelsが保持される。"""
+        recorder = SelectionAttributionRecorder()
+        recorder.record_selection(
+            "pA", ["pA", "pB"], tick=1,
+            bias_source_labels=["decision_bias", "value_orientation"],
+        )
+        recorder.record_selection(
+            "pB", ["pA", "pB", "pC"], tick=2,
+            bias_source_labels=["stability_valve"],
+        )
+
+        d = recorder.state.to_dict()
+        restored = SelectionAttributionState.from_dict(d)
+
+        assert restored.records[0].bias_source_labels == ["decision_bias", "value_orientation"]
+        assert restored.records[1].bias_source_labels == ["stability_valve"]
+        assert restored.latest_record.bias_source_labels == ["stability_valve"]
+
+    def test_bias_labels_not_in_enrichment_entries(self):
+        """enrichmentエントリにbias_source_labelsが含まれないこと（遮断）。"""
+        recorder = SelectionAttributionRecorder()
+        recorder.record_selection(
+            "pA", ["pA", "pB"], tick=1,
+            bias_source_labels=["decision_bias", "value_orientation"],
+        )
+
+        data = recorder.get_enrichment_data()
+        for entry in data["recent_entries"]:
+            assert "bias_source_labels" not in entry
+            assert "bias" not in str(entry).lower()
+
+    def test_bias_labels_not_in_enrichment_summary(self):
+        """enrichmentサマリにバイアス関連情報が含まれないこと（遮断）。"""
+        recorder = SelectionAttributionRecorder()
+        recorder.record_selection(
+            "pA", ["pA", "pB"], tick=1,
+            bias_source_labels=["decision_bias", "context_sensitivity", "scoring_fluctuation"],
+        )
+
+        data = recorder.get_enrichment_data()
+        summary = data["summary_text"]
+        assert "bias" not in summary.lower()
+        assert "decision_bias" not in summary
+        assert "context_sensitivity" not in summary
+        assert "scoring_fluctuation" not in summary
+
+    def test_bias_labels_accessible_via_get_all_records(self):
+        """内省系参照経路(get_all_records)でbias_source_labelsが参照可能。"""
+        recorder = SelectionAttributionRecorder()
+        recorder.record_selection(
+            "pA", ["pA"], tick=1,
+            bias_source_labels=["decision_bias", "stability_valve"],
+        )
+
+        records = recorder.get_all_records()
+        assert records[0].bias_source_labels == ["decision_bias", "stability_valve"]
+
+    def test_bias_labels_accessible_via_get_reference_history(self):
+        """内省系参照経路(get_reference_history)でbias_source_labelsが参照可能。"""
+        recorder = SelectionAttributionRecorder()
+        recorder.record_selection(
+            "pA", ["pA"], tick=1,
+            bias_source_labels=["value_orientation", "persistent_commitment"],
+        )
+
+        history = recorder.get_reference_history()
+        assert history[0].bias_source_labels == ["value_orientation", "persistent_commitment"]
+
+    def test_bias_labels_no_scores_or_weights(self):
+        """bias_source_labelsには名前のみが記録され、スコア・重み・方向性は含まれない。"""
+        recorder = SelectionAttributionRecorder()
+        labels = ["decision_bias", "context_sensitivity", "stability_valve",
+                  "value_orientation", "persistent_commitment", "scoring_fluctuation"]
+        rec = recorder.record_selection(
+            "pA", ["pA"], tick=1,
+            bias_source_labels=labels,
+        )
+        # すべて単純な文字列であること
+        for label in rec.bias_source_labels:
+            assert isinstance(label, str)
+        # to_dict内でも名前リストのみ
+        d = rec.to_dict()
+        for label in d["bias_source_labels"]:
+            assert isinstance(label, str)
+
+    def test_bias_labels_preserved_after_pushout(self):
+        """押し出し後も残った記録のbias_source_labelsが保持される。"""
+        cfg = SelectionAttributionConfig(max_records=2)
+        recorder = SelectionAttributionRecorder(config=cfg)
+        recorder.record_selection("p1", ["p1"], tick=1, bias_source_labels=["a"])
+        recorder.record_selection("p2", ["p2"], tick=2, bias_source_labels=["b", "c"])
+        recorder.record_selection("p3", ["p3"], tick=3, bias_source_labels=["d"])
+
+        # p1は押し出された、p2とp3が残る
+        assert len(recorder.state.records) == 2
+        assert recorder.state.records[0].bias_source_labels == ["b", "c"]
+        assert recorder.state.records[1].bias_source_labels == ["d"]
+
+    def test_all_records_equal_with_bias_labels(self):
+        """bias_source_labels付きでも全記録等価の原則が維持される。"""
+        recorder = SelectionAttributionRecorder()
+        recorder.record_selection("p1", ["p1"], tick=1, bias_source_labels=["a", "b"])
+        recorder.record_selection("p2", ["p2"], tick=2, bias_source_labels=["c"])
+        recorder.record_selection("p3", ["p3"], tick=3, bias_source_labels=[])
+
+        for rec in recorder.state.records:
+            d = rec.to_dict()
+            # 重み・スコア・優先度の属性が存在しない
+            assert "weight" not in d
+            assert "score" not in d
+            assert "priority" not in d
+            assert "importance" not in d
+            assert "rank" not in d

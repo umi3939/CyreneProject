@@ -79,6 +79,9 @@ class SelectionRecord:
     # タイムスタンプ（浮動小数点数）
     timestamp: float = field(default_factory=time.time)
 
+    # 選択時に適用されていたバイアス源の名前一覧（名前のみ、スコア・重み・方向性は記録しない）
+    bias_source_labels: list[str] = field(default_factory=list)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "record_id": self.record_id,
@@ -87,6 +90,7 @@ class SelectionRecord:
             "candidate_count": self.candidate_count,
             "tick": self.tick,
             "timestamp": self.timestamp,
+            "bias_source_labels": list(self.bias_source_labels),
         }
 
     @classmethod
@@ -98,6 +102,7 @@ class SelectionRecord:
             candidate_count=data.get("candidate_count", 0),
             tick=data.get("tick", 0),
             timestamp=data.get("timestamp", time.time()),
+            bias_source_labels=list(data.get("bias_source_labels", [])),
         )
 
 
@@ -207,6 +212,7 @@ class SelectionAttributionRecorder:
         selected_policy_label: str,
         candidate_labels: list[str],
         tick: int = 0,
+        bias_source_labels: list[str] = None,
     ) -> SelectionRecord:
         """方針選択が実行された事実を記録する。
 
@@ -218,10 +224,14 @@ class SelectionAttributionRecorder:
         スコアの高い選択をスコアの低い選択より「良い選択」として
         区別する経路を開くため。
 
+        バイアス源ラベルはスコア・重み・方向性を含まず、
+        名前のみを事実として記録する。
+
         Args:
             selected_policy_label: 選び取られた候補のポリシーラベル
             candidate_labels: 選択時点で存在していた候補のポリシーラベル一覧
             tick: 選択が行われたティック番号
+            bias_source_labels: 選択時に適用されていたバイアス源の名前一覧（オプション）
 
         Returns:
             生成された選択記録
@@ -241,6 +251,7 @@ class SelectionAttributionRecorder:
             candidate_count=actual_count,
             tick=tick,
             timestamp=now,
+            bias_source_labels=list(bias_source_labels) if bias_source_labels else [],
         )
 
         # 蓄積

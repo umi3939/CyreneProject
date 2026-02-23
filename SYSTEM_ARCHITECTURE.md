@@ -3,7 +3,7 @@
 作成日: 2026-02-09
 更新日: 2026-02-22
 総コード行数: ~167,000行
-総テスト数: 6,533テスト
+総テスト数: 6,710テスト
 
 ---
 
@@ -103,12 +103,12 @@
 | 13j | meta_emotion_cognition.py | 1,608 | 141 | 感情 | メタ感情認知と変動候補生成（8断面・7段パイプライン・常時等価列挙・Phase 1-2不変性保証・安全弁4種） |
 | 13k | self_action_perception.py | 395 | 114 | 知覚 | 自己行動知覚（3段パイプライン・全記録等価・テキスト非解釈・判断系非接続・brain.py通知経路） |
 | 13l | intent_action_gap.py | 397 | 129 | 知覚 | 意図-行動間の乖離認知（3段パイプライン・対構成→多断面記述→蓄積参照・全記録等価・パターン抽出禁止・3経路遮断・安全弁5種） |
-| 13m | temporal_cognition.py | 617 | 149 | 知覚 | 時間認知構造（3段パイプライン・経過蓄積→6断面特徴量記述→参照提供・スライディングウィンドウ・段階値列挙型・パターン抽出禁止・4経路遮断・安全弁5種） |
+| 13m | temporal_cognition.py | 735 | 179 | 知覚 | 時間認知構造（3段パイプライン・経過蓄積→7断面特徴量記述→参照提供・スライディングウィンドウ・段階値列挙型・帯域キャッシュ鮮度断面追加・パターン抽出禁止・4経路遮断・安全弁5種） |
 | 13n | multi_path_recall.py | 807 | 105 | 記憶 | 記憶の多経路想起（3経路想起・感情連想/文脈連想/時間近接・経路等価性・顕著性バイアス抑制・ルーミネーション防止・忘却分離・安全弁5種） |
 | 13o | introspection_cross_section.py | 731 | 130 | 内省 | 内省断面間の横断的記述（3段パイプライン・6断面並置・ウィンドウ25件（enrichment10件）・パターン抽出禁止・統合禁止・全断面等価・5経路遮断・安全弁5種） |
 | 13p | perceptual_context.py | 646 | 116 | 知覚 | 知覚入力の内部文脈化（3段パイプライン・4断面段階値列挙型・感情変化頻度/意図変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・4経路遮断・安全弁7種） |
 | 13q | scoring_fluctuation.py | 647 | テスト内 | 判断 | スコアリングの構造的揺らぎ（5段パイプライン・内部状態由来の非決定性・感情/STM/drives/経過時間から変動度導出・振幅上限<ValueOrientation・状態蓄積なし・安全弁5種） |
-| 13r | selection_attribution.py | 402 | テスト内 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙・安全弁5種） |
+| 13r | selection_attribution.py | 413 | 87 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル+バイアス源構成蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙（バイアス情報遮断）・安全弁5種） |
 | 13s | reference_frequency_description.py | 782 | テスト内 | 内省 | 参照頻度の構造的記述（12箇所横断読み取り・断面構成・集中度/偏在度記述・変動記述・FIFO断面履歴・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種） |
 | 13t | persistent_commitment.py | 1,037 | テスト内 | 目標 | 持続的取り組み保持（transient_goal昇格が唯一生成経路・複数並行保持・強度依存非線形減衰・慣性時間減衰・4解除条件・認知記録FIFO・資源競合・バイアス上限<VO・安全弁6種・自己強化ループ4重遮断） |
 | 13u | behavioral_diversity_description.py | 664 | テスト内 | 内省 | 行動多様性の構造的記述（3断面横断読み取り・結果断面キー種類数/選択ラベル種類数/候補群サイズ分散度・段階値列挙型・FIFO蓄積・enrichment直接露出遮断・頻度情報構造的排除・安全弁8種） |
@@ -167,7 +167,7 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,860 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v42(66項目永続化), enrichment(5セクション/48項目), select_policy_dict含む） |
+| 41 | orchestrator.py | 4,899 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v42(66項目永続化), enrichment(5セクション/48項目), select_policy_dict含む） |
 
 ### 2.3 コアシステムファイル
 
@@ -3696,7 +3696,7 @@ psyche内部の設計・実装・配線・永続化・enrichmentは全完了。
 | ⑳ | 知覚入力の内部文脈化 ✅完了 | 低 | ⑰⑱ | perceptual_context.py (646行/116テスト) 3段パイプライン（知覚サマリ蓄積→4断面段階値記述→参照受渡）・感情ラベル変化頻度/意図ラベル変化頻度/話題重複度/感情価推移方向・テキスト比較禁止・topics意味判定禁止・4経路遮断。orchestrator Phase 7c/14e、enrichment #30、save/load v22 (47フィールド) |
 | ㉑ | 内省ウィンドウ拡大 ✅完了 | 最小 | ⑲ | introspection_cross_section.pyのウィンドウサイズ10→25に拡大（enrichment出力は直近10件のみ維持）。反固定化第1段階（パラメータ変更のみ）。討論結果: 条件付き推奨 |
 | ㉒ | スコアリングの構造的揺らぎ ✅完了 | 低 | ⑳ | scoring_fluctuation.py (647行/テスト内) 5段パイプライン（変動量抽出→合成→制限→ポリシー別生成→加算）・内部状態由来（感情/STM/drives/経過時間）・振幅上限<ValueOrientation(+-5%)・状態蓄積なし・安全弁5種。orchestrator Phase 35c（最後の加算層）。反固定化第2段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
-| ㉓ | 選択帰属 ✅完了 | 低 | ⑧ | selection_attribution.py (402行/テスト内) 選択事実のREAD-ONLY記録（候補群構成+選択ラベル+ティック+タイムスタンプ）・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙。orchestrator select_policy後record_selection()、enrichment #31、save/load v23 (48フィールド)。Agency第1段階。討論結果: 条件付き推奨。解析結果: 低固定化リスク |
+| ㉓ | 選択帰属 ✅完了 | 低 | ⑧ | selection_attribution.py (413行/87テスト) 選択事実のREAD-ONLY記録（候補群構成+選択ラベル+バイアス源構成+ティック+タイムスタンプ）・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙（バイアス情報遮断）。Cycle 3候補3拡張: バイアス源名一覧をスコアなしで併記。orchestrator select_policy後record_selection()、enrichment #31、save/load v23 (48フィールド)。Agency第1段階 |
 | ㉔ | 参照頻度の構造的記述 ✅完了 | 低 | - | reference_frequency_description.py (782行/93テスト) 12箇所横断読み取り専用集約層・断面構成（集中度/偏在度）・FIFO断面履歴（30件上限）・変動記述（再導出型）・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・安全弁5種。orchestrator Phase 24b、save/load v24 (49フィールド)。反固定化第3段階。討論結果: 条件付き推奨。設計解析: 低固定化リスク。実装解析: 低固定化リスク |
 | ㉕ | 持続的コミットメント ✅完了 | 中→低（修正済） | ⑧ | persistent_commitment.py (1,037行/73テスト) transient_goal昇格が唯一生成経路・複数並行保持（上限付き）・強度依存非線形減衰（飽和構造）・慣性時間減衰・4解除条件（時間/内部状態/競合/達成認知）・認知記録FIFO・資源競合（揺らぎ付き帯域分配）・バイアス上限<VO(+-5%)・安全弁6種・自己強化ループ4重遮断。orchestrator Phase 12b/35b2、enrichment #32、save/load v25 (50フィールド)。Agency第2段階。討論結果: 条件付き推奨（7条件）。設計解析: 低固定化リスク。実装解析: 中→修正後低 |
 | ㉗ | Agency Stage 3: 不整合度サマリー ✅完了 | - | ㉕ | 討論結果: 要再検討（新モジュール不要）。定量評価: 既存構造(persistent_commitment+stability_valve+context_sensitivity)で-20~-30%の間接的抵抗カバー済み。残ギャップ「不整合の明示的記述」をenrichment追加で解消。orchestrator get_prompt_enrichment()に内部-外部間張力サマリー追加（32行）。保持方向バイアス/外部文脈慎重度/価値軸傾斜の3断面をREAD-ONLY参照。張力情報なしの場合は出力しない。テスト+2 (4,985) |
@@ -3873,19 +3873,21 @@ value_orientation_validation.py (1,211行/88テスト)
 - save/load v21 (45フィールド): multi_path_recall_stateフィールド追加
 
 #### ⑰ 時間認知構造 ✅完了
-- temporal_cognition.py: 617行 / 149テスト
+- temporal_cognition.py: 735行 / 179テスト
 - 討論結果: C-1条件付き推奨（既存tick数ベース処理を一切変更しない純粋な参照情報供給として設計）
+- Cycle 3候補1拡張: 帯域キャッシュ鮮度断面追加（4帯域の最終更新間隔を段階値で記述）
 - 3段パイプライン:
   1. 経過記録蓄積: 毎ティック呼び出し時にtick番号・経過秒・タイムスタンプをスライディングウィンドウに蓄積（上限付きFIFO）
-  2. 6断面特徴量記述（3ティック毎）:
+  2. 7断面特徴量記述（3ティック毎）:
      - 活動密度断面: ティック発生間隔の分布特性
      - 記憶蓄積間隔断面: エピソード記憶の蓄積の疎密
      - 感情変動頻度断面: 感情変動の頻度
      - 物語断片間隔断面: 自己物語断片の時間的間隔
      - 外部入力間隔断面: 外部入力の到着間隔
      - 総合経過断面: 累積経過秒と累積ティック数の比
+     - 帯域キャッシュ鮮度断面: 4帯域（毎ティック/3ティック/5ティック/10ティック）の最終更新からの経過を段階値で記述
   3. 参照情報受渡準備: enrichmentテキスト（全断面等価列挙）+ READ-ONLYアクセサ
-- 段階値は列挙型（DENSE / SOMEWHAT_DENSE / NORMAL / SOMEWHAT_SPARSE / SPARSE）
+- 段階値は列挙型（DENSE / SOMEWHAT_DENSE / NORMAL / SOMEWHAT_SPARSE / SPARSE）+ 鮮度用（RECENT / SOMEWHAT_RECENT / MODERATE / SOMEWHAT_STALE / STALE）
 - 5種の安全弁: 断面等価性、スライディングウィンドウ自然更新、パターン抽出禁止、単一数値統合禁止、enrichment強調禁止
 - 4経路の構造的遮断: →ティックベース処理パラメータ、→感情パイプライン、→記憶忘却/固定化パラメータ、→予期形成
 - temporal_self_differenceとの責務分離: 「自己像の差分」vs「時間経過の特徴」で対象が異なる
@@ -3974,15 +3976,16 @@ value_orientation_validation.py (1,211行/88テスト)
 - orchestrator Phase 35c（全バイアス適用後の最終加算層）
 
 #### ㉓ 選択帰属 ✅完了
-- selection_attribution.py: 402行
+- selection_attribution.py: 413行 / 87テスト
 - 設計書: design_selection_attribution.md
 - 討論結果: 条件付き推奨（Agency第1段階）
 - 解析結果: 低固定化リスク（analysis_selection_attribution_fixation_20260220.md）
+- Cycle 3候補3拡張: バイアス源構成（名前一覧）を選択記録に併記。スコア・重み・方向性は記録しない（名前のみ）。enrichmentにバイアス情報は露出しない
 - 方針選択の「そのとき」を記録する構造（既存の自己行動知覚は「後」、意図行動乖離は「間」を記録）
-- 記録内容: 選択ポリシーラベル + 候補群ラベル一覧 + 候補数 + ティック番号 + タイムスタンプ
+- 記録内容: 選択ポリシーラベル + 候補群ラベル一覧 + 候補数 + バイアス源名一覧 + ティック番号 + タイムスタンプ
 - 候補のスコアは受領しない（全記録等価の原則維持）
 - 蓄積リスト: 上限付きFIFO、最古押し出しが唯一の消失経路
-- 出力2経路のみ: enrichment（直近記録の等価列挙）+ 内省系参照（READ-ONLY）
+- 出力2経路のみ: enrichment（直近記録の等価列挙、バイアス情報遮断）+ 内省系参照（READ-ONLY）
 - 5経路遮断: →候補生成/→バイアス計算/→安定化弁/→感情処理/→責任計算
 - 安全弁5種: 全記録等価/パターン抽出禁止/経路遮断不変性/enrichment等価列挙/上限入れ替わり保証
 - orchestrator: select_policy_dict後にrecord_selection()、enrichment #31、save/load v23 (48フィールド)
@@ -4263,4 +4266,4 @@ value_orientation_validation.py (1,211行/88テスト)
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~167,000行 / テスト数: 6,533*
+*総コード行数: ~167,000行 / テスト数: 6,710*

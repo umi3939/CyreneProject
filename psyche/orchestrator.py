@@ -4405,10 +4405,31 @@ class PsycheOrchestrator:
             candidate_labels = [
                 c.get("policy_label", "") for c in candidates
             ]
+            # バイアス源の名前リストを収集（スコア・重み・方向性は記録しない）
+            bias_labels: list[str] = []
+            if self._last_decision_bias is not None:
+                bias_labels.append("decision_bias")
+            if self._last_sensitivity_bias is not None:
+                bias_labels.append("context_sensitivity")
+            try:
+                if self._stability_valve is not None:
+                    bias_labels.append("stability_valve")
+            except Exception:
+                pass
+            if self._value_orientation is not None:
+                bias_labels.append("value_orientation")
+            if self._persistent_commitment is not None:
+                bias_labels.append("persistent_commitment")
+            # scoring_fluctuation は常に適用される
+            bias_labels.append("scoring_fluctuation")
+            if self._last_has_silence:
+                bias_labels.append("silence_hesitation")
+
             self._selection_attribution_recorder.record_selection(
                 selected_policy_label=self._last_selected_policy_label,
                 candidate_labels=candidate_labels,
                 tick=self._tick_count,
+                bias_source_labels=bias_labels,
             )
         except Exception:
             pass

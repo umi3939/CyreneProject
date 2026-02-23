@@ -1485,3 +1485,79 @@ class TestAttentionDistributionIntegration:
         p = _make_percept()
         orch.post_response_update(p, delta_time=1.0)
         assert orch._att_dist_state is not None
+
+
+class TestSelectionAttributionBiasLabels:
+    """select_policy_dict 呼び出し時にbias_source_labelsが記録されることの確認。"""
+
+    def test_bias_source_labels_recorded_on_select(self, tmp_path):
+        """select_policy_dictの実行でbias_source_labelsが非空のリストとして記録される。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+        for _ in range(5):
+            orch.post_response_update(percept, delta_time=1.0)
+
+        policy = orch.select_policy_dict(percept, [])
+        assert isinstance(policy, dict)
+
+        # 選択帰属レコーダーの最新記録を取得
+        latest = orch._selection_attribution_recorder.get_latest_record()
+        assert latest is not None
+        assert isinstance(latest.bias_source_labels, list)
+        # scoring_fluctuationは常に存在するので少なくとも1つ以上のバイアス源がある
+        assert len(latest.bias_source_labels) >= 1
+        assert "scoring_fluctuation" in latest.bias_source_labels
+
+    def test_bias_source_labels_contain_expected_sources(self, tmp_path):
+        """select_policy_dict実行後、主要バイアス源が含まれる。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+        for _ in range(10):
+            orch.post_response_update(percept, delta_time=1.0)
+
+        policy = orch.select_policy_dict(percept, [])
+        latest = orch._selection_attribution_recorder.get_latest_record()
+        assert latest is not None
+
+        labels = latest.bias_source_labels
+        # orchestratorの標準初期化ではこれらのモジュールが存在する
+        assert "scoring_fluctuation" in labels
+        # stability_valve, value_orientation, persistent_commitment は
+        # orchestratorの初期化で生成されるため存在するはず
+        assert "stability_valve" in labels
+        assert "value_orientation" in labels
+        assert "persistent_commitment" in labels
+
+    def test_bias_source_labels_are_strings_only(self, tmp_path):
+        """bias_source_labelsの各要素が文字列のみであること。"""
+        orch = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+        for _ in range(5):
+            orch.post_response_update(percept, delta_time=1.0)
+
+        orch.select_policy_dict(percept, [])
+        latest = orch._selection_attribution_recorder.get_latest_record()
+        assert latest is not None
+
+        for label in latest.bias_source_labels:
+            assert isinstance(label, str)
+
+    def test_bias_source_labels_persist_after_save_load(self, tmp_path):
+        """save/load後もbias_source_labelsが保持される。"""
+        orch1 = PsycheOrchestrator(data_dir=tmp_path)
+        percept = _make_percept()
+        for _ in range(5):
+            orch1.post_response_update(percept, delta_time=1.0)
+
+        orch1.select_policy_dict(percept, [])
+        original_labels = orch1._selection_attribution_recorder.get_latest_record().bias_source_labels
+        assert len(original_labels) >= 1
+
+        orch1.save()
+
+        orch2 = PsycheOrchestrator(data_dir=tmp_path)
+        orch2.load()
+
+        restored_latest = orch2._selection_attribution_recorder.get_latest_record()
+        assert restored_latest is not None
+        assert restored_latest.bias_source_labels == original_labels

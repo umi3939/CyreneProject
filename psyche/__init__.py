@@ -1726,6 +1726,23 @@ from .hypothesis_observation_pairing import (
     get_hypothesis_observation_pairing_summary,
 )
 
+# Enrichment Compression (enrichment-to-prompt パイプライン効率化)
+from .enrichment_compression import (
+    ALWAYS_FULL_LABELS,
+    SECTION_HEADER_MAP,
+    ORIGINAL_FOOTER,
+    COMPRESSED_FOOTER,
+    STABLE_SUFFIX,
+    COMPRESSION_RATIO_WARNING_THRESHOLD,
+    detect_item_changed,
+    apply_item_granularity,
+    compress_section,
+    compress_footer,
+    compute_compression_ratio,
+    log_compression_ratio,
+    build_compressed_enrichment,
+)
+
 # Orchestrator (全モジュール統合管理)
 from .orchestrator import PsycheOrchestrator
 
@@ -2383,6 +2400,14 @@ __all__ = [
     "Layer1ChangeType", "Layer2ChangeType", "Layer3ChangeType",
     "create_goal_hierarchy_propagation_processor",
     "save_goal_hierarchy_propagation_state", "load_goal_hierarchy_propagation_state",
+    # Enrichment Compression (enrichment-to-prompt パイプライン効率化)
+    "ALWAYS_FULL_LABELS", "SECTION_HEADER_MAP",
+    "ORIGINAL_FOOTER", "COMPRESSED_FOOTER", "STABLE_SUFFIX",
+    "COMPRESSION_RATIO_WARNING_THRESHOLD",
+    "detect_item_changed", "apply_item_granularity",
+    "compress_section", "compress_footer",
+    "compute_compression_ratio", "log_compression_ratio",
+    "build_compressed_enrichment",
     # Orchestrator (全モジュール統合管理)
     "PsycheOrchestrator",
 ]

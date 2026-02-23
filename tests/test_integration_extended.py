@@ -111,13 +111,13 @@ SAVE_V42_KEYS = [
     "hypothesis_observation_pairing_state",
 ]
 
-# enrichment の5セクションヘッダ
+# enrichment の5セクションヘッダ（圧縮済み形式）
 ENRICHMENT_SECTIONS = [
-    "心理状態",
-    "自己認識",
-    "動機・目標",
-    "記憶・内省",
-    "判断傾向",
+    "[内面]",
+    "[自己]",
+    "[動機]",
+    "[記憶]",
+    "[判断]",
 ]
 
 
@@ -225,7 +225,7 @@ class TestSaveLoadResumeV42:
         enrichment = orch2.get_prompt_enrichment()
         assert isinstance(enrichment, str)
         assert len(enrichment) > 0
-        assert "心理状態" in enrichment
+        assert "[内面]" in enrichment
 
     def test_double_save_load_cycle(self, tmp_path):
         """save -> load -> save -> load の 2 回サイクルでもエラーなし。"""
@@ -349,7 +349,7 @@ class TestFirstBootDefaults:
         assert isinstance(enrichment, str)
         assert len(enrichment) > 0
         # 心理状態セクションは常に存在する
-        assert "心理状態" in enrichment
+        assert "[内面]" in enrichment
 
     def test_enrichment_has_content_in_each_section_after_ticks(self):
         """ティック後の enrichment 各セクションに何かしらのテキストがあること。"""
@@ -357,7 +357,7 @@ class TestFirstBootDefaults:
         _run_ticks(orch, 10)
         enrichment = orch.get_prompt_enrichment()
         # 心理状態セクションは必ず存在
-        assert "心理状態" in enrichment
+        assert "[内面]" in enrichment
         # 感情情報は必ず含まれる
         assert "感情" in enrichment
         # 最低限長さがある
@@ -490,7 +490,7 @@ class TestEnrichmentIntegrity:
         orch = PsycheOrchestrator()
         _run_ticks(orch, 5)
         enrichment = orch.get_prompt_enrichment()
-        assert "機械的に読み上げないこと" in enrichment
+        assert "機械的読み上げ禁止" in enrichment
 
     def test_enrichment_contains_emotion_info(self):
         """enrichment に感情情報が含まれること。"""
@@ -529,15 +529,22 @@ class TestEnrichmentIntegrity:
         )
 
     def test_enrichment_stable_across_multiple_calls(self):
-        """同じ状態で get_prompt_enrichment を複数回呼んでも一貫性がある。"""
+        """同じ状態で get_prompt_enrichment を複数回呼んでも一貫性がある。
+
+        圧縮パイプライン導入により、初回呼び出しはキャッシュ不在のため全文記述、
+        2回目以降は変動なし項目が短縮形となる。2回目以降は同じ出力になる。
+        """
         orch = PsycheOrchestrator()
         _run_ticks(orch, 10)
 
-        enrichment1 = orch.get_prompt_enrichment()
-        enrichment2 = orch.get_prompt_enrichment()
+        enrichment1 = orch.get_prompt_enrichment()  # 初回: キャッシュ構築
+        enrichment2 = orch.get_prompt_enrichment()  # 2回目: 圧縮適用
+        enrichment3 = orch.get_prompt_enrichment()  # 3回目: 安定状態
 
-        # 状態変更なしなら同じ出力
-        assert enrichment1 == enrichment2
+        # 2回目以降は状態変更なしなら同じ出力（圧縮が安定）
+        assert enrichment2 == enrichment3
+        # 初回と2回目は異なる可能性がある（圧縮による短縮）
+        assert len(enrichment2) <= len(enrichment1)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -630,7 +637,7 @@ class TestLongRunStability:
         enrichment = orch.get_prompt_enrichment()
         assert isinstance(enrichment, str)
         assert len(enrichment) > 100
-        assert "心理状態" in enrichment
+        assert "[内面]" in enrichment
 
     def test_50_ticks_save_load_success(self, tmp_path):
         """50 ティック後の save -> load が正常に動作すること。"""

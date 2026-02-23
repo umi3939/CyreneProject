@@ -33,6 +33,9 @@ from .snapshot import (
 
 logger = logging.getLogger(__name__)
 
+# 環境変数による永続化整合性検証の有効/無効制御
+_INTEGRITY_CHECK_ENV_VAR = "CYRENE_INTEGRITY_CHECK"
+
 # Default persistence location
 DEFAULT_SNAPSHOT_DIR = Path(__file__).parent.parent / "data"
 DEFAULT_SNAPSHOT_FILE = "psyche_snapshot.json"
@@ -61,6 +64,7 @@ class PersistenceManager:
         self,
         directory: Path | str | None = None,
         filename: str = DEFAULT_SNAPSHOT_FILE,
+        integrity_check: bool = True,
     ):
         """
         Initialize persistence manager.
@@ -68,10 +72,19 @@ class PersistenceManager:
         Args:
             directory: Directory for snapshot files. Defaults to data/.
             filename: Snapshot filename. Defaults to psyche_snapshot.json.
+            integrity_check: Whether to run integrity verification on load.
+                Can be overridden by CYRENE_INTEGRITY_CHECK environment variable.
         """
         self.directory = Path(directory) if directory else DEFAULT_SNAPSHOT_DIR
         self.filename = filename
         self._filepath = self.directory / self.filename
+
+        # 環境変数が構成フラグを上書き可能
+        env_val = os.environ.get(_INTEGRITY_CHECK_ENV_VAR)
+        if env_val is not None:
+            self._integrity_check = env_val.lower() in ("1", "true", "yes")
+        else:
+            self._integrity_check = integrity_check
 
         # Ensure directory exists
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -217,6 +230,11 @@ class PersistenceManager:
             content = self._filepath.read_text(encoding="utf-8")
             data = json.loads(content)
 
+            # Run integrity verification on raw dict before Snapshot conversion
+            # This is positioned at "辞書を読んだが、まだ内部状態に書いていない" stage
+            if self._integrity_check and isinstance(data, dict):
+                self._run_integrity_check(data)
+
             # Reconstruct snapshot
             snapshot = Snapshot.from_dict(data)
             if snapshot is None:
@@ -243,6 +261,44 @@ class PersistenceManager:
         except Exception as e:
             logger.error("Failed to load snapshot: %s", e)
             return None
+
+    def _run_integrity_check(self, data: dict[str, Any]) -> None:
+        """Run integrity verification on the raw persistence dict.
+
+        Results are logged only (warning level). Exceptions are absorbed
+        so that the load process is never interrupted by verification failures.
+        The verification result dict is a local variable and is discarded after logging.
+        """
+        try:
+            from tools.persistence_integrity import check_integrity
+
+            result = check_integrity(data)
+            total = result.get("total_findings", 0)
+
+            if total == 0:
+                logger.info(
+                    "Integrity check passed: %d patterns applied, no findings",
+                    result.get("basic_info", {}).get("pattern_count", 0),
+                )
+            else:
+                logger.warning(
+                    "Integrity check: %d finding(s) detected", total,
+                )
+                summary = result.get("summary", {})
+                for pattern_name, count in summary.items():
+                    if count > 0:
+                        logger.warning(
+                            "  %s: %d finding(s)", pattern_name, count,
+                        )
+                for finding in result.get("findings", []):
+                    logger.warning(
+                        "  [%s] %s",
+                        finding.get("pattern", "unknown"),
+                        finding.get("fact", ""),
+                    )
+        except Exception as e:
+            # 検証処理内の例外は全て吸収し、復元処理を妨げない
+            logger.warning("Integrity check failed with exception: %s", e)
 
     def load_or_create(self, user_id: str = "default") -> Snapshot:
         """

@@ -229,10 +229,10 @@ class TestPromptEnrichment:
         assert len(text) > 0
 
     def test_enrichment_contains_psyche_section(self):
-        """【心理状態（内面）】セクションが含まれる。"""
+        """[内面]セクションが含まれる。"""
         orch = PsycheOrchestrator()
         text = orch.get_prompt_enrichment()
-        assert "心理状態" in text
+        assert "[内面]" in text
 
     def test_enrichment_contains_emotions(self):
         """感情情報が含まれる。"""
@@ -267,13 +267,13 @@ class TestPromptEnrichment:
             orch.post_response_update(percept, delta_time=1.0)
         text = orch.get_prompt_enrichment()
         # After 6 ticks (including tick 3 and 5), self sections should appear
-        assert "自己認識" in text or "動機" in text or len(text) > 200
+        assert "[自己]" in text or "[動機]" in text or len(text) > 200
 
     def test_enrichment_ends_with_instruction(self):
         """プロンプトが指示文で終わる。"""
         orch = PsycheOrchestrator()
         text = orch.get_prompt_enrichment()
-        assert "機械的に読み上げないこと" in text
+        assert "機械的読み上げ禁止" in text
 
     def test_enrichment_tension_with_commitment(self):
         """persistent_commitment に保持項目がある場合、張力情報が含まれる。"""
@@ -778,7 +778,7 @@ class TestPersistence:
 
         # enrichment は内部キャッシュの再生成で多少変わりうるが、
         # 主要セクションは存在するはず
-        assert "心理状態" in enrichment_after
+        assert "[内面]" in enrichment_after
         assert len(enrichment_after) > 100
 
 
@@ -904,7 +904,7 @@ class TestIntegration:
         # Prompt enrichment should be rich
         enrichment = orch.get_prompt_enrichment()
         assert len(enrichment) > 200
-        assert "心理状態" in enrichment
+        assert "[内面]" in enrichment
 
         # Policy suggestions should work
         percept = _make_percept()
@@ -1214,7 +1214,7 @@ class TestSmokeFullPipeline:
         enrichment = orch2.get_prompt_enrichment()
         assert isinstance(enrichment, str)
         # load後でも心理状態セクションは必ず含まれる
-        assert "心理状態" in enrichment
+        assert "[内面]" in enrichment
         assert len(enrichment) > 100
 
     # ── 4. Phase発火の確認テスト ──────────────────────────────────
@@ -1302,12 +1302,12 @@ class TestSmokeFullPipeline:
 
         enrichment = orch.get_prompt_enrichment()
 
-        # 5セクション: 心理状態、自己認識、動機・目標、記憶・内省、判断傾向
-        assert "心理状態" in enrichment
-        assert "自己認識" in enrichment
-        assert "動機・目標" in enrichment or "動機" in enrichment
-        assert "記憶・内省" in enrichment or "記憶" in enrichment
-        assert "判断傾向" in enrichment
+        # 5セクション: 内面、自己、動機、記憶、判断（圧縮済みヘッダ）
+        assert "[内面]" in enrichment
+        assert "[自己]" in enrichment or "(安定)" in enrichment
+        assert "[動機]" in enrichment or "(安定)" in enrichment
+        assert "[記憶]" in enrichment or "(安定)" in enrichment
+        assert "[判断]" in enrichment or "(安定)" in enrichment
 
     def test_enrichment_size_reasonable(self):
         """enrichment のサイズが合理的範囲内（500文字以上、50000文字以下）。"""

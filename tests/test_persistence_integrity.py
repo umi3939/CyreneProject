@@ -1,18 +1,22 @@
 """
 tests/test_persistence_integrity.py - 永続化整合性検査のテスト
 
-tools/persistence_integrity.py の5種類の汎用検証パターンと
-ユーティリティ関数、コマンドラインインターフェースをテストする。
+tools/persistence_integrity.py の6種類の汎用検証パターンと
+ユーティリティ関数、コマンドラインインターフェース、
+および persistence.py のload時自動検証をテストする。
 """
 
 from __future__ import annotations
 
 import copy
 import json
+import logging
+import os
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -21,12 +25,14 @@ from tools.persistence_integrity import (
     REFERENCE_EXISTENCE_PATTERNS,
     REQUIRED_FIELD_PATTERNS,
     TIMESTAMP_ORDER_PATTERNS,
+    TYPE_STRUCTURE_PATTERNS,
     VERSION_FIELD_PATTERNS,
     _MISSING,
     _check_accumulation_limits,
     _check_reference_existence,
     _check_required_fields,
     _check_timestamp_order,
+    _check_type_structure,
     _check_version_fields,
     _extract_ids,
     _extract_target_ids,
@@ -841,6 +847,7 @@ class TestCheckIntegrity:
         assert "timestamp_order" in summary
         assert "required_field" in summary
         assert "version_consistency" in summary
+        assert "type_structure" in summary
 
     def test_original_dict_not_modified(self) -> None:
         data = _make_minimal_save_dict()
@@ -1158,3 +1165,453 @@ class TestStatelessness:
         assert results[0]["total_findings"] == 0
         assert results[1]["total_findings"] > 0
         assert results[2]["total_findings"] == 0
+
+
+# ── パターン6: 型構造基本確認テスト ──────────────────────────
+
+class TestTypeStructure:
+    """パターン6: 型構造の基本確認のテスト。"""
+
+    def test_valid_types_no_findings(self) -> None:
+        data = _make_minimal_save_dict()
+        findings = _check_type_structure(data)
+        assert len(findings) == 0
+
+    def test_version_wrong_type(self) -> None:
+        data = _make_minimal_save_dict()
+        data["version"] = "not_a_number"
+        findings = _check_type_structure(data)
+        version_findings = [
+            f for f in findings if f["field_path"] == "version"
+        ]
+        assert len(version_findings) == 1
+        assert "numeric" in version_findings[0]["fact"]
+
+    def test_tick_count_wrong_type(self) -> None:
+        data = _make_minimal_save_dict()
+        data["tick_count"] = "string_tick"
+        findings = _check_type_structure(data)
+        tick_findings = [
+            f for f in findings if f["field_path"] == "tick_count"
+        ]
+        assert len(tick_findings) == 1
+
+    def test_psyche_wrong_type(self) -> None:
+        data = _make_minimal_save_dict()
+        data["psyche"] = [1, 2, 3]
+        findings = _check_type_structure(data)
+        psyche_findings = [
+            f for f in findings if f["field_path"] == "psyche"
+        ]
+        assert len(psyche_findings) == 1
+        assert "dict" in psyche_findings[0]["fact"]
+
+    def test_emotions_wrong_type(self) -> None:
+        data = _make_minimal_save_dict()
+        data["psyche"]["emotions"] = "not_a_dict"
+        findings = _check_type_structure(data)
+        emotion_findings = [
+            f for f in findings if f["field_path"] == "psyche.emotions"
+        ]
+        assert len(emotion_findings) == 1
+
+    def test_loop_state_wrong_type(self) -> None:
+        data = _make_minimal_save_dict()
+        data["loop_state"] = "wrong"
+        findings = _check_type_structure(data)
+        ls_findings = [
+            f for f in findings if f["field_path"] == "loop_state"
+        ]
+        assert len(ls_findings) == 1
+
+    def test_dynamics_wrong_type(self) -> None:
+        data = _make_minimal_save_dict()
+        data["dynamics"] = [1, 2]
+        findings = _check_type_structure(data)
+        dyn_findings = [
+            f for f in findings if f["field_path"] == "dynamics"
+        ]
+        assert len(dyn_findings) == 1
+
+    def test_missing_field_skips(self) -> None:
+        """存在しないフィールドはスキップする（パターン4/5で検出済み）。"""
+        data = {"version": 1}
+        findings = _check_type_structure(data)
+        # version is numeric -> OK, but psyche etc. are missing -> skipped
+        assert all(f["field_path"] != "psyche" for f in findings)
+
+    def test_none_field_skips(self) -> None:
+        """Noneフィールドはスキップする（パターン4で検出済み）。"""
+        data = _make_minimal_save_dict()
+        data["psyche"] = None
+        findings = _check_type_structure(data)
+        psyche_findings = [
+            f for f in findings if f["field_path"] == "psyche"
+        ]
+        assert len(psyche_findings) == 0
+
+    def test_all_findings_have_correct_pattern(self) -> None:
+        data = _make_minimal_save_dict()
+        data["version"] = "bad"
+        data["psyche"] = "bad"
+        findings = _check_type_structure(data)
+        for f in findings:
+            assert f["pattern"] == "type_structure"
+            assert "field_path" in f
+            assert "fact" in f
+
+    def test_int_version_ok(self) -> None:
+        data = _make_minimal_save_dict()
+        data["version"] = 42
+        findings = _check_type_structure(data)
+        version_findings = [
+            f for f in findings if f["field_path"] == "version"
+        ]
+        assert len(version_findings) == 0
+
+    def test_float_version_ok(self) -> None:
+        data = _make_minimal_save_dict()
+        data["version"] = 42.0
+        findings = _check_type_structure(data)
+        version_findings = [
+            f for f in findings if f["field_path"] == "version"
+        ]
+        assert len(version_findings) == 0
+
+    def test_integration_in_check_integrity(self) -> None:
+        """check_integrity経由でパターン6が実行されることを確認。"""
+        data = _make_minimal_save_dict()
+        data["version"] = "bad_version"
+        result = check_integrity(data)
+        assert result["summary"]["type_structure"] >= 1
+        type_findings = [
+            f for f in result["findings"]
+            if f["pattern"] == "type_structure"
+        ]
+        assert len(type_findings) >= 1
+
+
+# ── パターン2追加分: 新規蓄積上限テスト ─────────────────────
+
+class TestNewAccumulationLimits:
+    """パターン2に追加された新規蓄積上限パターンのテスト。"""
+
+    def test_spontaneous_recall_history_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["spontaneous_recall_state"] = {
+            "recent_recall_history": [f"id-{i}" for i in range(500)],
+        }
+        findings = _check_accumulation_limits(data)
+        sr_findings = [
+            f for f in findings
+            if "spontaneous_recall_state.recent_recall_history" in f["field_path"]
+        ]
+        assert len(sr_findings) == 1
+
+    def test_internal_contradiction_window_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["internal_contradiction_state"] = {
+            "contradiction_window": [{"id": i} for i in range(60)],
+        }
+        findings = _check_accumulation_limits(data)
+        ic_findings = [
+            f for f in findings
+            if "internal_contradiction_state.contradiction_window" in f["field_path"]
+        ]
+        assert len(ic_findings) == 1
+
+    def test_perceptual_context_summaries_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["perceptual_context_state"] = {
+            "summaries": [{"id": i} for i in range(60)],
+        }
+        findings = _check_accumulation_limits(data)
+        pc_findings = [
+            f for f in findings
+            if "perceptual_context_state.summaries" in f["field_path"]
+        ]
+        assert len(pc_findings) == 1
+
+    def test_persistent_commitment_items_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["persistent_commitment_state"] = {
+            "items": [{"id": i} for i in range(10)],
+        }
+        findings = _check_accumulation_limits(data)
+        pc_findings = [
+            f for f in findings
+            if "persistent_commitment_state.items" in f["field_path"]
+        ]
+        assert len(pc_findings) == 1
+
+    def test_self_action_perception_records_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["self_action_perception_state"] = {
+            "records": [{"id": i} for i in range(60)],
+        }
+        findings = _check_accumulation_limits(data)
+        sap_findings = [
+            f for f in findings
+            if "self_action_perception_state.records" in f["field_path"]
+        ]
+        assert len(sap_findings) == 1
+
+    def test_intent_action_gap_records_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["intent_action_gap_state"] = {
+            "records": [{"id": i} for i in range(60)],
+        }
+        findings = _check_accumulation_limits(data)
+        iag_findings = [
+            f for f in findings
+            if "intent_action_gap_state.records" in f["field_path"]
+        ]
+        assert len(iag_findings) == 1
+
+    def test_temporal_cognition_elapsed_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["temporal_cognition_state"] = {
+            "elapsed_records": [{"id": i} for i in range(150)],
+        }
+        findings = _check_accumulation_limits(data)
+        tc_findings = [
+            f for f in findings
+            if "temporal_cognition_state.elapsed_records" in f["field_path"]
+        ]
+        assert len(tc_findings) == 1
+
+    def test_stabilization_history_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["stabilization_description_state"] = {
+            "history": [{"id": i} for i in range(40)],
+        }
+        findings = _check_accumulation_limits(data)
+        sd_findings = [
+            f for f in findings
+            if "stabilization_description_state.history" in f["field_path"]
+        ]
+        assert len(sd_findings) == 1
+
+    def test_behavioral_diversity_history_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["behavioral_diversity_state"] = {
+            "history": [{"id": i} for i in range(40)],
+        }
+        findings = _check_accumulation_limits(data)
+        bd_findings = [
+            f for f in findings
+            if "behavioral_diversity_state.history" in f["field_path"]
+        ]
+        assert len(bd_findings) == 1
+
+    def test_emotional_backdrop_window_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["emotional_backdrop_state"] = {
+            "sliding_window": [{"id": i} for i in range(40)],
+        }
+        findings = _check_accumulation_limits(data)
+        eb_findings = [
+            f for f in findings
+            if "emotional_backdrop_state.sliding_window" in f["field_path"]
+        ]
+        assert len(eb_findings) == 1
+
+    def test_selection_attribution_records_exceed(self) -> None:
+        data = _make_minimal_save_dict()
+        data["selection_attribution_state"] = {
+            "records": [{"id": i} for i in range(60)],
+        }
+        findings = _check_accumulation_limits(data)
+        sa_findings = [
+            f for f in findings
+            if "selection_attribution_state.records" in f["field_path"]
+        ]
+        assert len(sa_findings) == 1
+
+    def test_within_limit_no_findings(self) -> None:
+        """上限以内の場合は検出なし。"""
+        data = _make_minimal_save_dict()
+        data["self_action_perception_state"] = {
+            "records": [{"id": i} for i in range(50)],
+        }
+        findings = _check_accumulation_limits(data)
+        sap_findings = [
+            f for f in findings
+            if "self_action_perception_state.records" in f["field_path"]
+        ]
+        assert len(sap_findings) == 0
+
+    def test_all_new_patterns_have_required_keys(self) -> None:
+        """追加された全パターンが必須キーを持つことを確認。"""
+        for p in ACCUMULATION_LIMIT_PATTERNS:
+            assert "field_path" in p
+            assert "limit" in p
+            assert "description" in p
+            assert isinstance(p["limit"], int)
+            assert p["limit"] > 0
+
+
+# ── パターン6定義テスト ──────────────────────────────────────
+
+class TestTypeStructurePatternDefinitions:
+    """型構造パターン定義の構造的整合性テスト。"""
+
+    def test_patterns_have_required_keys(self) -> None:
+        for p in TYPE_STRUCTURE_PATTERNS:
+            assert "field_path" in p
+            assert "expected_type" in p
+            assert "description" in p
+            assert p["expected_type"] in ("dict", "list", "numeric")
+
+
+# ── persistence.py load時自動検証テスト ─────────────────────
+
+class TestPersistenceAutoVerification:
+    """persistence.py のload時自動検証のテスト。"""
+
+    def test_integrity_check_enabled_by_default(self, tmp_path: Path) -> None:
+        """デフォルトで整合性検証が有効であることを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path)
+        assert mgr._integrity_check is True
+
+    def test_integrity_check_disabled_by_flag(self, tmp_path: Path) -> None:
+        """構成フラグで無効化できることを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=False)
+        assert mgr._integrity_check is False
+
+    def test_integrity_check_env_override_true(self, tmp_path: Path) -> None:
+        """環境変数で有効化を上書きできることを確認。"""
+        from psyche.persistence import PersistenceManager
+        with patch.dict(os.environ, {"CYRENE_INTEGRITY_CHECK": "1"}):
+            mgr = PersistenceManager(directory=tmp_path, integrity_check=False)
+            assert mgr._integrity_check is True
+
+    def test_integrity_check_env_override_false(self, tmp_path: Path) -> None:
+        """環境変数で無効化を上書きできることを確認。"""
+        from psyche.persistence import PersistenceManager
+        with patch.dict(os.environ, {"CYRENE_INTEGRITY_CHECK": "0"}):
+            mgr = PersistenceManager(directory=tmp_path, integrity_check=True)
+            assert mgr._integrity_check is False
+
+    def test_integrity_check_env_true_variants(self, tmp_path: Path) -> None:
+        """環境変数の様々なtrue値を確認。"""
+        from psyche.persistence import PersistenceManager
+        for val in ("1", "true", "True", "TRUE", "yes", "Yes", "YES"):
+            with patch.dict(os.environ, {"CYRENE_INTEGRITY_CHECK": val}):
+                mgr = PersistenceManager(directory=tmp_path, integrity_check=False)
+                assert mgr._integrity_check is True, f"Failed for env value: {val}"
+
+    def test_load_calls_integrity_check_when_enabled(
+        self, tmp_path: Path,
+    ) -> None:
+        """loadが整合性検証を呼び出すことを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=True)
+
+        # 最小限のスナップショットファイルを作成
+        data = _make_minimal_save_dict()
+        snapshot_path = tmp_path / "psyche_snapshot.json"
+        snapshot_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with patch.object(mgr, '_run_integrity_check') as mock_check:
+            mgr.load()
+            mock_check.assert_called_once()
+
+    def test_load_skips_integrity_check_when_disabled(
+        self, tmp_path: Path,
+    ) -> None:
+        """loadが整合性検証をスキップすることを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=False)
+
+        data = _make_minimal_save_dict()
+        snapshot_path = tmp_path / "psyche_snapshot.json"
+        snapshot_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with patch.object(mgr, '_run_integrity_check') as mock_check:
+            mgr.load()
+            mock_check.assert_not_called()
+
+    def test_integrity_check_exception_does_not_break_load(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """整合性検証で例外が発生してもloadが失敗しないことを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=True)
+
+        data = _make_minimal_save_dict()
+        snapshot_path = tmp_path / "psyche_snapshot.json"
+        snapshot_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with patch('tools.persistence_integrity.check_integrity',
+                   side_effect=RuntimeError("test explosion")):
+            with caplog.at_level(logging.WARNING):
+                # load should NOT raise - exception is absorbed
+                result = mgr.load()
+                # Result may be None due to Snapshot.from_dict expecting specific format,
+                # but the key point is no exception was raised
+                assert "Integrity check failed with exception" in caplog.text
+
+    def test_run_integrity_check_logs_findings(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """検証結果がログに出力されることを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=True)
+
+        # 壊れたデータを作成
+        data = _make_minimal_save_dict()
+        data["dynamics"]["intensity_history"] = [0.5] * 15  # 上限10を超過
+
+        with caplog.at_level(logging.WARNING):
+            mgr._run_integrity_check(data)
+
+        assert "finding(s) detected" in caplog.text
+
+    def test_run_integrity_check_logs_clean(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """問題なしの場合のログを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=True)
+
+        data = _make_minimal_save_dict()
+
+        with caplog.at_level(logging.INFO):
+            mgr._run_integrity_check(data)
+
+        assert "Integrity check passed" in caplog.text
+
+    def test_run_integrity_check_does_not_modify_data(
+        self, tmp_path: Path,
+    ) -> None:
+        """整合性検証が入力データを変更しないことを確認。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=True)
+
+        data = _make_minimal_save_dict()
+        original = copy.deepcopy(data)
+        mgr._run_integrity_check(data)
+        assert data == original
+
+    def test_load_result_unaffected_by_integrity_findings(
+        self, tmp_path: Path,
+    ) -> None:
+        """整合性検証の結果がloadの戻り値に影響しないことを確認。
+        検証結果にかかわらず、loadの成否判定は既存仕様のまま。"""
+        from psyche.persistence import PersistenceManager
+        mgr = PersistenceManager(directory=tmp_path, integrity_check=True)
+
+        # intensity_historyが上限超過するデータでもloadの成否は変わらない
+        data = _make_minimal_save_dict()
+        data["dynamics"]["intensity_history"] = [0.5] * 15
+
+        snapshot_path = tmp_path / "psyche_snapshot.json"
+        snapshot_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with patch.object(mgr, '_run_integrity_check') as mock_check:
+            mgr.load()
+            # 検証は呼ばれるが、結果がloadの戻り値を変えない
+            mock_check.assert_called_once()

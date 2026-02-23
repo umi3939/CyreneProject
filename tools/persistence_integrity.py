@@ -4,7 +4,7 @@ tools/persistence_integrity.py - 永続化整合性検査（外部ツール）
 永続化された辞書データの構造的劣化を検出する。
 psycheパッケージの外部に配置され、orchestratorの処理フローには一切組み込まれない。
 
-5種類の汎用検証パターンを適用し、検出された事実を文字列リストとして返却する。
+6種類の汎用検証パターンを適用し、検出された事実を文字列リストとして返却する。
 修復・補正・正規化は一切行わない。
 
 Usage::
@@ -136,6 +136,248 @@ ACCUMULATION_LIMIT_PATTERNS: list[dict[str, Any]] = [
         "limit": 30,
         "description": "期待ライフサイクル収束記録上限",
     },
+    # ── v28+ 自発的想起 ──
+    {
+        "field_path": "spontaneous_recall_state.recent_recall_history",
+        "limit": 450,
+        "description": "自発想起の想起履歴上限",
+    },
+    # ── v29+ 内部矛盾記述 ──
+    {
+        "field_path": "internal_contradiction_state.contradiction_window",
+        "limit": 50,
+        "description": "内部矛盾記録上限",
+    },
+    # ── v22+ 知覚文脈 ──
+    {
+        "field_path": "perceptual_context_state.summaries",
+        "limit": 50,
+        "description": "知覚文脈サマリ上限",
+    },
+    # ── v13+ 忘却固定化 ──
+    {
+        "field_path": "forgetting_fixation_state.series_index",
+        "limit": 300,
+        "description": "忘却固定化記憶系列上限",
+    },
+    {
+        "field_path": "forgetting_fixation_state.reference_history",
+        "limit": 200,
+        "description": "忘却固定化参照履歴上限",
+    },
+    {
+        "field_path": "forgetting_fixation_state.fixation_sign_history",
+        "limit": 100,
+        "description": "忘却固定化固定兆候履歴上限",
+    },
+    {
+        "field_path": "forgetting_fixation_state.forgetting_candidates",
+        "limit": 100,
+        "description": "忘却固定化忘却候補上限",
+    },
+    {
+        "field_path": "forgetting_fixation_state.recovery_candidates",
+        "limit": 50,
+        "description": "忘却固定化復帰候補上限",
+    },
+    # ── v11+ 自発起動 ──
+    {
+        "field_path": "spontaneous_state.conflict_history",
+        "limit": 50,
+        "description": "自発起動衝突履歴上限",
+    },
+    {
+        "field_path": "spontaneous_state.unadopted_history",
+        "limit": 30,
+        "description": "自発起動不採用履歴上限",
+    },
+    {
+        "field_path": "spontaneous_state.decay_history",
+        "limit": 50,
+        "description": "自発起動減衰履歴上限",
+    },
+    {
+        "field_path": "spontaneous_state.continuous_activation_history",
+        "limit": 50,
+        "description": "自発起動連続起動履歴上限",
+    },
+    # ── v9+ 他者モデルリアルフィード ──
+    {
+        "field_path": "real_feed_state.units",
+        "limit": 20,
+        "description": "他者モデル観測単位上限",
+    },
+    # ── v10+ テキスト対話入力 ──
+    {
+        "field_path": "text_dialogue_state.receive_history",
+        "limit": 50,
+        "description": "テキスト対話受信履歴上限",
+    },
+    {
+        "field_path": "text_dialogue_state.decay_history",
+        "limit": 30,
+        "description": "テキスト対話減衰履歴上限",
+    },
+    {
+        "field_path": "text_dialogue_state.suppression_history",
+        "limit": 30,
+        "description": "テキスト対話抑制履歴上限",
+    },
+    # ── v25+ 持続的コミットメント ──
+    {
+        "field_path": "persistent_commitment_state.items",
+        "limit": 5,
+        "description": "持続コミットメント項目上限",
+    },
+    {
+        "field_path": "persistent_commitment_state.cognition_records",
+        "limit": 50,
+        "description": "持続コミットメント認知記録上限",
+    },
+    # ── v21+ 多経路想起 ──
+    {
+        "field_path": "multi_path_recall_state.recent_recall_history",
+        "limit": 450,
+        "description": "多経路想起識別子履歴上限",
+    },
+    # ── v15+ 対話学習 ──
+    {
+        "field_path": "dialogue_learning_state.entries",
+        "limit": 300,
+        "description": "対話学習エントリ上限",
+    },
+    # ── v16+ メタ感情認知 ──
+    {
+        "field_path": "meta_emotion_state.candidate_history",
+        "limit": 50,
+        "description": "メタ感情候補履歴上限",
+    },
+    {
+        "field_path": "meta_emotion_state.feature_history",
+        "limit": 50,
+        "description": "メタ感情特徴履歴上限",
+    },
+    {
+        "field_path": "meta_emotion_state.cognition_history",
+        "limit": 100,
+        "description": "メタ感情認知履歴上限",
+    },
+    # ── v17+ 自己行動知覚 ──
+    {
+        "field_path": "self_action_perception_state.records",
+        "limit": 50,
+        "description": "自己行動知覚記録上限",
+    },
+    # ── v19+ 意図行動乖離 ──
+    {
+        "field_path": "intent_action_gap_state.records",
+        "limit": 50,
+        "description": "意図行動乖離記録上限",
+    },
+    # ── v20+ 時間認知 ──
+    {
+        "field_path": "temporal_cognition_state.elapsed_records",
+        "limit": 100,
+        "description": "時間認知経過記録上限",
+    },
+    {
+        "field_path": "temporal_cognition_state.external_input_timestamps",
+        "limit": 100,
+        "description": "時間認知外部入力記録上限",
+    },
+    # ── v26+ 安定化記述 ──
+    {
+        "field_path": "stabilization_description_state.history",
+        "limit": 30,
+        "description": "安定化記述履歴上限",
+    },
+    # ── v27+ 行動多様性記述 ──
+    {
+        "field_path": "behavioral_diversity_state.history",
+        "limit": 30,
+        "description": "行動多様性履歴上限",
+    },
+    # ── v31+ 感情基調認知 ──
+    {
+        "field_path": "emotional_backdrop_state.sliding_window",
+        "limit": 30,
+        "description": "感情基調スライディングウィンドウ上限",
+    },
+    {
+        "field_path": "emotional_backdrop_state.composition_records",
+        "limit": 50,
+        "description": "感情基調構成記述上限",
+    },
+    # ── v32+ 状況依存自己呈示 ──
+    {
+        "field_path": "situational_self_presentation_state.records",
+        "limit": 200,
+        "description": "状況依存自己呈示記録上限",
+    },
+    # ── v33+ 駆動変動記述 ──
+    {
+        "field_path": "drive_variation_state.sliding_window",
+        "limit": 50,
+        "description": "駆動変動スライディングウィンドウ上限",
+    },
+    {
+        "field_path": "drive_variation_state.composition_records",
+        "limit": 50,
+        "description": "駆動変動構成記述上限",
+    },
+    # ── v35+ 入力経路均衡 ──
+    {
+        "field_path": "input_pathway_balance_state.usage_facts",
+        "limit": 200,
+        "description": "入力経路使用事実上限",
+    },
+    {
+        "field_path": "input_pathway_balance_state.snapshot_history",
+        "limit": 30,
+        "description": "入力経路断面履歴上限",
+    },
+    # ── v36+ 責任時間推移 ──
+    {
+        "field_path": "responsibility_temporal_trace_state.snapshots",
+        "limit": 100,
+        "description": "責任時間推移スナップショット上限",
+    },
+    # ── v38+ 他者境界蓄積 ──
+    {
+        "field_path": "other_boundary_accumulation_state.records",
+        "limit": 200,
+        "description": "他者境界蓄積記録上限",
+    },
+    # ── v39+ 忘却想起均衡 ──
+    {
+        "field_path": "forgetting_recall_balance_state.history",
+        "limit": 30,
+        "description": "忘却想起均衡履歴上限",
+    },
+    # ── v40+ 注意配分 ──
+    {
+        "field_path": "attention_distribution_state.snapshot_history",
+        "limit": 30,
+        "description": "注意配分断面履歴上限",
+    },
+    # ── v24+ 参照頻度 ──
+    {
+        "field_path": "reference_frequency_state.snapshot_history",
+        "limit": 30,
+        "description": "参照頻度断面履歴上限",
+    },
+    # ── v23+ 選択帰属 ──
+    {
+        "field_path": "selection_attribution_state.records",
+        "limit": 50,
+        "description": "選択帰属記録上限",
+    },
+    # ── v42+ 仮説観測対 ──
+    {
+        "field_path": "hypothesis_observation_pairing_state.all_pairs",
+        "limit": 200,
+        "description": "仮説観測全隣接対上限",
+    },
 ]
 
 # パターン3: 時刻順序の矛盾確認
@@ -210,6 +452,20 @@ VERSION_FIELD_PATTERNS: dict[int, list[str]] = {
     41: ["goal_hierarchy_propagation_state"],
     42: ["hypothesis_observation_pairing_state"],
 }
+
+# パターン6: 型構造の基本確認
+# 各要素は (フィールドパス, 期待される型名) の二つ組
+# 型名: "dict", "list", "numeric"
+TYPE_STRUCTURE_PATTERNS: list[dict[str, str]] = [
+    {"field_path": "version", "expected_type": "numeric", "description": "バージョン番号"},
+    {"field_path": "tick_count", "expected_type": "numeric", "description": "ティックカウント"},
+    {"field_path": "psyche", "expected_type": "dict", "description": "心理状態"},
+    {"field_path": "psyche.emotions", "expected_type": "dict", "description": "感情ベクトル"},
+    {"field_path": "psyche.drives", "expected_type": "dict", "description": "駆動ベクトル"},
+    {"field_path": "psyche.mood", "expected_type": "dict", "description": "気分"},
+    {"field_path": "loop_state", "expected_type": "dict", "description": "ループ状態"},
+    {"field_path": "dynamics", "expected_type": "dict", "description": "力学状態"},
+]
 
 
 # ── ユーティリティ ────────────────────────────────────────────
@@ -473,6 +729,52 @@ def _check_version_fields(
     return findings
 
 
+def _check_type_structure(
+    data: dict[str, Any],
+) -> list[dict[str, str]]:
+    """パターン6: 型構造の基本確認を実行する。
+
+    値が正しいかではなく、構造が壊れていないかのみを確認する。
+    フィールドの中身には一切踏み込まない。
+    """
+    findings: list[dict[str, str]] = []
+
+    for pattern in TYPE_STRUCTURE_PATTERNS:
+        value = _resolve_path(data, pattern["field_path"])
+
+        # フィールドが存在しない場合はスキップ（パターン4/5で検出済み）
+        if isinstance(value, _MissingSentinel):
+            continue
+
+        # None の場合もスキップ（パターン4で検出済み）
+        if value is None:
+            continue
+
+        expected = pattern["expected_type"]
+        type_ok = False
+
+        if expected == "dict":
+            type_ok = isinstance(value, dict)
+        elif expected == "list":
+            type_ok = isinstance(value, list)
+        elif expected == "numeric":
+            type_ok = isinstance(value, (int, float))
+
+        if not type_ok:
+            actual_type = type(value).__name__
+            findings.append({
+                "pattern": "type_structure",
+                "field_path": pattern["field_path"],
+                "fact": (
+                    f"{pattern['description']}: "
+                    f"'{pattern['field_path']}'の型が"
+                    f"'{expected}'であるべきだが'{actual_type}'である"
+                ),
+            })
+
+    return findings
+
+
 # ── メイン検証関数 ────────────────────────────────────────────
 
 def check_integrity(save_dict: dict[str, Any]) -> dict[str, Any]:
@@ -517,6 +819,9 @@ def check_integrity(save_dict: dict[str, Any]) -> dict[str, Any]:
     ver_findings = _check_version_fields(data)
     all_findings.extend(ver_findings)
 
+    type_findings = _check_type_structure(data)
+    all_findings.extend(type_findings)
+
     # パターン適用数の集計
     pattern_count = (
         len(REFERENCE_EXISTENCE_PATTERNS)
@@ -524,6 +829,7 @@ def check_integrity(save_dict: dict[str, Any]) -> dict[str, Any]:
         + len(TIMESTAMP_ORDER_PATTERNS)
         + len(REQUIRED_FIELD_PATTERNS)
         + 1  # バージョン整合確認は1パターン
+        + len(TYPE_STRUCTURE_PATTERNS)
     )
 
     # パターン種別ごとの検出件数集計
@@ -533,6 +839,7 @@ def check_integrity(save_dict: dict[str, Any]) -> dict[str, Any]:
         "timestamp_order": len(ts_findings),
         "required_field": len(req_findings),
         "version_consistency": len(ver_findings),
+        "type_structure": len(type_findings),
     }
 
     return {

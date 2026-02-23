@@ -769,7 +769,7 @@ class TestCrossPhaseDataFlow:
         # prompt enrichment が生成可能
         enrichment = orch.get_prompt_enrichment()
         assert len(enrichment) > 100
-        assert "心理状態" in enrichment
+        assert "[内面]" in enrichment
 
     def test_multiple_select_policy_dict_calls(self):
         """select_policy_dictを複数回呼んでもエラーなく動作すること。"""

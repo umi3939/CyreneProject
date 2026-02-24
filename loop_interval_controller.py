@@ -1,0 +1,421 @@
+"""
+loop_interval_controller.py - Main Loop 3-Path Interval Controller
+
+Controls the timing intervals for the three input pathways in the main loop:
+A. Screen capture interval: adaptive based on capture results
+B. Spontaneous activation check interval: linked to check results
+C. Text input - screen capture coordination
+
+This module only controls timing intervals. It does NOT reference
+psyche module states or outputs. All decisions are based solely on
+observable facts within the main loop itself:
+- Capture result (frame present or None)
+- Text queue state (empty or not)
+- Spontaneous activation result (activated or not)
+
+No state is persisted across sessions.
+"""
+
+import time
+from dataclasses import dataclass, field
+from typing import Optional
+
+
+# --- Interval Stage Definitions ---
+
+# Screen capture interval stages (seconds)
+# Stages expand gradually when no change is detected
+CAPTURE_INTERVAL_STAGES: list[float] = [
+    0.1,   # Stage 0: base interval (immediate re-check)
+    0.5,   # Stage 1: short delay
+    1.0,   # Stage 2: moderate delay
+    2.0,   # Stage 3: longer delay
+    5.0,   # Stage 4: max delay (upper bound)
+]
+
+# Spontaneous check additional wait stages (seconds)
+# Added on top of the idle threshold when check returns "not activated"
+SPONTANEOUS_WAIT_STAGES: list[float] = [
+    0.0,   # Stage 0: no additional wait (base)
+    5.0,   # Stage 1: short additional wait
+    10.0,  # Stage 2: moderate additional wait
+    15.0,  # Stage 3: max additional wait (upper bound)
+]
+
+# Text input - capture coordination
+# After this many consecutive text inputs without a screen capture,
+# force a screen capture opportunity
+TEXT_CONSECUTIVE_LIMIT: int = 5
+
+
+@dataclass
+class CaptureIntervalState:
+    """State for screen capture interval control."""
+    current_stage: int = 0
+    last_capture_time: float = 0.0
+    consecutive_no_change: int = 0
+
+    def reset(self, now: Optional[float] = None) -> None:
+        """Reset to base stage."""
+        self.current_stage = 0
+        self.consecutive_no_change = 0
+        if now is not None:
+            self.last_capture_time = now
+
+
+@dataclass
+class SpontaneousIntervalState:
+    """State for spontaneous activation check interval control."""
+    last_check_result_activated: bool = False
+    last_check_time: float = 0.0
+    additional_wait_stage: int = 0
+
+    def reset(self, now: Optional[float] = None) -> None:
+        """Reset to base stage."""
+        self.additional_wait_stage = 0
+        self.last_check_result_activated = False
+        if now is not None:
+            self.last_check_time = now
+
+
+@dataclass
+class TextCaptureCoordState:
+    """State for text input - screen capture coordination."""
+    text_just_processed: bool = False
+    consecutive_text_count: int = 0
+
+    def reset(self) -> None:
+        """Reset coordination state."""
+        self.text_just_processed = False
+        self.consecutive_text_count = 0
+
+
+class LoopIntervalController:
+    """
+    Controls timing intervals for the main loop's three input pathways.
+
+    All decisions are based solely on observable loop-level facts:
+    - Capture layer return value (frame or None)
+    - Text queue state (empty or not)
+    - Spontaneous check result (activated or not)
+
+    No psyche module states or outputs are referenced.
+    No state is persisted across sessions.
+    """
+
+    def __init__(
+        self,
+        capture_stages: Optional[list[float]] = None,
+        spontaneous_stages: Optional[list[float]] = None,
+        text_consecutive_limit: Optional[int] = None,
+        base_idle_threshold: float = 30.0,
+    ):
+        """
+        Initialize the controller.
+
+        Args:
+            capture_stages: Custom capture interval stages (seconds).
+                Defaults to CAPTURE_INTERVAL_STAGES.
+            spontaneous_stages: Custom spontaneous wait stages (seconds).
+                Defaults to SPONTANEOUS_WAIT_STAGES.
+            text_consecutive_limit: Max consecutive text inputs before
+                forcing a capture opportunity. Defaults to TEXT_CONSECUTIVE_LIMIT.
+            base_idle_threshold: Base idle seconds threshold for spontaneous
+                activation. Defaults to 30.0.
+        """
+        self._capture_stages = (
+            list(capture_stages) if capture_stages is not None
+            else list(CAPTURE_INTERVAL_STAGES)
+        )
+        self._spontaneous_stages = (
+            list(spontaneous_stages) if spontaneous_stages is not None
+            else list(SPONTANEOUS_WAIT_STAGES)
+        )
+        self._text_consecutive_limit = (
+            text_consecutive_limit if text_consecutive_limit is not None
+            else TEXT_CONSECUTIVE_LIMIT
+        )
+        self._base_idle_threshold = base_idle_threshold
+
+        # Validate stages
+        if len(self._capture_stages) == 0:
+            self._capture_stages = [0.1]
+        if len(self._spontaneous_stages) == 0:
+            self._spontaneous_stages = [0.0]
+        if self._text_consecutive_limit < 1:
+            self._text_consecutive_limit = 1
+
+        # Internal states
+        self._capture_state = CaptureIntervalState()
+        self._spontaneous_state = SpontaneousIntervalState()
+        self._text_capture_coord = TextCaptureCoordState()
+
+        # Initialize times
+        now = time.monotonic()
+        self._capture_state.last_capture_time = now
+        self._spontaneous_state.last_check_time = now
+
+    # --- Properties for inspection ---
+
+    @property
+    def capture_state(self) -> CaptureIntervalState:
+        """Read-only access to capture interval state."""
+        return self._capture_state
+
+    @property
+    def spontaneous_state(self) -> SpontaneousIntervalState:
+        """Read-only access to spontaneous interval state."""
+        return self._spontaneous_state
+
+    @property
+    def text_capture_coord(self) -> TextCaptureCoordState:
+        """Read-only access to text-capture coordination state."""
+        return self._text_capture_coord
+
+    @property
+    def capture_stages(self) -> list[float]:
+        """The configured capture interval stages."""
+        return list(self._capture_stages)
+
+    @property
+    def spontaneous_stages(self) -> list[float]:
+        """The configured spontaneous wait stages."""
+        return list(self._spontaneous_stages)
+
+    @property
+    def text_consecutive_limit(self) -> int:
+        """Max consecutive text inputs before forced capture."""
+        return self._text_consecutive_limit
+
+    @property
+    def base_idle_threshold(self) -> float:
+        """Base idle seconds threshold for spontaneous activation."""
+        return self._base_idle_threshold
+
+    # --- A. Screen Capture Interval Control ---
+
+    def should_attempt_capture(self, now: Optional[float] = None) -> bool:
+        """
+        Determine whether a screen capture should be attempted at this moment.
+
+        Based on:
+        - Current interval stage
+        - Elapsed time since last capture attempt
+
+        Args:
+            now: Current monotonic time. Defaults to time.monotonic().
+
+        Returns:
+            True if enough time has elapsed to attempt capture.
+        """
+        if now is None:
+            now = time.monotonic()
+
+        stage_idx = min(
+            self._capture_state.current_stage,
+            len(self._capture_stages) - 1,
+        )
+        required_interval = self._capture_stages[stage_idx]
+        elapsed = now - self._capture_state.last_capture_time
+        return elapsed >= required_interval
+
+    def on_capture_result(
+        self, frame_present: bool, now: Optional[float] = None,
+    ) -> None:
+        """
+        Update capture interval state based on capture result.
+
+        Args:
+            frame_present: True if capture returned a frame (change detected),
+                False if capture returned None (no change).
+            now: Current monotonic time.
+        """
+        if now is None:
+            now = time.monotonic()
+
+        self._capture_state.last_capture_time = now
+
+        if frame_present:
+            # Change detected: reset to base stage
+            self._capture_state.current_stage = 0
+            self._capture_state.consecutive_no_change = 0
+        else:
+            # No change: advance stage (extend interval)
+            self._capture_state.consecutive_no_change += 1
+            max_stage = len(self._capture_stages) - 1
+            if self._capture_state.current_stage < max_stage:
+                self._capture_state.current_stage += 1
+
+    def get_current_capture_interval(self) -> float:
+        """Return the current capture interval in seconds."""
+        stage_idx = min(
+            self._capture_state.current_stage,
+            len(self._capture_stages) - 1,
+        )
+        return self._capture_stages[stage_idx]
+
+    # --- B. Spontaneous Activation Check Interval Control ---
+
+    def should_check_spontaneous(
+        self, idle_seconds: float, now: Optional[float] = None,
+    ) -> bool:
+        """
+        Determine whether a spontaneous activation check should be performed.
+
+        Args:
+            idle_seconds: Seconds since last activity.
+            now: Current monotonic time.
+
+        Returns:
+            True if idle threshold (with additional wait) is exceeded
+            and enough time has passed since last check.
+        """
+        if now is None:
+            now = time.monotonic()
+
+        # Calculate effective threshold: base + additional wait from stage
+        stage_idx = min(
+            self._spontaneous_state.additional_wait_stage,
+            len(self._spontaneous_stages) - 1,
+        )
+        additional_wait = self._spontaneous_stages[stage_idx]
+        effective_threshold = self._base_idle_threshold + additional_wait
+
+        # Also ensure minimum time since last check
+        time_since_last_check = now - self._spontaneous_state.last_check_time
+        min_recheck_interval = additional_wait if additional_wait > 0 else 0.0
+
+        return (
+            idle_seconds >= effective_threshold
+            and time_since_last_check >= min_recheck_interval
+        )
+
+    def on_spontaneous_result(
+        self, activated: bool, now: Optional[float] = None,
+    ) -> None:
+        """
+        Update spontaneous check interval state based on check result.
+
+        Args:
+            activated: True if spontaneous activation occurred (spoke),
+                False if check returned "do not activate".
+            now: Current monotonic time.
+        """
+        if now is None:
+            now = time.monotonic()
+
+        self._spontaneous_state.last_check_time = now
+        self._spontaneous_state.last_check_result_activated = activated
+
+        if activated:
+            # Activation occurred: reset additional wait
+            self._spontaneous_state.additional_wait_stage = 0
+        else:
+            # No activation: increase additional wait stage
+            max_stage = len(self._spontaneous_stages) - 1
+            if self._spontaneous_state.additional_wait_stage < max_stage:
+                self._spontaneous_state.additional_wait_stage += 1
+
+    def get_effective_idle_threshold(self) -> float:
+        """Return the current effective idle threshold including additional wait."""
+        stage_idx = min(
+            self._spontaneous_state.additional_wait_stage,
+            len(self._spontaneous_stages) - 1,
+        )
+        return self._base_idle_threshold + self._spontaneous_stages[stage_idx]
+
+    # --- C. Text Input - Screen Capture Coordination ---
+
+    def on_text_processed(self) -> None:
+        """
+        Notify the controller that a text input was processed.
+        Increments consecutive text count and sets the flag for
+        post-text capture reset.
+        """
+        self._text_capture_coord.text_just_processed = True
+        self._text_capture_coord.consecutive_text_count += 1
+
+    def should_force_capture_after_text(self) -> bool:
+        """
+        Check if a screen capture should be forced due to consecutive
+        text inputs reaching the limit.
+
+        Returns:
+            True if consecutive text count >= limit.
+        """
+        return (
+            self._text_capture_coord.consecutive_text_count
+            >= self._text_consecutive_limit
+        )
+
+    def on_capture_after_text(self, now: Optional[float] = None) -> None:
+        """
+        Called after a forced capture due to text limit.
+        Resets the consecutive text counter.
+        """
+        self._text_capture_coord.consecutive_text_count = 0
+        if now is not None:
+            self._capture_state.last_capture_time = now
+
+    def check_and_apply_text_capture_reset(
+        self, now: Optional[float] = None,
+    ) -> bool:
+        """
+        If text was processed in the previous loop iteration,
+        reset capture interval to base stage. This ensures
+        post-text screen changes are detected promptly.
+
+        Returns:
+            True if a reset was applied.
+        """
+        if self._text_capture_coord.text_just_processed:
+            self._text_capture_coord.text_just_processed = False
+            self._capture_state.reset(now=now)
+            return True
+        return False
+
+    # --- Cross-pathway reset (safety valve) ---
+
+    def on_any_activity(self, now: Optional[float] = None) -> None:
+        """
+        Called when any pathway produces actual output (text response,
+        screen perception, or spontaneous speech). Resets all interval
+        states to base stage.
+
+        This is the multi-pathway reset safety valve: activity on any
+        pathway restores detection opportunity on all other pathways.
+
+        Args:
+            now: Current monotonic time.
+        """
+        if now is None:
+            now = time.monotonic()
+
+        self._capture_state.reset(now=now)
+        self._spontaneous_state.reset(now=now)
+        self._text_capture_coord.reset()
+
+    # --- Snapshot for diagnostics ---
+
+    def get_diagnostics(self) -> dict:
+        """
+        Return a diagnostic snapshot of all internal states.
+        For debugging/logging purposes only.
+        """
+        return {
+            "capture": {
+                "current_stage": self._capture_state.current_stage,
+                "current_interval": self.get_current_capture_interval(),
+                "consecutive_no_change": self._capture_state.consecutive_no_change,
+            },
+            "spontaneous": {
+                "additional_wait_stage": self._spontaneous_state.additional_wait_stage,
+                "effective_threshold": self.get_effective_idle_threshold(),
+                "last_result_activated": self._spontaneous_state.last_check_result_activated,
+            },
+            "text_capture_coord": {
+                "text_just_processed": self._text_capture_coord.text_just_processed,
+                "consecutive_text_count": self._text_capture_coord.consecutive_text_count,
+                "force_capture_needed": self.should_force_capture_after_text(),
+            },
+        }

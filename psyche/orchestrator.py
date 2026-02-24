@@ -656,7 +656,429 @@ from .enrichment_compression import (
     ORIGINAL_FOOTER,
 )
 
+# Phase execution engine (段階2: 10ティック帯域の宣言的実行エンジン)
+from .phase_execution_engine import PhaseExecutionEngine
+
+# Persistence helpers (save/load構造圧縮)
+from .persistence_helpers import (
+    FieldDef,
+    SaveInterface,
+    LoadInterface,
+    SemanticGroup,
+    CURRENT_VERSION,
+    save_fields,
+    load_fields,
+    get_fields_by_group,
+)
+
+# Execution monitor (実運用向けログ・モニタリング基盤)
+# READ-ONLY観測のみ。内部の判断・行動・選択に一切介入しない。
+# 永続化対象外。save/loadフィールド追加なし。
+from tools.execution_monitor import ExecutionMonitor, BandTimer, read_orchestrator_fields
+
 logger = logging.getLogger(__name__)
+
+
+# ── フィールド定義リスト (save/load 構造圧縮) ─────────────────────
+#
+# 永続化対象の全フィールドを宣言的に定義する。
+# 各エントリは保存・復元インターフェース種別、型、セマンティックグループを含む。
+# FIELD_DEFINITIONS はクラス定義より前に置き、外部からも参照可能にする。
+#
+# 注: 外部関数参照 (save_func/load_func) はモジュールレベルのインポート済み関数を使用。
+#     遅延参照が必要な型は None にし、_build_field_definitions() で構築する。
+
+def _build_field_definitions() -> list[FieldDef]:
+    """フィールド定義リストを構築する。
+
+    型参照がモジュールレベルのインポートに依存するため、関数内で構築する。
+    """
+    SG = SemanticGroup
+    SI = SaveInterface
+    LI = LoadInterface
+
+    return [
+        # ── コア状態 (CORE) ──────────────────────────────────────
+        FieldDef(
+            key="psyche", attr_path="_psyche",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=PsycheState, version=1, group=SG.CORE,
+            nullable_check=False,
+        ),
+        FieldDef(
+            key="loop_state", attr_path="_loop_state",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=LoopState, version=1, group=SG.CORE,
+        ),
+        FieldDef(
+            key="dynamics", attr_path="_dynamics",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=DynamicsState, version=1, group=SG.CORE,
+        ),
+        FieldDef(
+            key="amplitude", attr_path="_amplitude_state",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=AmplitudeState, version=4, group=SG.CORE,
+        ),
+        FieldDef(
+            key="value_orientation", attr_path="_value_orientation",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=ValueOrientation, version=4, group=SG.CORE,
+        ),
+        FieldDef(
+            key="tendency_state", attr_path="_tendency_sys",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=RepeatedTendencyState, version=5, group=SG.CORE,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="vector_state", attr_path="_vector_gen",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=VectorState, version=5, group=SG.CORE,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="candidate_state", attr_path="_candidate_gen",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=CandidateState, version=5, group=SG.CORE,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="transient_goal_state", attr_path="_transient_goal_mgr",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=TransientGoalState, version=5, group=SG.CORE,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="stability_valve", attr_path="_stability_valve",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=StabilityValve, version=5, group=SG.CORE,
+        ),
+        FieldDef(
+            key="dispersion_state", attr_path="_dispersion_state",
+            save_interface=SI.EXTERNAL_SAVE, load_interface=LI.EXTERNAL_LOAD,
+            save_func=dispersion_to_dict, load_func=dispersion_from_dict,
+            version=6, group=SG.CORE,
+        ),
+        FieldDef(
+            key="context_sensitivity_state", attr_path="_ctx_state",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=ContextState, version=6, group=SG.CORE,
+        ),
+        FieldDef(
+            key="last_coupling", attr_path="_last_coupling",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=CouplingInfluence, version=6, group=SG.CORE,
+        ),
+        FieldDef(
+            key="policy_expansion_state", attr_path="_policy_expander",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=ExpansionState, version=7, group=SG.CORE,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="spontaneous_state", attr_path="_spontaneous_processor",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=SpontaneousState, version=11, group=SG.CORE,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="vo_validation_state", attr_path="_vo_validator",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=VOValidationState, version=12, group=SG.CORE,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="persistent_commitment_state", attr_path="_persistent_commitment",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=PersistentCommitmentState, version=25, group=SG.CORE,
+            state_sub_attr="state", validate_on_load=True,
+        ),
+
+        # ── 自己認識 (SELF_RECOGNITION) ──────────────────────────
+        FieldDef(
+            key="self_ref_state", attr_path="_self_ref_state",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=SelfReferenceState, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_self_view", attr_path="_last_self_view",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=SelfStateView, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="tendency_awareness", attr_path="_tendency_awareness",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=TendencyAwareness, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_diff_summary", attr_path="_last_diff_summary",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=SelfDifferenceSummary, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_strain", attr_path="_last_strain",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=StrainState, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_self_image", attr_path="_last_self_image",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=ProvisionalSelfImage, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_coherence", attr_path="_last_coherence",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=IdentityCoherenceState, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_narrative", attr_path="_last_narrative",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=NarrativeState, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_trace", attr_path="_last_trace",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=TraceLog, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_consumption", attr_path="_last_consumption",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=ConsumptionStore, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_expectations", attr_path="_last_expectations",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=ExpectationStore, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="last_motives", attr_path="_last_motives",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=MotiveStore, version=4, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="self_action_perception_state", attr_path="_self_action_recorder",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=SelfActionPerceptionState, version=17, group=SG.SELF_RECOGNITION,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="intent_action_gap_state", attr_path="_intent_action_gap_recorder",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=IntentActionGapState, version=19, group=SG.SELF_RECOGNITION,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="introspection_cross_section_state", attr_path="_introspection_cross_section",
+            save_interface=SI.SAVE_METHOD, load_interface=LI.LOAD_METHOD,
+            version=22, group=SG.SELF_RECOGNITION,
+        ),
+        FieldDef(
+            key="selection_attribution_state", attr_path="_selection_attribution_recorder",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=SelectionAttributionState, version=23, group=SG.SELF_RECOGNITION,
+            state_sub_attr="state",
+        ),
+
+        # ── 記憶 (MEMORY) ────────────────────────────────────────
+        FieldDef(
+            key="last_episodes", attr_path="_last_episodes",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=EpisodeStore, version=4, group=SG.MEMORY,
+        ),
+        FieldDef(
+            key="last_bindings", attr_path="_last_bindings",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=BindingStore, version=4, group=SG.MEMORY,
+        ),
+        FieldDef(
+            key="memory_integration_state", attr_path="_memory_integrator",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=IntegrationState, version=8, group=SG.MEMORY,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="forgetting_fixation_state", attr_path="_forgetting_fixation_processor",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=ForgettingFixationState, version=13, group=SG.MEMORY,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="action_result_state", attr_path="_action_result_observer",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=ActionResultObservationState, version=14, group=SG.MEMORY,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="expectation_action_diff_log", attr_path="_expectation_action_diff_log",
+            save_interface=SI.RAW, load_interface=LI.RAW,
+            version=18, group=SG.MEMORY,
+            nullable_check=False,
+        ),
+        FieldDef(
+            key="multi_path_recall_state", attr_path="_multi_path_recall",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=MultiPathRecallState, version=21, group=SG.MEMORY,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="reference_frequency_state", attr_path="_reference_frequency_state",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=ReferenceFrequencyState, version=24, group=SG.MEMORY,
+        ),
+        FieldDef(
+            key="spontaneous_recall_state", attr_path="_spontaneous_recall",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=SpontaneousRecallState, version=28, group=SG.MEMORY,
+            state_sub_attr="state",
+        ),
+
+        # ── 他者モデル (OTHER_MODEL) ─────────────────────────────
+        FieldDef(
+            key="last_other_model", attr_path="_last_other_model",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=OtherModelStore, version=4, group=SG.OTHER_MODEL,
+        ),
+        FieldDef(
+            key="input_supply", attr_path="_input_supply",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=InputSupplyState, version=4, group=SG.OTHER_MODEL,
+        ),
+        FieldDef(
+            key="real_feed_state", attr_path="_real_feed_processor",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=RealFeedState, version=9, group=SG.OTHER_MODEL,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="text_dialogue_state", attr_path="_text_dialogue_processor",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=TextDialogueState, version=10, group=SG.OTHER_MODEL,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="dialogue_learning_state", attr_path="_dialogue_learning_processor",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=DialogueLearningState, version=15, group=SG.OTHER_MODEL,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="other_boundary_accumulation_state", attr_path="_other_boundary_accumulation",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=OtherBoundaryAccumulationState, version=38, group=SG.OTHER_MODEL,
+            state_sub_attr="state", session_decay=True,
+        ),
+        FieldDef(
+            key="hypothesis_observation_pairing_state", attr_path="_hypothesis_observation_pairing",
+            save_interface=SI.TO_DICT, load_interface=LI.PRIVATE_STATE_ATTR,
+            load_type=HOPairingState, version=42, group=SG.OTHER_MODEL,
+            state_sub_attr="state",
+        ),
+
+        # ── 記述・認知 (DESCRIPTION_COGNITION) ───────────────────
+        FieldDef(
+            key="meta_emotion_state", attr_path="_meta_emotion_processor",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=MetaEmotionState, version=16, group=SG.DESCRIPTION_COGNITION,
+            state_sub_attr="state", session_decay=True,
+        ),
+        FieldDef(
+            key="temporal_cognition_state", attr_path="_temporal_cognition",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=TemporalCognitionState, version=20, group=SG.DESCRIPTION_COGNITION,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="perceptual_context_state", attr_path="_perceptual_context",
+            save_interface=SI.SAVE_METHOD, load_interface=LI.LOAD_METHOD,
+            version=22, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="stabilization_description_state", attr_path="_stabilization_desc_state",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=StabilizationDescriptionState, version=26, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="behavioral_diversity_state", attr_path="_behavioral_diversity_state",
+            save_interface=SI.TO_DICT, load_interface=LI.DIRECT_ASSIGN,
+            load_type=BehavioralDiversityState, version=27, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="internal_contradiction_state", attr_path="_contradiction_processor",
+            save_interface=SI.SAVE_METHOD, load_interface=LI.LOAD_METHOD,
+            version=29, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="interaction_accumulation_state", attr_path="_interaction_accumulation",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=InteractionAccumulationState, version=30, group=SG.DESCRIPTION_COGNITION,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="emotional_backdrop_state", attr_path="_emotional_backdrop_processor",
+            save_interface=SI.SAVE_METHOD, load_interface=LI.LOAD_METHOD,
+            version=31, group=SG.DESCRIPTION_COGNITION,
+            session_decay=True,
+        ),
+        FieldDef(
+            key="situational_self_presentation_state", attr_path="_situational_self_presentation",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=SituationalSelfPresentationState, version=32, group=SG.DESCRIPTION_COGNITION,
+            state_sub_attr="state", session_decay=True,
+        ),
+        FieldDef(
+            key="drive_variation_state", attr_path="_drive_variation_processor",
+            save_interface=SI.SAVE_METHOD, load_interface=LI.LOAD_METHOD,
+            version=33, group=SG.DESCRIPTION_COGNITION,
+            session_decay=True,
+        ),
+        FieldDef(
+            key="expectation_lifecycle_state", attr_path="_expectation_lifecycle_processor",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=ExpectationLifecycleState, version=34, group=SG.DESCRIPTION_COGNITION,
+            state_sub_attr="state",
+        ),
+        FieldDef(
+            key="input_pathway_balance_state", attr_path="_input_pathway_balance_state",
+            save_interface=SI.EXTERNAL_SAVE, load_interface=LI.EXTERNAL_LOAD,
+            save_func=save_input_pathway_balance_state,
+            load_func=load_input_pathway_balance_state,
+            version=35, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="responsibility_temporal_trace_state", attr_path="_responsibility_temporal_trace",
+            save_interface=SI.SAVE_METHOD, load_interface=LI.LOAD_METHOD,
+            version=36, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="emotion_cooccurrence_state", attr_path="_emotion_cooccurrence_processor",
+            save_interface=SI.SAVE_METHOD, load_interface=LI.LOAD_METHOD,
+            version=37, group=SG.DESCRIPTION_COGNITION,
+            session_decay=True,
+        ),
+        FieldDef(
+            key="forgetting_recall_balance_state", attr_path="_frb_state",
+            save_interface=SI.EXTERNAL_SAVE, load_interface=LI.EXTERNAL_LOAD,
+            save_func=save_frb_state, load_func=load_frb_state,
+            version=39, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="attention_distribution_state", attr_path="_att_dist_state",
+            save_interface=SI.EXTERNAL_SAVE, load_interface=LI.EXTERNAL_LOAD,
+            save_func=save_att_dist_state, load_func=load_att_dist_state,
+            version=40, group=SG.DESCRIPTION_COGNITION,
+        ),
+        FieldDef(
+            key="goal_hierarchy_propagation_state", attr_path="_goal_hierarchy_propagation",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=GoalHierarchyPropagationState, version=41, group=SG.DESCRIPTION_COGNITION,
+            state_sub_attr="state",
+        ),
+    ]
+
+
+# モジュールロード時にフィールド定義を構築
+FIELD_DEFINITIONS: list[FieldDef] = _build_field_definitions()
 
 
 # ── Orchestrator ──────────────────────────────────────────────────
@@ -999,6 +1421,18 @@ class PsycheOrchestrator:
         self._last_tone_mod: Optional[ToneModifier] = None
         self._last_sensitivity_bias: Optional[SensitivityBias] = None
         self._last_has_silence: bool = False
+
+        # ── Phase execution engine (段階2: 10ティック帯域の宣言的実行) ──
+        # save/load非影響・enrichment非接続。永続化しない。
+        self._phase_engine = PhaseExecutionEngine()
+        self._phase_engine.register_handler("27", self._phase27_handler)
+        self._phase_engine.register_handler("28", self._phase28_handler)
+        self._phase_engine.register_handler("29", self._phase29_handler)
+
+        # ── Execution monitor (実運用向けログ・モニタリング基盤) ──
+        # 永続化対象外。save/loadフィールド追加なし。
+        # 内部の判断・行動・選択に一切介入しない(READ-ONLY観測のみ)。
+        self._execution_monitor = ExecutionMonitor()
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
@@ -2601,9 +3035,68 @@ class PsycheOrchestrator:
 
     # ── Phase 27-29: Every 10 ticks ──────────────────────────────
 
-    def _run_every_10_ticks(self, user_id: str) -> None:
-        """10ティック毎の安定性 + ロギング + スナップショット (Phase 27-29)."""
+    # Phase処理関数: 実行エンジンから呼び出される個別Phase処理
+    # 処理の「中身」は既存の手続き的コードをそのまま保持する。
 
+    def _phase27_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 27: stability_valve — 極端偏り検出。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        resp_influence = self._responsibility_mgr.get_influence(user_id)
+        self._stability_valve.observe_extremity(
+            fear_level=self._psyche.fear_level,
+            responsibility_weight=resp_influence.caution_bias,
+            value_orientation=self._value_orientation,
+            emotion_state=self._psyche.emotions,
+        )
+
+    def _phase28_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 28: long_term_dynamics — 長期行動ログ。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        resp_influence = self._responsibility_mgr.get_influence(user_id)
+        self._dynamics_observer.record_turn(
+            emotion_state=self._psyche.emotions,
+            value_orientation=self._value_orientation,
+            responsibility_weight=resp_influence.caution_bias,
+            responsibility_caution=resp_influence.caution_bias,
+        )
+
+    def _phase29_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 29: snapshot — 永続化は save() で明示的に行う。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        logger.debug(
+            "Tick %d every-10: stability_valve observed, dynamics logged",
+            self._tick_count,
+        )
+
+    def _run_every_10_ticks(self, user_id: str) -> None:
+        """10ティック毎の安定性 + ロギング + スナップショット (Phase 27-29).
+
+        実行エンジンが有効な場合は宣言的定義に基づいて駆動し、
+        無効な場合は既存の手続き的コードにフォールバックする。
+        外部から見た呼び出しインターフェースは不変。
+        """
+        if self._phase_engine.enabled:
+            # 宣言的実行エンジンによる駆動
+            self._phase_engine.execute_band(self, user_id)
+        else:
+            # フォールバック: 既存の手続き的コード
+            self._run_every_10_ticks_fallback(user_id)
+
+    def _run_every_10_ticks_fallback(self, user_id: str) -> None:
+        """10ティック帯域のフォールバック実行（既存手続き的コード）.
+
+        実行エンジン無効化時に使用される。
+        実行エンジンの安定性が確認された後の段階で除去を検討する（本設計の範囲外）。
+        """
         # Phase 27: stability_valve — 極端偏り検出
         try:
             resp_influence = self._responsibility_mgr.get_influence(user_id)
@@ -2661,19 +3154,34 @@ class PsycheOrchestrator:
             logger.debug("Temporal cognition external input notify skipped: %s", e)
 
         # Phase 1-7: every tick
-        self._run_every_tick(percept, delta_time, user_id)
+        with BandTimer(self._execution_monitor, "every_tick"):
+            self._run_every_tick(percept, delta_time, user_id)
 
         # Phase 8-14: every 3 ticks
         if self._tick_count % 3 == 0:
-            self._run_every_3_ticks(user_id)
+            with BandTimer(self._execution_monitor, "every_3_ticks"):
+                self._run_every_3_ticks(user_id)
 
         # Phase 15-26: every 5 ticks
         if self._tick_count % 5 == 0:
-            self._run_every_5_ticks(user_id)
+            with BandTimer(self._execution_monitor, "every_5_ticks"):
+                self._run_every_5_ticks(user_id)
 
         # Phase 27-29: every 10 ticks
         if self._tick_count % 10 == 0:
-            self._run_every_10_ticks(user_id)
+            with BandTimer(self._execution_monitor, "every_10_ticks"):
+                self._run_every_10_ticks(user_id)
+
+        # ── Execution monitor: サイクル完了記録 + スナップショット ──
+        # 計測点自体が例外を投げた場合、元の処理に影響を与えない(安全弁1)
+        try:
+            self._execution_monitor.record_cycle_complete(self._tick_count)
+            self._execution_monitor.maybe_emit_snapshot(
+                self._tick_count,
+                lambda: read_orchestrator_fields(self),
+            )
+        except Exception:
+            pass
 
     # ── Expectation diff accessor ────────────────────────────────
 
@@ -3406,6 +3914,18 @@ class PsycheOrchestrator:
             prev_cache=self._enrichment_prev_cache,
             footer=footer,
         )
+
+        # ── Execution monitor: 圧縮比記録 (READ-ONLY観測) ──
+        try:
+            _before_chars = sum(
+                len(t) for sec in sections_data for _, t in sec.get("items", [])
+            )
+            _after_chars = len(compressed_text)
+            self._execution_monitor.record_compression(
+                _before_chars, _after_chars, _ratio,
+            )
+        except Exception:
+            pass  # 安全弁1
 
         # キャッシュ更新（1ティック分のみ保持）
         self._enrichment_prev_cache = new_cache
@@ -4799,139 +5319,15 @@ class PsycheOrchestrator:
             )
 
     # ── Persistence ───────────────────────────────────────────────
-
-    def _save_core_fields(self) -> dict:
-        """save: コア状態（感情・ループ・ダイナミクス等）のフィールド群。"""
-        return {
-            "psyche": self._psyche.to_dict(),
-            "loop_state": self._loop_state.to_dict() if self._loop_state else {},
-            "dynamics": self._dynamics.to_dict() if self._dynamics else {},
-            "amplitude": self._amplitude_state.to_dict() if self._amplitude_state else {},
-            "value_orientation": self._value_orientation.to_dict() if self._value_orientation else {},
-            # Version 5 fields
-            "tendency_state": self._tendency_sys.state.to_dict(),
-            "vector_state": self._vector_gen.state.to_dict(),
-            "candidate_state": self._candidate_gen.state.to_dict(),
-            "transient_goal_state": self._transient_goal_mgr.state.to_dict(),
-            "stability_valve": self._stability_valve.to_dict(),
-            # Version 6 fields
-            "dispersion_state": dispersion_to_dict(self._dispersion_state),
-            "context_sensitivity_state": self._ctx_state.to_dict(),
-            "last_coupling": self._last_coupling.to_dict() if self._last_coupling else {},
-            # Version 7 fields
-            "policy_expansion_state": self._policy_expander.state.to_dict() if self._policy_expander else {},
-            # Version 11 fields
-            "spontaneous_state": self._spontaneous_processor.state.to_dict() if self._spontaneous_processor else {},
-            # Version 12 fields
-            "vo_validation_state": self._vo_validator.state.to_dict() if self._vo_validator else {},
-            # Version 25 fields
-            "persistent_commitment_state": self._persistent_commitment.state.to_dict() if self._persistent_commitment else {},
-        }
-
-    def _save_self_recognition_fields(self) -> dict:
-        """save: 自己認識系（self_model、temporal_diff、strain、self_image等）のフィールド群。"""
-        return {
-            "self_ref_state": self._self_ref_state.to_dict() if self._self_ref_state else {},
-            "last_self_view": self._last_self_view.to_dict() if self._last_self_view else {},
-            "tendency_awareness": self._tendency_awareness.to_dict() if self._tendency_awareness else {},
-            "last_diff_summary": self._last_diff_summary.to_dict() if self._last_diff_summary else {},
-            "last_strain": self._last_strain.to_dict() if self._last_strain else {},
-            "last_self_image": self._last_self_image.to_dict() if self._last_self_image else {},
-            "last_coherence": self._last_coherence.to_dict() if self._last_coherence else {},
-            "last_narrative": self._last_narrative.to_dict() if self._last_narrative else {},
-            "last_trace": self._last_trace.to_dict() if self._last_trace else {},
-            "last_consumption": self._last_consumption.to_dict() if self._last_consumption else {},
-            "last_expectations": self._last_expectations.to_dict() if self._last_expectations else {},
-            "last_motives": self._last_motives.to_dict() if self._last_motives else {},
-            # Version 17 fields
-            "self_action_perception_state": self._self_action_recorder.state.to_dict() if self._self_action_recorder else {},
-            # Version 19 fields
-            "intent_action_gap_state": self._intent_action_gap_recorder.state.to_dict() if self._intent_action_gap_recorder else {},
-            # Version 22 fields
-            "introspection_cross_section_state": self._introspection_cross_section.save() if self._introspection_cross_section else {},
-            # Version 23 fields
-            "selection_attribution_state": self._selection_attribution_recorder.state.to_dict() if self._selection_attribution_recorder else {},
-        }
-
-    def _save_memory_fields(self) -> dict:
-        """save: 記憶系（episodic、binding、integration、forgetting等）のフィールド群。"""
-        return {
-            "last_episodes": self._last_episodes.to_dict() if self._last_episodes else {},
-            "last_bindings": self._last_bindings.to_dict() if self._last_bindings else {},
-            # Version 8 fields
-            "memory_integration_state": self._memory_integrator.state.to_dict() if self._memory_integrator else {},
-            # Version 13 fields
-            "forgetting_fixation_state": self._forgetting_fixation_processor.state.to_dict() if self._forgetting_fixation_processor else {},
-            # Version 14 fields
-            "action_result_state": self._action_result_observer.state.to_dict() if self._action_result_observer else {},
-            # Version 18 fields
-            "expectation_action_diff_log": self._expectation_action_diff_log,
-            # Version 21 fields
-            "multi_path_recall_state": self._multi_path_recall.state.to_dict() if self._multi_path_recall else {},
-            # Version 24 fields
-            "reference_frequency_state": self._reference_frequency_state.to_dict() if self._reference_frequency_state else {},
-            # Version 28 fields
-            "spontaneous_recall_state": self._spontaneous_recall.state.to_dict() if self._spontaneous_recall else {},
-        }
-
-    def _save_other_model_fields(self) -> dict:
-        """save: 他者モデル系（other_model、input_supply、real_feed等）のフィールド群。"""
-        return {
-            "last_other_model": self._last_other_model.to_dict() if self._last_other_model else {},
-            "input_supply": self._input_supply.to_dict() if self._input_supply else {},
-            # Version 9 fields
-            "real_feed_state": self._real_feed_processor.state.to_dict() if self._real_feed_processor else {},
-            # Version 10 fields
-            "text_dialogue_state": self._text_dialogue_processor.state.to_dict() if self._text_dialogue_processor else {},
-            # Version 15 fields
-            "dialogue_learning_state": self._dialogue_learning_processor.state.to_dict() if self._dialogue_learning_processor else {},
-            # Version 38 fields
-            "other_boundary_accumulation_state": self._other_boundary_accumulation.state.to_dict() if self._other_boundary_accumulation else {},
-            # Version 42 fields
-            "hypothesis_observation_pairing_state": self._hypothesis_observation_pairing.state.to_dict() if self._hypothesis_observation_pairing else {},
-        }
-
-    def _save_description_cognition_fields(self) -> dict:
-        """save: 記述・認知系（各種description系モジュール）のフィールド群。"""
-        return {
-            # Version 16 fields
-            "meta_emotion_state": self._meta_emotion_processor.state.to_dict() if self._meta_emotion_processor else {},
-            # Version 20 fields
-            "temporal_cognition_state": self._temporal_cognition.state.to_dict() if self._temporal_cognition else {},
-            # Version 22 fields (perceptual_context)
-            "perceptual_context_state": self._perceptual_context.save() if self._perceptual_context else {},
-            # Version 26 fields
-            "stabilization_description_state": self._stabilization_desc_state.to_dict() if self._stabilization_desc_state else {},
-            # Version 27 fields
-            "behavioral_diversity_state": self._behavioral_diversity_state.to_dict() if self._behavioral_diversity_state else {},
-            # Version 29 fields
-            "internal_contradiction_state": self._contradiction_processor.save() if self._contradiction_processor else {},
-            # Version 30 fields
-            "interaction_accumulation_state": self._interaction_accumulation.state.to_dict() if self._interaction_accumulation else {},
-            # Version 31 fields
-            "emotional_backdrop_state": self._emotional_backdrop_processor.save() if self._emotional_backdrop_processor else {},
-            # Version 32 fields
-            "situational_self_presentation_state": self._situational_self_presentation.state.to_dict() if self._situational_self_presentation else {},
-            # Version 33 fields
-            "drive_variation_state": self._drive_variation_processor.save() if self._drive_variation_processor else {},
-            # Version 34 fields
-            "expectation_lifecycle_state": self._expectation_lifecycle_processor.state.to_dict() if self._expectation_lifecycle_processor else {},
-            # Version 35 fields
-            "input_pathway_balance_state": save_input_pathway_balance_state(self._input_pathway_balance_state) if self._input_pathway_balance_state else {},
-            # Version 36 fields
-            "responsibility_temporal_trace_state": self._responsibility_temporal_trace.save() if self._responsibility_temporal_trace else {},
-            # Version 37 fields
-            "emotion_cooccurrence_state": self._emotion_cooccurrence_processor.save() if self._emotion_cooccurrence_processor else {},
-            # Version 39 fields
-            "forgetting_recall_balance_state": save_frb_state(self._frb_state) if self._frb_state else {},
-            # Version 40 fields
-            "attention_distribution_state": save_att_dist_state(self._att_dist_state) if self._att_dist_state else {},
-            # Version 41 fields
-            "goal_hierarchy_propagation_state": self._goal_hierarchy_propagation.state.to_dict() if self._goal_hierarchy_propagation else {},
-        }
+    #
+    # save/load は FIELD_DEFINITIONS (モジュールレベル定義) に基づく
+    # 共通ヘルパー save_fields / load_fields を使用する。
+    # tick_count は特殊フィールドとして直接処理する。
 
     def save(self, path: Optional[Path] = None) -> None:
         """全状態を永続化する。
+
+        FIELD_DEFINITIONS に基づく共通ヘルパーで全フィールドを保存する。
 
         Args:
             path: 保存先パス（デフォルト: data/psyche_snapshot.json）
@@ -4940,15 +5336,11 @@ class PsycheOrchestrator:
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         data: dict[str, Any] = {
-            "version": 42,
+            "version": CURRENT_VERSION,
             "save_timestamp": time.time(),
             "tick_count": self._tick_count,
         }
-        data.update(self._save_core_fields())
-        data.update(self._save_self_recognition_fields())
-        data.update(self._save_memory_fields())
-        data.update(self._save_other_model_fields())
-        data.update(self._save_description_cognition_fields())
+        data.update(save_fields(self, FIELD_DEFINITIONS))
 
         save_path.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
@@ -4956,243 +5348,12 @@ class PsycheOrchestrator:
         )
         logger.info("Psyche state saved to %s", save_path)
 
-    def _load_core_fields(self, data: dict) -> None:
-        """load: コア状態のフィールド群を復元する。"""
-        if "psyche" in data:
-            self._psyche = PsycheState.from_dict(data["psyche"])
-        if "loop_state" in data:
-            self._loop_state = LoopState.from_dict(data["loop_state"])
-        if "dynamics" in data and data["dynamics"]:
-            self._dynamics = DynamicsState.from_dict(data["dynamics"])
-        if "tick_count" in data:
-            self._tick_count = data["tick_count"]
-
-        # Version 4+ fields
-        if data.get("amplitude"):
-            self._amplitude_state = AmplitudeState.from_dict(data["amplitude"])
-        if data.get("value_orientation"):
-            self._value_orientation = ValueOrientation.from_dict(data["value_orientation"])
-
-        # Version 5+ fields
-        if data.get("tendency_state"):
-            self._tendency_sys._state = RepeatedTendencyState.from_dict(data["tendency_state"])
-        if data.get("vector_state"):
-            self._vector_gen._state = VectorState.from_dict(data["vector_state"])
-        if data.get("candidate_state"):
-            self._candidate_gen._state = CandidateState.from_dict(data["candidate_state"])
-        if data.get("transient_goal_state"):
-            self._transient_goal_mgr._state = TransientGoalState.from_dict(data["transient_goal_state"])
-        if data.get("stability_valve"):
-            self._stability_valve = StabilityValve.from_dict(data["stability_valve"])
-
-        # Version 6+ fields
-        if data.get("dispersion_state"):
-            self._dispersion_state = dispersion_from_dict(data["dispersion_state"])
-        if data.get("context_sensitivity_state"):
-            self._ctx_state = ContextState.from_dict(data["context_sensitivity_state"])
-        if data.get("last_coupling"):
-            self._last_coupling = CouplingInfluence.from_dict(data["last_coupling"])
-
-        # Version 7+ fields
-        if data.get("policy_expansion_state"):
-            self._policy_expander._state = ExpansionState.from_dict(data["policy_expansion_state"])
-
-        # Version 11+ fields
-        if data.get("spontaneous_state"):
-            self._spontaneous_processor._state = SpontaneousState.from_dict(data["spontaneous_state"])
-
-        # Version 12+ fields
-        if data.get("vo_validation_state"):
-            self._vo_validator._state = VOValidationState.from_dict(data["vo_validation_state"])
-
-        # Version 25+ fields
-        if data.get("persistent_commitment_state"):
-            self._persistent_commitment._state = PersistentCommitmentState.from_dict(data["persistent_commitment_state"])
-            self._persistent_commitment.validate_on_load()
-
-    def _load_self_recognition_fields(self, data: dict) -> None:
-        """load: 自己認識系のフィールド群を復元する。"""
-        if data.get("self_ref_state"):
-            self._self_ref_state = SelfReferenceState.from_dict(data["self_ref_state"])
-        if data.get("last_self_view"):
-            self._last_self_view = SelfStateView.from_dict(data["last_self_view"])
-        if data.get("tendency_awareness"):
-            self._tendency_awareness = TendencyAwareness.from_dict(data["tendency_awareness"])
-        if data.get("last_diff_summary"):
-            self._last_diff_summary = SelfDifferenceSummary.from_dict(data["last_diff_summary"])
-        if data.get("last_strain"):
-            self._last_strain = StrainState.from_dict(data["last_strain"])
-        if data.get("last_self_image"):
-            self._last_self_image = ProvisionalSelfImage.from_dict(data["last_self_image"])
-        if data.get("last_coherence"):
-            self._last_coherence = IdentityCoherenceState.from_dict(data["last_coherence"])
-        if data.get("last_narrative"):
-            self._last_narrative = NarrativeState.from_dict(data["last_narrative"])
-        if data.get("last_trace"):
-            self._last_trace = TraceLog.from_dict(data["last_trace"])
-        if data.get("last_consumption"):
-            self._last_consumption = ConsumptionStore.from_dict(data["last_consumption"])
-        if data.get("last_expectations"):
-            self._last_expectations = ExpectationStore.from_dict(data["last_expectations"])
-        if data.get("last_motives"):
-            self._last_motives = MotiveStore.from_dict(data["last_motives"])
-
-        # Version 17+ fields
-        if data.get("self_action_perception_state"):
-            self._self_action_recorder.state = SelfActionPerceptionState.from_dict(data["self_action_perception_state"])
-
-        # Version 19+ fields
-        if data.get("intent_action_gap_state"):
-            self._intent_action_gap_recorder.state = IntentActionGapState.from_dict(data["intent_action_gap_state"])
-
-        # Version 22+ fields
-        if data.get("introspection_cross_section_state"):
-            self._introspection_cross_section.load(data["introspection_cross_section_state"])
-
-        # Version 23+ fields
-        if data.get("selection_attribution_state"):
-            self._selection_attribution_recorder.state = SelectionAttributionState.from_dict(data["selection_attribution_state"])
-
-    def _load_memory_fields(self, data: dict) -> None:
-        """load: 記憶系のフィールド群を復元する。"""
-        if data.get("last_episodes"):
-            self._last_episodes = EpisodeStore.from_dict(data["last_episodes"])
-        if data.get("last_bindings"):
-            self._last_bindings = BindingStore.from_dict(data["last_bindings"])
-
-        # Version 8+ fields
-        if data.get("memory_integration_state"):
-            self._memory_integrator._state = IntegrationState.from_dict(data["memory_integration_state"])
-
-        # Version 13+ fields
-        if data.get("forgetting_fixation_state"):
-            self._forgetting_fixation_processor._state = ForgettingFixationState.from_dict(data["forgetting_fixation_state"])
-
-        # Version 14+ fields
-        if data.get("action_result_state"):
-            self._action_result_observer._state = ActionResultObservationState.from_dict(data["action_result_state"])
-
-        # Version 18+ fields
-        if data.get("expectation_action_diff_log"):
-            self._expectation_action_diff_log = data["expectation_action_diff_log"]
-
-        # Version 21+ fields
-        if data.get("multi_path_recall_state"):
-            self._multi_path_recall.state = MultiPathRecallState.from_dict(data["multi_path_recall_state"])
-
-        # Version 24+ fields
-        if data.get("reference_frequency_state"):
-            self._reference_frequency_state = ReferenceFrequencyState.from_dict(data["reference_frequency_state"])
-
-        # Version 28+ fields
-        if data.get("spontaneous_recall_state"):
-            self._spontaneous_recall.state = SpontaneousRecallState.from_dict(data["spontaneous_recall_state"])
-
-    def _load_other_model_fields(self, data: dict) -> None:
-        """load: 他者モデル系のフィールド群を復元する。"""
-        if data.get("last_other_model"):
-            self._last_other_model = OtherModelStore.from_dict(data["last_other_model"])
-        if data.get("input_supply"):
-            self._input_supply = InputSupplyState.from_dict(data["input_supply"])
-
-        # Version 9+ fields
-        if data.get("real_feed_state"):
-            self._real_feed_processor._state = RealFeedState.from_dict(data["real_feed_state"])
-
-        # Version 10+ fields
-        if data.get("text_dialogue_state"):
-            self._text_dialogue_processor._state = TextDialogueState.from_dict(data["text_dialogue_state"])
-
-        # Version 15+ fields
-        if data.get("dialogue_learning_state"):
-            self._dialogue_learning_processor._state = DialogueLearningState.from_dict(data["dialogue_learning_state"])
-
-        # Version 38+ fields
-        if data.get("other_boundary_accumulation_state"):
-            self._other_boundary_accumulation._state = OtherBoundaryAccumulationState.from_dict(data["other_boundary_accumulation_state"])
-            self._other_boundary_accumulation.state.apply_session_decay()
-
-        # Version 42+ fields
-        if data.get("hypothesis_observation_pairing_state"):
-            self._hypothesis_observation_pairing._state = HOPairingState.from_dict(data["hypothesis_observation_pairing_state"])
-
-    def _load_description_cognition_fields(self, data: dict) -> None:
-        """load: 記述・認知系のフィールド群を復元する。"""
-        # Version 16+ fields
-        if data.get("meta_emotion_state"):
-            self._meta_emotion_processor.state = MetaEmotionState.from_dict(data["meta_emotion_state"])
-            self._meta_emotion_processor.state.apply_session_decay()
-
-        # Version 20+ fields
-        if data.get("temporal_cognition_state"):
-            self._temporal_cognition.state = TemporalCognitionState.from_dict(data["temporal_cognition_state"])
-
-        # Version 22+ fields (perceptual_context)
-        if data.get("perceptual_context_state"):
-            self._perceptual_context.load(data["perceptual_context_state"])
-
-        # Version 26+ fields
-        if data.get("stabilization_description_state"):
-            self._stabilization_desc_state = StabilizationDescriptionState.from_dict(data["stabilization_description_state"])
-
-        # Version 27+ fields
-        if data.get("behavioral_diversity_state"):
-            self._behavioral_diversity_state = BehavioralDiversityState.from_dict(data["behavioral_diversity_state"])
-
-        # Version 29+ fields
-        if data.get("internal_contradiction_state"):
-            self._contradiction_processor.load(data["internal_contradiction_state"])
-
-        # Version 30+ fields
-        if data.get("interaction_accumulation_state"):
-            self._interaction_accumulation.state = InteractionAccumulationState.from_dict(data["interaction_accumulation_state"])
-
-        # Version 31+ fields
-        if data.get("emotional_backdrop_state"):
-            self._emotional_backdrop_processor.load(data["emotional_backdrop_state"])
-            self._emotional_backdrop_processor.state.apply_session_decay()
-
-        # Version 32+ fields
-        if data.get("situational_self_presentation_state"):
-            self._situational_self_presentation.state = SituationalSelfPresentationState.from_dict(data["situational_self_presentation_state"])
-            self._situational_self_presentation.state.apply_session_decay()
-
-        # Version 33+ fields
-        if data.get("drive_variation_state"):
-            self._drive_variation_processor.load(data["drive_variation_state"])
-            self._drive_variation_processor.state.apply_session_decay()
-
-        # Version 34+ fields
-        if data.get("expectation_lifecycle_state"):
-            self._expectation_lifecycle_processor.state = ExpectationLifecycleState.from_dict(data["expectation_lifecycle_state"])
-
-        # Version 35+ fields
-        if data.get("input_pathway_balance_state"):
-            self._input_pathway_balance_state = load_input_pathway_balance_state(data["input_pathway_balance_state"])
-
-        # Version 36+ fields
-        if data.get("responsibility_temporal_trace_state"):
-            self._responsibility_temporal_trace.load(data["responsibility_temporal_trace_state"])
-
-        # Version 37+ fields
-        if data.get("emotion_cooccurrence_state"):
-            self._emotion_cooccurrence_processor.load(data["emotion_cooccurrence_state"])
-            self._emotion_cooccurrence_processor.state.apply_session_decay()
-
-        # Version 39+ fields
-        if data.get("forgetting_recall_balance_state"):
-            self._frb_state = load_frb_state(data["forgetting_recall_balance_state"])
-
-        # Version 40+ fields
-        if data.get("attention_distribution_state"):
-            self._att_dist_state = load_att_dist_state(data["attention_distribution_state"])
-
-        # Version 41+ fields
-        if data.get("goal_hierarchy_propagation_state"):
-            self._goal_hierarchy_propagation.state = GoalHierarchyPropagationState.from_dict(data["goal_hierarchy_propagation_state"])
-
     def load(self, path: Optional[Path] = None) -> bool:
         """永続化された状態を復元する。
+
+        FIELD_DEFINITIONS に基づく共通ヘルパーで全フィールドを復元する。
+        マイグレーション定義に該当しないフィールドは「存在すれば読み込む」
+        フォールバックで処理される（安全弁1）。
 
         Args:
             path: 読込先パス
@@ -5207,11 +5368,13 @@ class PsycheOrchestrator:
 
         try:
             data = json.loads(load_path.read_text(encoding="utf-8"))
-            self._load_core_fields(data)
-            self._load_self_recognition_fields(data)
-            self._load_memory_fields(data)
-            self._load_other_model_fields(data)
-            self._load_description_cognition_fields(data)
+
+            # tick_count は特殊フィールド: 直接処理
+            if "tick_count" in data:
+                self._tick_count = data["tick_count"]
+
+            # 全フィールドを共通ヘルパーで復元
+            load_fields(self, FIELD_DEFINITIONS, data)
 
             # Session boundary freshness: compute gap from saved timestamp
             saved_ts = data.get("save_timestamp")

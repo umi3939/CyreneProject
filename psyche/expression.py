@@ -23,6 +23,9 @@ from typing import Any, Awaitable, Callable
 
 from .state import PsycheState
 
+# Avoid circular import; ContextEntry is checked by attribute presence (duck typing)
+# rather than isinstance() to avoid importing brain.py.
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,7 +87,7 @@ def _build_render_prompt(
 
     formatted_history = ""
     if recent_history:
-        formatted_history = "\n".join(recent_history[-5:])
+        formatted_history = _format_history(recent_history)
 
     enrichment_section = ""
     if psyche_enrichment:
@@ -121,6 +124,55 @@ def _build_render_prompt(
 ═══ 出力形式（JSONのみ）═══
 {{"text": "セリフ（1〜2文）", "meta": {{"emotion": "感情名", "intensity": float, "action": "{policy.get('policy_label', '共感する')}"}}}}
 """
+
+
+def _format_history(recent_history: list) -> str:
+    """Convert recent_history to text for the expression prompt.
+
+    Supports two formats (backward compatible):
+    - list[str]: Legacy format -- join last 5 entries directly.
+    - list[ContextEntry]: Structured entries -- render ``[speaker_label] text``
+      with time-gap annotations.  Pathway and partner_id are excluded
+      (safety valve: no internal metadata reaches Gemini).
+
+    ContextEntry is detected by duck-typing (has ``speaker_label`` attribute).
+    """
+    if not recent_history:
+        return ""
+
+    # Check if first element is a structured entry (duck-typing)
+    sample = recent_history[0]
+    if isinstance(sample, str):
+        # Legacy: plain string list
+        return "\n".join(recent_history[-5:])
+
+    # Structured ContextEntry path
+    # Import gap thresholds from brain module (avoid hard-coding)
+    try:
+        from brain import _TIME_GAP_THRESHOLDS
+        thresholds = _TIME_GAP_THRESHOLDS
+    except ImportError:
+        thresholds = [
+            (300.0, "（かなり時間が経った）"),
+            (60.0, "（しばらく間があった）"),
+            (15.0, "（少し間があった）"),
+        ]
+
+    window = recent_history[-5:]
+    lines: list[str] = []
+    for i, entry in enumerate(window):
+        if i > 0:
+            prev_ts = getattr(window[i - 1], "timestamp", 0.0)
+            curr_ts = getattr(entry, "timestamp", 0.0)
+            gap = curr_ts - prev_ts
+            for threshold, annotation in thresholds:
+                if gap >= threshold:
+                    lines.append(annotation)
+                    break
+        speaker = getattr(entry, "speaker_label", "?")
+        text = getattr(entry, "text", str(entry))
+        lines.append(f"[{speaker}] {text}")
+    return "\n".join(lines)
 
 
 def _parse_expression_output(

@@ -1632,6 +1632,27 @@ class PsycheOrchestrator:
 
     def _run_every_5_ticks(self, user_id: str) -> None:
         """5ティック毎の自己連続性 + 記憶 + 内省フェーズ (Phase 15-26)."""
+        self._run_5t_self_diff_image(user_id)
+        self._run_5t_narrative_memory(user_id)
+        self._run_5t_introspection_expectation(user_id)
+        self._run_5t_other_model_interaction(user_id)
+        self._run_5t_value_responsibility(user_id)
+
+        logger.debug(
+            "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
+            "episodes=%s, expectations=%s",
+            self._tick_count,
+            "ok" if self._last_diff_summary else "none",
+            "ok" if self._last_strain else "none",
+            "ok" if self._last_coherence else "none",
+            "ok" if self._last_episodes else "none",
+            "ok" if self._last_expectations else "none",
+        )
+
+    # ── 5-tick group: Self-diff / Self-image (Phase 15-18) ────────
+
+    def _run_5t_self_diff_image(self, user_id: str) -> None:
+        """Phase 15-18: 自己差分・安定化記述・連続性負荷・自己像・一貫性."""
 
         # Phase 15: temporal_self_difference — 過去/現在の自己差分
         try:
@@ -1736,6 +1757,11 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Identity coherence skipped: %s", e)
+
+    # ── 5-tick group: Narrative / Memory (Phase 19-21f) ─────────
+
+    def _run_5t_narrative_memory(self, user_id: str) -> None:
+        """Phase 19-21f: ナラティブ・エピソード・記憶統合・忘却・想起."""
 
         # Phase 19: self_narrative — 自己ナラティブ断片追加
         try:
@@ -1998,6 +2024,11 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Forgetting-recall balance skipped: %s", e)
 
+    # ── 5-tick group: Introspection / Expectation (Phase 22-24b) ─
+
+    def _run_5t_introspection_expectation(self, user_id: str) -> None:
+        """Phase 22-24b: 内省・消費・期待形成・参照頻度."""
+
         # Phase 22: introspection_trace — 内省ログ生成
         # self_action_perception → introspection_trace 間接経路:
         # 自己行動知覚の直近記録からテキスト存在事実・長さ・ポリシーラベル・ティックのみを
@@ -2104,6 +2135,11 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Reference frequency description skipped: %s", e)
+
+    # ── 5-tick group: Other-model / Interaction (Phase 25a-25f, 25)
+
+    def _run_5t_other_model_interaction(self, user_id: str) -> None:
+        """Phase 25a-25f, 25: 他者モデル・対話学習・相互作用・境界・仮説."""
 
         # Phase 25a: other_model_real_feed — 実対話由来の観測断片抽出・正規化
         try:
@@ -2286,6 +2322,11 @@ class PsycheOrchestrator:
             )
         except Exception as e:
             logger.debug("Other agent model skipped: %s", e)
+
+    # ── 5-tick group: Value-orientation / Responsibility (Phase 26-26h)
+
+    def _run_5t_value_responsibility(self, user_id: str) -> None:
+        """Phase 26-26h: 価値指向・行動結果・多様性・乖離・ライフサイクル・責任・階層."""
 
         # Phase 26: value_orientation — 価値指向更新（遅い変化）
         try:
@@ -2558,17 +2599,6 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Goal hierarchy propagation skipped: %s", e)
 
-        logger.debug(
-            "Tick %d every-5: diff=%s, strain=%s, coherence=%s, "
-            "episodes=%s, expectations=%s",
-            self._tick_count,
-            "ok" if self._last_diff_summary else "none",
-            "ok" if self._last_strain else "none",
-            "ok" if self._last_coherence else "none",
-            "ok" if self._last_episodes else "none",
-            "ok" if self._last_expectations else "none",
-        )
-
     # ── Phase 27-29: Every 10 ticks ──────────────────────────────
 
     def _run_every_10_ticks(self, user_id: str) -> None:
@@ -2669,21 +2699,9 @@ class PsycheOrchestrator:
 
     # ── Prompt enrichment ─────────────────────────────────────────
 
-    def _collect_enrichment_items(
-        self, user_id: str = "viewer",
-    ) -> list[dict]:
-        """enrichment項目を(ラベル, テキスト)ペアとしてセクション別に収集する。
-
-        各モジュールの出力メソッドは一切変更せず、テキストを読み取り専用で取得する。
-        戻り値はbuild_compressed_enrichment()の入力形式に合わせた辞書リスト。
-
-        Returns:
-            list of {"header": str, "items": list[tuple[str, str]]}
-        """
+    def _collect_enrichment_psyche(self, user_id: str) -> list[tuple[str, str]]:
+        """enrichment: 心理状態（内面）セクションの項目を収集する。"""
         p = self._psyche
-        sections_data: list[dict] = []
-
-        # ── 【心理状態（内面）】 ──
         psyche_items: list[tuple[str, str]] = []
         psyche_items.append(("感情", f"感情: {p.emotion_summary()}"))
         psyche_items.append((
@@ -2744,13 +2762,10 @@ class PsycheOrchestrator:
             coupling_str = get_coupling_summary(self._last_coupling)
             if coupling_str:
                 psyche_items.append(("感情連動", f"感情連動: {coupling_str}"))
-        if psyche_items:
-            sections_data.append({
-                "header": "【心理状態（内面）】",
-                "items": psyche_items,
-            })
+        return psyche_items
 
-        # ── 【自己認識】 ──
+    def _collect_enrichment_self(self, user_id: str) -> list[tuple[str, str]]:
+        """enrichment: 自己認識セクションの項目を収集する。"""
         self_items: list[tuple[str, str]] = []
         if self._last_self_image is not None:
             summary = get_self_image_summary(self._last_self_image)
@@ -2817,13 +2832,10 @@ class PsycheOrchestrator:
                     self_items.append(("注意配分", f"注意配分: {att_text}"))
             except Exception:
                 pass
-        if self_items:
-            sections_data.append({
-                "header": "【自己認識】",
-                "items": self_items,
-            })
+        return self_items
 
-        # ── 【動機・目標】 ──
+    def _collect_enrichment_motive(self) -> list[tuple[str, str]]:
+        """enrichment: 動機・目標セクションの項目を収集する。"""
         motive_items: list[tuple[str, str]] = []
         if self._last_motives is not None:
             motive_summary = get_motive_summary(self._last_motives)
@@ -2917,13 +2929,10 @@ class PsycheOrchestrator:
                     motive_items.append(("予期ライフサイクル", f"予期ライフサイクル: {el_text}"))
             except Exception:
                 pass
-        if motive_items:
-            sections_data.append({
-                "header": "【動機・目標】",
-                "items": motive_items,
-            })
+        return motive_items
 
-        # ── 【記憶・内省】 ──
+    def _collect_enrichment_memory(self, user_id: str) -> list[tuple[str, str]]:
+        """enrichment: 記憶・内省セクションの項目を収集する。"""
         memory_items: list[tuple[str, str]] = []
         if self._last_episodes is not None:
             ep_summary = get_episodic_memory_summary(self._last_episodes)
@@ -3243,13 +3252,10 @@ class PsycheOrchestrator:
                     memory_items.append(("忘却想起均衡", f"忘却想起均衡: {frb_text}"))
             except Exception:
                 pass
-        if memory_items:
-            sections_data.append({
-                "header": "【記憶・内省】",
-                "items": memory_items,
-            })
+        return memory_items
 
-        # ── 【判断傾向】 ── (Phase 30-35 cached)
+    def _collect_enrichment_bias(self) -> list[tuple[str, str]]:
+        """enrichment: 判断傾向セクションの項目を収集する。"""
         bias_items: list[tuple[str, str]] = []
         # #9 decision_bias
         if self._last_decision_bias is not None:
@@ -3317,6 +3323,55 @@ class PsycheOrchestrator:
                 ))
         except Exception:
             pass
+        return bias_items
+
+    def _collect_enrichment_items(
+        self, user_id: str = "viewer",
+    ) -> list[dict]:
+        """enrichment項目を(ラベル, テキスト)ペアとしてセクション別に収集する。
+
+        各モジュールの出力メソッドは一切変更せず、テキストを読み取り専用で取得する。
+        戻り値はbuild_compressed_enrichment()の入力形式に合わせた辞書リスト。
+
+        Returns:
+            list of {"header": str, "items": list[tuple[str, str]]}
+        """
+        sections_data: list[dict] = []
+
+        # ── 【心理状態（内面）】 ──
+        psyche_items = self._collect_enrichment_psyche(user_id)
+        if psyche_items:
+            sections_data.append({
+                "header": "【心理状態（内面）】",
+                "items": psyche_items,
+            })
+
+        # ── 【自己認識】 ──
+        self_items = self._collect_enrichment_self(user_id)
+        if self_items:
+            sections_data.append({
+                "header": "【自己認識】",
+                "items": self_items,
+            })
+
+        # ── 【動機・目標】 ──
+        motive_items = self._collect_enrichment_motive()
+        if motive_items:
+            sections_data.append({
+                "header": "【動機・目標】",
+                "items": motive_items,
+            })
+
+        # ── 【記憶・内省】 ──
+        memory_items = self._collect_enrichment_memory(user_id)
+        if memory_items:
+            sections_data.append({
+                "header": "【記憶・内省】",
+                "items": memory_items,
+            })
+
+        # ── 【判断傾向】 ── (Phase 30-35 cached)
+        bias_items = self._collect_enrichment_bias()
         if bias_items:
             sections_data.append({
                 "header": "【判断傾向】",
@@ -3376,6 +3431,35 @@ class PsycheOrchestrator:
         """Phase 30-35: 候補生成+バイアス適用。candidatesとtone_modを返す。"""
         resp_influence = self._responsibility_mgr.get_influence(user_id)
 
+        candidates, decision_bias = self._gen_candidates_preprocessing(
+            percept, recalled_memories, user_id, resp_influence,
+        )
+        candidates, tone_mod, sensitivity_bias = self._gen_candidates_decoration(
+            candidates, percept, recalled_memories, resp_influence, decision_bias,
+        )
+        candidates = self._gen_candidates_bias_application(candidates)
+
+        # Cache Phase 30-35 results for enrichment
+        self._last_decision_bias = decision_bias
+        self._last_tone_mod = tone_mod
+        self._last_sensitivity_bias = sensitivity_bias
+        self._last_has_silence = any(
+            c.get("policy_label") == "silence" for c in candidates
+        )
+
+        return candidates, tone_mod
+
+    # ── Candidate generation group: Preprocessing (Phase 31, 30, 30b) ─
+
+    def _gen_candidates_preprocessing(
+        self,
+        percept: Percept,
+        recalled_memories: list[dict],
+        user_id: str,
+        resp_influence: Any,
+    ) -> tuple[list[dict], Any]:
+        """Phase 31, 30, 30b: 判断バイアス・候補生成・候補拡張."""
+
         # Phase 31: decision_bias — STM→判断バイアス計算
         decision_bias = compute_decision_bias(
             memory=self._loop_state.memory if self._loop_state else None,
@@ -3434,6 +3518,20 @@ class PsycheOrchestrator:
             except Exception as e:
                 logger.debug("Policy expansion skipped: %s", e)
 
+        return candidates, decision_bias
+
+    # ── Candidate generation group: Decoration / Integration (Phase 32-34)
+
+    def _gen_candidates_decoration(
+        self,
+        candidates: list[dict],
+        percept: Percept,
+        recalled_memories: list[dict],
+        resp_influence: Any,
+        decision_bias: Any,
+    ) -> tuple[list[dict], Any, Any]:
+        """Phase 32-34: トーン・空気読み・沈黙."""
+
         # Phase 32: tone — トーン修飾子計算
         tone_mod = compute_tone_bias(
             state=self._psyche,
@@ -3471,6 +3569,16 @@ class PsycheOrchestrator:
             silence_config=self._silence_config,
             base_candidates=candidates,
         )
+
+        return candidates, tone_mod, sensitivity_bias
+
+    # ── Candidate generation group: Bias Application (Phase 35-35c) ───
+
+    def _gen_candidates_bias_application(
+        self,
+        candidates: list[dict],
+    ) -> list[dict]:
+        """Phase 35-35c: 安定化・価値軸・持続的取り組み・スコアリング揺らぎ."""
 
         # Phase 35: stability_valve — 安定化バイアス適用
         try:
@@ -3519,15 +3627,7 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Scoring fluctuation skipped: %s", e)
 
-        # Cache Phase 30-35 results for enrichment
-        self._last_decision_bias = decision_bias
-        self._last_tone_mod = tone_mod
-        self._last_sensitivity_bias = sensitivity_bias
-        self._last_has_silence = any(
-            c.get("policy_label") == "silence" for c in candidates
-        )
-
-        return candidates, tone_mod
+        return candidates
 
     def _build_cross_section_inputs(
         self,
@@ -4700,40 +4800,14 @@ class PsycheOrchestrator:
 
     # ── Persistence ───────────────────────────────────────────────
 
-    def save(self, path: Optional[Path] = None) -> None:
-        """全状態を永続化する。
-
-        Args:
-            path: 保存先パス（デフォルト: data/psyche_snapshot.json）
-        """
-        save_path = path or (self._data_dir / "psyche_snapshot.json")
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-
-        data = {
-            "version": 42,
-            "save_timestamp": time.time(),
-            "tick_count": self._tick_count,
+    def _save_core_fields(self) -> dict:
+        """save: コア状態（感情・ループ・ダイナミクス等）のフィールド群。"""
+        return {
             "psyche": self._psyche.to_dict(),
             "loop_state": self._loop_state.to_dict() if self._loop_state else {},
             "dynamics": self._dynamics.to_dict() if self._dynamics else {},
             "amplitude": self._amplitude_state.to_dict() if self._amplitude_state else {},
             "value_orientation": self._value_orientation.to_dict() if self._value_orientation else {},
-            "self_ref_state": self._self_ref_state.to_dict() if self._self_ref_state else {},
-            "last_self_view": self._last_self_view.to_dict() if self._last_self_view else {},
-            "tendency_awareness": self._tendency_awareness.to_dict() if self._tendency_awareness else {},
-            "last_diff_summary": self._last_diff_summary.to_dict() if self._last_diff_summary else {},
-            "last_strain": self._last_strain.to_dict() if self._last_strain else {},
-            "last_self_image": self._last_self_image.to_dict() if self._last_self_image else {},
-            "last_coherence": self._last_coherence.to_dict() if self._last_coherence else {},
-            "last_narrative": self._last_narrative.to_dict() if self._last_narrative else {},
-            "last_episodes": self._last_episodes.to_dict() if self._last_episodes else {},
-            "last_bindings": self._last_bindings.to_dict() if self._last_bindings else {},
-            "last_trace": self._last_trace.to_dict() if self._last_trace else {},
-            "last_consumption": self._last_consumption.to_dict() if self._last_consumption else {},
-            "last_expectations": self._last_expectations.to_dict() if self._last_expectations else {},
-            "last_motives": self._last_motives.to_dict() if self._last_motives else {},
-            "last_other_model": self._last_other_model.to_dict() if self._last_other_model else {},
-            "input_supply": self._input_supply.to_dict() if self._input_supply else {},
             # Version 5 fields
             "tendency_state": self._tendency_sys.state.to_dict(),
             "vector_state": self._vector_gen.state.to_dict(),
@@ -4746,49 +4820,90 @@ class PsycheOrchestrator:
             "last_coupling": self._last_coupling.to_dict() if self._last_coupling else {},
             # Version 7 fields
             "policy_expansion_state": self._policy_expander.state.to_dict() if self._policy_expander else {},
-            # Version 8 fields
-            "memory_integration_state": self._memory_integrator.state.to_dict() if self._memory_integrator else {},
-            # Version 9 fields
-            "real_feed_state": self._real_feed_processor.state.to_dict() if self._real_feed_processor else {},
-            # Version 10 fields
-            "text_dialogue_state": self._text_dialogue_processor.state.to_dict() if self._text_dialogue_processor else {},
             # Version 11 fields
             "spontaneous_state": self._spontaneous_processor.state.to_dict() if self._spontaneous_processor else {},
             # Version 12 fields
             "vo_validation_state": self._vo_validator.state.to_dict() if self._vo_validator else {},
+            # Version 25 fields
+            "persistent_commitment_state": self._persistent_commitment.state.to_dict() if self._persistent_commitment else {},
+        }
+
+    def _save_self_recognition_fields(self) -> dict:
+        """save: 自己認識系（self_model、temporal_diff、strain、self_image等）のフィールド群。"""
+        return {
+            "self_ref_state": self._self_ref_state.to_dict() if self._self_ref_state else {},
+            "last_self_view": self._last_self_view.to_dict() if self._last_self_view else {},
+            "tendency_awareness": self._tendency_awareness.to_dict() if self._tendency_awareness else {},
+            "last_diff_summary": self._last_diff_summary.to_dict() if self._last_diff_summary else {},
+            "last_strain": self._last_strain.to_dict() if self._last_strain else {},
+            "last_self_image": self._last_self_image.to_dict() if self._last_self_image else {},
+            "last_coherence": self._last_coherence.to_dict() if self._last_coherence else {},
+            "last_narrative": self._last_narrative.to_dict() if self._last_narrative else {},
+            "last_trace": self._last_trace.to_dict() if self._last_trace else {},
+            "last_consumption": self._last_consumption.to_dict() if self._last_consumption else {},
+            "last_expectations": self._last_expectations.to_dict() if self._last_expectations else {},
+            "last_motives": self._last_motives.to_dict() if self._last_motives else {},
+            # Version 17 fields
+            "self_action_perception_state": self._self_action_recorder.state.to_dict() if self._self_action_recorder else {},
+            # Version 19 fields
+            "intent_action_gap_state": self._intent_action_gap_recorder.state.to_dict() if self._intent_action_gap_recorder else {},
+            # Version 22 fields
+            "introspection_cross_section_state": self._introspection_cross_section.save() if self._introspection_cross_section else {},
+            # Version 23 fields
+            "selection_attribution_state": self._selection_attribution_recorder.state.to_dict() if self._selection_attribution_recorder else {},
+        }
+
+    def _save_memory_fields(self) -> dict:
+        """save: 記憶系（episodic、binding、integration、forgetting等）のフィールド群。"""
+        return {
+            "last_episodes": self._last_episodes.to_dict() if self._last_episodes else {},
+            "last_bindings": self._last_bindings.to_dict() if self._last_bindings else {},
+            # Version 8 fields
+            "memory_integration_state": self._memory_integrator.state.to_dict() if self._memory_integrator else {},
             # Version 13 fields
             "forgetting_fixation_state": self._forgetting_fixation_processor.state.to_dict() if self._forgetting_fixation_processor else {},
             # Version 14 fields
             "action_result_state": self._action_result_observer.state.to_dict() if self._action_result_observer else {},
-            # Version 15 fields
-            "dialogue_learning_state": self._dialogue_learning_processor.state.to_dict() if self._dialogue_learning_processor else {},
-            # Version 16 fields
-            "meta_emotion_state": self._meta_emotion_processor.state.to_dict() if self._meta_emotion_processor else {},
-            # Version 17 fields
-            "self_action_perception_state": self._self_action_recorder.state.to_dict() if self._self_action_recorder else {},
             # Version 18 fields
             "expectation_action_diff_log": self._expectation_action_diff_log,
-            # Version 19 fields
-            "intent_action_gap_state": self._intent_action_gap_recorder.state.to_dict() if self._intent_action_gap_recorder else {},
-            # Version 20 fields
-            "temporal_cognition_state": self._temporal_cognition.state.to_dict() if self._temporal_cognition else {},
             # Version 21 fields
             "multi_path_recall_state": self._multi_path_recall.state.to_dict() if self._multi_path_recall else {},
-            # Version 22 fields
-            "introspection_cross_section_state": self._introspection_cross_section.save() if self._introspection_cross_section else {},
-            "perceptual_context_state": self._perceptual_context.save() if self._perceptual_context else {},
-            # Version 23 fields
-            "selection_attribution_state": self._selection_attribution_recorder.state.to_dict() if self._selection_attribution_recorder else {},
             # Version 24 fields
             "reference_frequency_state": self._reference_frequency_state.to_dict() if self._reference_frequency_state else {},
-            # Version 25 fields
-            "persistent_commitment_state": self._persistent_commitment.state.to_dict() if self._persistent_commitment else {},
+            # Version 28 fields
+            "spontaneous_recall_state": self._spontaneous_recall.state.to_dict() if self._spontaneous_recall else {},
+        }
+
+    def _save_other_model_fields(self) -> dict:
+        """save: 他者モデル系（other_model、input_supply、real_feed等）のフィールド群。"""
+        return {
+            "last_other_model": self._last_other_model.to_dict() if self._last_other_model else {},
+            "input_supply": self._input_supply.to_dict() if self._input_supply else {},
+            # Version 9 fields
+            "real_feed_state": self._real_feed_processor.state.to_dict() if self._real_feed_processor else {},
+            # Version 10 fields
+            "text_dialogue_state": self._text_dialogue_processor.state.to_dict() if self._text_dialogue_processor else {},
+            # Version 15 fields
+            "dialogue_learning_state": self._dialogue_learning_processor.state.to_dict() if self._dialogue_learning_processor else {},
+            # Version 38 fields
+            "other_boundary_accumulation_state": self._other_boundary_accumulation.state.to_dict() if self._other_boundary_accumulation else {},
+            # Version 42 fields
+            "hypothesis_observation_pairing_state": self._hypothesis_observation_pairing.state.to_dict() if self._hypothesis_observation_pairing else {},
+        }
+
+    def _save_description_cognition_fields(self) -> dict:
+        """save: 記述・認知系（各種description系モジュール）のフィールド群。"""
+        return {
+            # Version 16 fields
+            "meta_emotion_state": self._meta_emotion_processor.state.to_dict() if self._meta_emotion_processor else {},
+            # Version 20 fields
+            "temporal_cognition_state": self._temporal_cognition.state.to_dict() if self._temporal_cognition else {},
+            # Version 22 fields (perceptual_context)
+            "perceptual_context_state": self._perceptual_context.save() if self._perceptual_context else {},
             # Version 26 fields
             "stabilization_description_state": self._stabilization_desc_state.to_dict() if self._stabilization_desc_state else {},
             # Version 27 fields
             "behavioral_diversity_state": self._behavioral_diversity_state.to_dict() if self._behavioral_diversity_state else {},
-            # Version 28 fields
-            "spontaneous_recall_state": self._spontaneous_recall.state.to_dict() if self._spontaneous_recall else {},
             # Version 29 fields
             "internal_contradiction_state": self._contradiction_processor.save() if self._contradiction_processor else {},
             # Version 30 fields
@@ -4807,23 +4922,274 @@ class PsycheOrchestrator:
             "responsibility_temporal_trace_state": self._responsibility_temporal_trace.save() if self._responsibility_temporal_trace else {},
             # Version 37 fields
             "emotion_cooccurrence_state": self._emotion_cooccurrence_processor.save() if self._emotion_cooccurrence_processor else {},
-            # Version 38 fields
-            "other_boundary_accumulation_state": self._other_boundary_accumulation.state.to_dict() if self._other_boundary_accumulation else {},
             # Version 39 fields
             "forgetting_recall_balance_state": save_frb_state(self._frb_state) if self._frb_state else {},
             # Version 40 fields
             "attention_distribution_state": save_att_dist_state(self._att_dist_state) if self._att_dist_state else {},
             # Version 41 fields
             "goal_hierarchy_propagation_state": self._goal_hierarchy_propagation.state.to_dict() if self._goal_hierarchy_propagation else {},
-            # Version 42 fields
-            "hypothesis_observation_pairing_state": self._hypothesis_observation_pairing.state.to_dict() if self._hypothesis_observation_pairing else {},
         }
+
+    def save(self, path: Optional[Path] = None) -> None:
+        """全状態を永続化する。
+
+        Args:
+            path: 保存先パス（デフォルト: data/psyche_snapshot.json）
+        """
+        save_path = path or (self._data_dir / "psyche_snapshot.json")
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        data: dict[str, Any] = {
+            "version": 42,
+            "save_timestamp": time.time(),
+            "tick_count": self._tick_count,
+        }
+        data.update(self._save_core_fields())
+        data.update(self._save_self_recognition_fields())
+        data.update(self._save_memory_fields())
+        data.update(self._save_other_model_fields())
+        data.update(self._save_description_cognition_fields())
 
         save_path.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         logger.info("Psyche state saved to %s", save_path)
+
+    def _load_core_fields(self, data: dict) -> None:
+        """load: コア状態のフィールド群を復元する。"""
+        if "psyche" in data:
+            self._psyche = PsycheState.from_dict(data["psyche"])
+        if "loop_state" in data:
+            self._loop_state = LoopState.from_dict(data["loop_state"])
+        if "dynamics" in data and data["dynamics"]:
+            self._dynamics = DynamicsState.from_dict(data["dynamics"])
+        if "tick_count" in data:
+            self._tick_count = data["tick_count"]
+
+        # Version 4+ fields
+        if data.get("amplitude"):
+            self._amplitude_state = AmplitudeState.from_dict(data["amplitude"])
+        if data.get("value_orientation"):
+            self._value_orientation = ValueOrientation.from_dict(data["value_orientation"])
+
+        # Version 5+ fields
+        if data.get("tendency_state"):
+            self._tendency_sys._state = RepeatedTendencyState.from_dict(data["tendency_state"])
+        if data.get("vector_state"):
+            self._vector_gen._state = VectorState.from_dict(data["vector_state"])
+        if data.get("candidate_state"):
+            self._candidate_gen._state = CandidateState.from_dict(data["candidate_state"])
+        if data.get("transient_goal_state"):
+            self._transient_goal_mgr._state = TransientGoalState.from_dict(data["transient_goal_state"])
+        if data.get("stability_valve"):
+            self._stability_valve = StabilityValve.from_dict(data["stability_valve"])
+
+        # Version 6+ fields
+        if data.get("dispersion_state"):
+            self._dispersion_state = dispersion_from_dict(data["dispersion_state"])
+        if data.get("context_sensitivity_state"):
+            self._ctx_state = ContextState.from_dict(data["context_sensitivity_state"])
+        if data.get("last_coupling"):
+            self._last_coupling = CouplingInfluence.from_dict(data["last_coupling"])
+
+        # Version 7+ fields
+        if data.get("policy_expansion_state"):
+            self._policy_expander._state = ExpansionState.from_dict(data["policy_expansion_state"])
+
+        # Version 11+ fields
+        if data.get("spontaneous_state"):
+            self._spontaneous_processor._state = SpontaneousState.from_dict(data["spontaneous_state"])
+
+        # Version 12+ fields
+        if data.get("vo_validation_state"):
+            self._vo_validator._state = VOValidationState.from_dict(data["vo_validation_state"])
+
+        # Version 25+ fields
+        if data.get("persistent_commitment_state"):
+            self._persistent_commitment._state = PersistentCommitmentState.from_dict(data["persistent_commitment_state"])
+            self._persistent_commitment.validate_on_load()
+
+    def _load_self_recognition_fields(self, data: dict) -> None:
+        """load: 自己認識系のフィールド群を復元する。"""
+        if data.get("self_ref_state"):
+            self._self_ref_state = SelfReferenceState.from_dict(data["self_ref_state"])
+        if data.get("last_self_view"):
+            self._last_self_view = SelfStateView.from_dict(data["last_self_view"])
+        if data.get("tendency_awareness"):
+            self._tendency_awareness = TendencyAwareness.from_dict(data["tendency_awareness"])
+        if data.get("last_diff_summary"):
+            self._last_diff_summary = SelfDifferenceSummary.from_dict(data["last_diff_summary"])
+        if data.get("last_strain"):
+            self._last_strain = StrainState.from_dict(data["last_strain"])
+        if data.get("last_self_image"):
+            self._last_self_image = ProvisionalSelfImage.from_dict(data["last_self_image"])
+        if data.get("last_coherence"):
+            self._last_coherence = IdentityCoherenceState.from_dict(data["last_coherence"])
+        if data.get("last_narrative"):
+            self._last_narrative = NarrativeState.from_dict(data["last_narrative"])
+        if data.get("last_trace"):
+            self._last_trace = TraceLog.from_dict(data["last_trace"])
+        if data.get("last_consumption"):
+            self._last_consumption = ConsumptionStore.from_dict(data["last_consumption"])
+        if data.get("last_expectations"):
+            self._last_expectations = ExpectationStore.from_dict(data["last_expectations"])
+        if data.get("last_motives"):
+            self._last_motives = MotiveStore.from_dict(data["last_motives"])
+
+        # Version 17+ fields
+        if data.get("self_action_perception_state"):
+            self._self_action_recorder.state = SelfActionPerceptionState.from_dict(data["self_action_perception_state"])
+
+        # Version 19+ fields
+        if data.get("intent_action_gap_state"):
+            self._intent_action_gap_recorder.state = IntentActionGapState.from_dict(data["intent_action_gap_state"])
+
+        # Version 22+ fields
+        if data.get("introspection_cross_section_state"):
+            self._introspection_cross_section.load(data["introspection_cross_section_state"])
+
+        # Version 23+ fields
+        if data.get("selection_attribution_state"):
+            self._selection_attribution_recorder.state = SelectionAttributionState.from_dict(data["selection_attribution_state"])
+
+    def _load_memory_fields(self, data: dict) -> None:
+        """load: 記憶系のフィールド群を復元する。"""
+        if data.get("last_episodes"):
+            self._last_episodes = EpisodeStore.from_dict(data["last_episodes"])
+        if data.get("last_bindings"):
+            self._last_bindings = BindingStore.from_dict(data["last_bindings"])
+
+        # Version 8+ fields
+        if data.get("memory_integration_state"):
+            self._memory_integrator._state = IntegrationState.from_dict(data["memory_integration_state"])
+
+        # Version 13+ fields
+        if data.get("forgetting_fixation_state"):
+            self._forgetting_fixation_processor._state = ForgettingFixationState.from_dict(data["forgetting_fixation_state"])
+
+        # Version 14+ fields
+        if data.get("action_result_state"):
+            self._action_result_observer._state = ActionResultObservationState.from_dict(data["action_result_state"])
+
+        # Version 18+ fields
+        if data.get("expectation_action_diff_log"):
+            self._expectation_action_diff_log = data["expectation_action_diff_log"]
+
+        # Version 21+ fields
+        if data.get("multi_path_recall_state"):
+            self._multi_path_recall.state = MultiPathRecallState.from_dict(data["multi_path_recall_state"])
+
+        # Version 24+ fields
+        if data.get("reference_frequency_state"):
+            self._reference_frequency_state = ReferenceFrequencyState.from_dict(data["reference_frequency_state"])
+
+        # Version 28+ fields
+        if data.get("spontaneous_recall_state"):
+            self._spontaneous_recall.state = SpontaneousRecallState.from_dict(data["spontaneous_recall_state"])
+
+    def _load_other_model_fields(self, data: dict) -> None:
+        """load: 他者モデル系のフィールド群を復元する。"""
+        if data.get("last_other_model"):
+            self._last_other_model = OtherModelStore.from_dict(data["last_other_model"])
+        if data.get("input_supply"):
+            self._input_supply = InputSupplyState.from_dict(data["input_supply"])
+
+        # Version 9+ fields
+        if data.get("real_feed_state"):
+            self._real_feed_processor._state = RealFeedState.from_dict(data["real_feed_state"])
+
+        # Version 10+ fields
+        if data.get("text_dialogue_state"):
+            self._text_dialogue_processor._state = TextDialogueState.from_dict(data["text_dialogue_state"])
+
+        # Version 15+ fields
+        if data.get("dialogue_learning_state"):
+            self._dialogue_learning_processor._state = DialogueLearningState.from_dict(data["dialogue_learning_state"])
+
+        # Version 38+ fields
+        if data.get("other_boundary_accumulation_state"):
+            self._other_boundary_accumulation._state = OtherBoundaryAccumulationState.from_dict(data["other_boundary_accumulation_state"])
+            self._other_boundary_accumulation.state.apply_session_decay()
+
+        # Version 42+ fields
+        if data.get("hypothesis_observation_pairing_state"):
+            self._hypothesis_observation_pairing._state = HOPairingState.from_dict(data["hypothesis_observation_pairing_state"])
+
+    def _load_description_cognition_fields(self, data: dict) -> None:
+        """load: 記述・認知系のフィールド群を復元する。"""
+        # Version 16+ fields
+        if data.get("meta_emotion_state"):
+            self._meta_emotion_processor.state = MetaEmotionState.from_dict(data["meta_emotion_state"])
+            self._meta_emotion_processor.state.apply_session_decay()
+
+        # Version 20+ fields
+        if data.get("temporal_cognition_state"):
+            self._temporal_cognition.state = TemporalCognitionState.from_dict(data["temporal_cognition_state"])
+
+        # Version 22+ fields (perceptual_context)
+        if data.get("perceptual_context_state"):
+            self._perceptual_context.load(data["perceptual_context_state"])
+
+        # Version 26+ fields
+        if data.get("stabilization_description_state"):
+            self._stabilization_desc_state = StabilizationDescriptionState.from_dict(data["stabilization_description_state"])
+
+        # Version 27+ fields
+        if data.get("behavioral_diversity_state"):
+            self._behavioral_diversity_state = BehavioralDiversityState.from_dict(data["behavioral_diversity_state"])
+
+        # Version 29+ fields
+        if data.get("internal_contradiction_state"):
+            self._contradiction_processor.load(data["internal_contradiction_state"])
+
+        # Version 30+ fields
+        if data.get("interaction_accumulation_state"):
+            self._interaction_accumulation.state = InteractionAccumulationState.from_dict(data["interaction_accumulation_state"])
+
+        # Version 31+ fields
+        if data.get("emotional_backdrop_state"):
+            self._emotional_backdrop_processor.load(data["emotional_backdrop_state"])
+            self._emotional_backdrop_processor.state.apply_session_decay()
+
+        # Version 32+ fields
+        if data.get("situational_self_presentation_state"):
+            self._situational_self_presentation.state = SituationalSelfPresentationState.from_dict(data["situational_self_presentation_state"])
+            self._situational_self_presentation.state.apply_session_decay()
+
+        # Version 33+ fields
+        if data.get("drive_variation_state"):
+            self._drive_variation_processor.load(data["drive_variation_state"])
+            self._drive_variation_processor.state.apply_session_decay()
+
+        # Version 34+ fields
+        if data.get("expectation_lifecycle_state"):
+            self._expectation_lifecycle_processor.state = ExpectationLifecycleState.from_dict(data["expectation_lifecycle_state"])
+
+        # Version 35+ fields
+        if data.get("input_pathway_balance_state"):
+            self._input_pathway_balance_state = load_input_pathway_balance_state(data["input_pathway_balance_state"])
+
+        # Version 36+ fields
+        if data.get("responsibility_temporal_trace_state"):
+            self._responsibility_temporal_trace.load(data["responsibility_temporal_trace_state"])
+
+        # Version 37+ fields
+        if data.get("emotion_cooccurrence_state"):
+            self._emotion_cooccurrence_processor.load(data["emotion_cooccurrence_state"])
+            self._emotion_cooccurrence_processor.state.apply_session_decay()
+
+        # Version 39+ fields
+        if data.get("forgetting_recall_balance_state"):
+            self._frb_state = load_frb_state(data["forgetting_recall_balance_state"])
+
+        # Version 40+ fields
+        if data.get("attention_distribution_state"):
+            self._att_dist_state = load_att_dist_state(data["attention_distribution_state"])
+
+        # Version 41+ fields
+        if data.get("goal_hierarchy_propagation_state"):
+            self._goal_hierarchy_propagation.state = GoalHierarchyPropagationState.from_dict(data["goal_hierarchy_propagation_state"])
 
     def load(self, path: Optional[Path] = None) -> bool:
         """永続化された状態を復元する。
@@ -4841,225 +5207,11 @@ class PsycheOrchestrator:
 
         try:
             data = json.loads(load_path.read_text(encoding="utf-8"))
-            if "psyche" in data:
-                self._psyche = PsycheState.from_dict(data["psyche"])
-            if "loop_state" in data:
-                self._loop_state = LoopState.from_dict(data["loop_state"])
-            if "dynamics" in data and data["dynamics"]:
-                self._dynamics = DynamicsState.from_dict(data["dynamics"])
-            if "tick_count" in data:
-                self._tick_count = data["tick_count"]
-
-            # Version 4+ fields
-            if data.get("amplitude"):
-                self._amplitude_state = AmplitudeState.from_dict(data["amplitude"])
-            if data.get("value_orientation"):
-                self._value_orientation = ValueOrientation.from_dict(data["value_orientation"])
-            if data.get("self_ref_state"):
-                self._self_ref_state = SelfReferenceState.from_dict(data["self_ref_state"])
-            if data.get("last_self_view"):
-                self._last_self_view = SelfStateView.from_dict(data["last_self_view"])
-            if data.get("tendency_awareness"):
-                self._tendency_awareness = TendencyAwareness.from_dict(data["tendency_awareness"])
-            if data.get("last_diff_summary"):
-                self._last_diff_summary = SelfDifferenceSummary.from_dict(data["last_diff_summary"])
-            if data.get("last_strain"):
-                self._last_strain = StrainState.from_dict(data["last_strain"])
-            if data.get("last_self_image"):
-                self._last_self_image = ProvisionalSelfImage.from_dict(data["last_self_image"])
-            if data.get("last_coherence"):
-                self._last_coherence = IdentityCoherenceState.from_dict(data["last_coherence"])
-            if data.get("last_narrative"):
-                self._last_narrative = NarrativeState.from_dict(data["last_narrative"])
-            if data.get("last_episodes"):
-                self._last_episodes = EpisodeStore.from_dict(data["last_episodes"])
-            if data.get("last_bindings"):
-                self._last_bindings = BindingStore.from_dict(data["last_bindings"])
-            if data.get("last_trace"):
-                self._last_trace = TraceLog.from_dict(data["last_trace"])
-            if data.get("last_consumption"):
-                self._last_consumption = ConsumptionStore.from_dict(data["last_consumption"])
-            if data.get("last_expectations"):
-                self._last_expectations = ExpectationStore.from_dict(data["last_expectations"])
-            if data.get("last_motives"):
-                self._last_motives = MotiveStore.from_dict(data["last_motives"])
-            if data.get("last_other_model"):
-                self._last_other_model = OtherModelStore.from_dict(data["last_other_model"])
-            if data.get("input_supply"):
-                self._input_supply = InputSupplyState.from_dict(data["input_supply"])
-
-            # Version 5+ fields
-            if data.get("tendency_state"):
-                self._tendency_sys._state = RepeatedTendencyState.from_dict(data["tendency_state"])
-            if data.get("vector_state"):
-                self._vector_gen._state = VectorState.from_dict(data["vector_state"])
-            if data.get("candidate_state"):
-                self._candidate_gen._state = CandidateState.from_dict(data["candidate_state"])
-            if data.get("transient_goal_state"):
-                self._transient_goal_mgr._state = TransientGoalState.from_dict(data["transient_goal_state"])
-            if data.get("stability_valve"):
-                self._stability_valve = StabilityValve.from_dict(data["stability_valve"])
-
-            # Version 6+ fields
-            if data.get("dispersion_state"):
-                self._dispersion_state = dispersion_from_dict(data["dispersion_state"])
-            if data.get("context_sensitivity_state"):
-                self._ctx_state = ContextState.from_dict(data["context_sensitivity_state"])
-            if data.get("last_coupling"):
-                self._last_coupling = CouplingInfluence.from_dict(data["last_coupling"])
-
-            # Version 7+ fields
-            if data.get("policy_expansion_state"):
-                self._policy_expander._state = ExpansionState.from_dict(data["policy_expansion_state"])
-
-            # Version 8+ fields
-            if data.get("memory_integration_state"):
-                self._memory_integrator._state = IntegrationState.from_dict(data["memory_integration_state"])
-
-            # Version 9+ fields
-            if data.get("real_feed_state"):
-                self._real_feed_processor._state = RealFeedState.from_dict(data["real_feed_state"])
-
-            # Version 10+ fields
-            if data.get("text_dialogue_state"):
-                self._text_dialogue_processor._state = TextDialogueState.from_dict(data["text_dialogue_state"])
-
-            # Version 11+ fields
-            if data.get("spontaneous_state"):
-                self._spontaneous_processor._state = SpontaneousState.from_dict(data["spontaneous_state"])
-
-            # Version 12+ fields
-            if data.get("vo_validation_state"):
-                self._vo_validator._state = VOValidationState.from_dict(data["vo_validation_state"])
-
-            # Version 13+ fields
-            if data.get("forgetting_fixation_state"):
-                self._forgetting_fixation_processor._state = ForgettingFixationState.from_dict(data["forgetting_fixation_state"])
-
-            # Version 14+ fields
-            if data.get("action_result_state"):
-                self._action_result_observer._state = ActionResultObservationState.from_dict(data["action_result_state"])
-
-            # Version 15+ fields
-            if data.get("dialogue_learning_state"):
-                self._dialogue_learning_processor._state = DialogueLearningState.from_dict(data["dialogue_learning_state"])
-
-            # Version 16+ fields
-            if data.get("meta_emotion_state"):
-                self._meta_emotion_processor.state = MetaEmotionState.from_dict(data["meta_emotion_state"])
-                self._meta_emotion_processor.state.apply_session_decay()
-
-            # Version 17+ fields
-            if data.get("self_action_perception_state"):
-                self._self_action_recorder.state = SelfActionPerceptionState.from_dict(data["self_action_perception_state"])
-
-            # Version 18+ fields
-            if data.get("expectation_action_diff_log"):
-                self._expectation_action_diff_log = data["expectation_action_diff_log"]
-
-            # Version 19+ fields
-            if data.get("intent_action_gap_state"):
-                self._intent_action_gap_recorder.state = IntentActionGapState.from_dict(data["intent_action_gap_state"])
-
-            # Version 20+ fields
-            if data.get("temporal_cognition_state"):
-                self._temporal_cognition.state = TemporalCognitionState.from_dict(data["temporal_cognition_state"])
-
-            # Version 21+ fields
-            if data.get("multi_path_recall_state"):
-                self._multi_path_recall.state = MultiPathRecallState.from_dict(data["multi_path_recall_state"])
-
-            # Version 22+ fields
-            if data.get("introspection_cross_section_state"):
-                self._introspection_cross_section.load(data["introspection_cross_section_state"])
-            if data.get("perceptual_context_state"):
-                self._perceptual_context.load(data["perceptual_context_state"])
-
-            # Version 23+ fields
-            if data.get("selection_attribution_state"):
-                self._selection_attribution_recorder.state = SelectionAttributionState.from_dict(data["selection_attribution_state"])
-
-            # Version 24+ fields
-            if data.get("reference_frequency_state"):
-                self._reference_frequency_state = ReferenceFrequencyState.from_dict(data["reference_frequency_state"])
-
-            # Version 25+ fields
-            if data.get("persistent_commitment_state"):
-                self._persistent_commitment._state = PersistentCommitmentState.from_dict(data["persistent_commitment_state"])
-                self._persistent_commitment.validate_on_load()
-
-            # Version 26+ fields
-            if data.get("stabilization_description_state"):
-                self._stabilization_desc_state = StabilizationDescriptionState.from_dict(data["stabilization_description_state"])
-
-            # Version 27+ fields
-            if data.get("behavioral_diversity_state"):
-                self._behavioral_diversity_state = BehavioralDiversityState.from_dict(data["behavioral_diversity_state"])
-
-            # Version 28+ fields
-            if data.get("spontaneous_recall_state"):
-                self._spontaneous_recall.state = SpontaneousRecallState.from_dict(data["spontaneous_recall_state"])
-
-            # Version 29+ fields
-            if data.get("internal_contradiction_state"):
-                self._contradiction_processor.load(data["internal_contradiction_state"])
-
-            # Version 30+ fields
-            if data.get("interaction_accumulation_state"):
-                self._interaction_accumulation.state = InteractionAccumulationState.from_dict(data["interaction_accumulation_state"])
-
-            # Version 31+ fields
-            if data.get("emotional_backdrop_state"):
-                self._emotional_backdrop_processor.load(data["emotional_backdrop_state"])
-                self._emotional_backdrop_processor.state.apply_session_decay()
-
-            # Version 32+ fields
-            if data.get("situational_self_presentation_state"):
-                self._situational_self_presentation.state = SituationalSelfPresentationState.from_dict(data["situational_self_presentation_state"])
-                self._situational_self_presentation.state.apply_session_decay()
-
-            # Version 33+ fields
-            if data.get("drive_variation_state"):
-                self._drive_variation_processor.load(data["drive_variation_state"])
-                self._drive_variation_processor.state.apply_session_decay()
-
-            # Version 34+ fields
-            if data.get("expectation_lifecycle_state"):
-                self._expectation_lifecycle_processor.state = ExpectationLifecycleState.from_dict(data["expectation_lifecycle_state"])
-
-            # Version 35+ fields
-            if data.get("input_pathway_balance_state"):
-                self._input_pathway_balance_state = load_input_pathway_balance_state(data["input_pathway_balance_state"])
-
-            # Version 36+ fields
-            if data.get("responsibility_temporal_trace_state"):
-                self._responsibility_temporal_trace.load(data["responsibility_temporal_trace_state"])
-
-            # Version 37+ fields
-            if data.get("emotion_cooccurrence_state"):
-                self._emotion_cooccurrence_processor.load(data["emotion_cooccurrence_state"])
-                self._emotion_cooccurrence_processor.state.apply_session_decay()
-
-            # Version 38+ fields
-            if data.get("other_boundary_accumulation_state"):
-                self._other_boundary_accumulation._state = OtherBoundaryAccumulationState.from_dict(data["other_boundary_accumulation_state"])
-                self._other_boundary_accumulation.state.apply_session_decay()
-
-            # Version 39+ fields
-            if data.get("forgetting_recall_balance_state"):
-                self._frb_state = load_frb_state(data["forgetting_recall_balance_state"])
-
-            # Version 40+ fields
-            if data.get("attention_distribution_state"):
-                self._att_dist_state = load_att_dist_state(data["attention_distribution_state"])
-
-            # Version 41+ fields
-            if data.get("goal_hierarchy_propagation_state"):
-                self._goal_hierarchy_propagation.state = GoalHierarchyPropagationState.from_dict(data["goal_hierarchy_propagation_state"])
-
-            # Version 42+ fields
-            if data.get("hypothesis_observation_pairing_state"):
-                self._hypothesis_observation_pairing._state = HOPairingState.from_dict(data["hypothesis_observation_pairing_state"])
+            self._load_core_fields(data)
+            self._load_self_recognition_fields(data)
+            self._load_memory_fields(data)
+            self._load_other_model_fields(data)
+            self._load_description_cognition_fields(data)
 
             # Session boundary freshness: compute gap from saved timestamp
             saved_ts = data.get("save_timestamp")

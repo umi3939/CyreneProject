@@ -346,11 +346,11 @@ class TestBandIsolation:
         with pytest.raises(ValueError):
             engine.register_handler("1", MagicMock())
 
-    def test_cannot_register_3tick_phase(self):
-        """EVERY_3_TICKS帯域のPhaseを登録できないこと。"""
+    def test_can_register_3tick_phase(self):
+        """段階3: EVERY_3_TICKS帯域のPhaseを登録できること。"""
         engine = PhaseExecutionEngine()
-        with pytest.raises(ValueError):
-            engine.register_handler("8", MagicMock())
+        engine.register_handler("8", MagicMock())
+        assert "8" in engine.get_band_registered_phase_ids(Band.EVERY_3_TICKS)
 
     def test_cannot_register_5tick_phase(self):
         """EVERY_5_TICKS帯域のPhaseを登録できないこと。"""

@@ -656,8 +656,9 @@ from .enrichment_compression import (
     ORIGINAL_FOOTER,
 )
 
-# Phase execution engine (段階2: 10ティック帯域の宣言的実行エンジン)
-from .phase_execution_engine import PhaseExecutionEngine
+# Phase execution engine (段階3: 帯域横断の宣言的実行エンジン)
+# Band列挙値はエンジンモジュール経由で取得
+from .phase_execution_engine import PhaseExecutionEngine, Band
 
 # 5-tick band phases (物理的分離: Phase 15-26)
 from .orchestrator_5tick_phases import run_every_5_ticks as _run_5tick_phases
@@ -1425,12 +1426,32 @@ class PsycheOrchestrator:
         self._last_sensitivity_bias: Optional[SensitivityBias] = None
         self._last_has_silence: bool = False
 
-        # ── Phase execution engine (段階2: 10ティック帯域の宣言的実行) ──
+        # ── Phase execution engine (段階3: 帯域横断の宣言的実行) ──
         # save/load非影響・enrichment非接続。永続化しない。
+        # 対象帯域: 10ティック帯域（段階2から継続）+ 3ティック帯域（段階3で追加）
         self._phase_engine = PhaseExecutionEngine()
+        # 10ティック帯域ハンドラ（段階2から継続）
         self._phase_engine.register_handler("27", self._phase27_handler)
         self._phase_engine.register_handler("28", self._phase28_handler)
         self._phase_engine.register_handler("29", self._phase29_handler)
+        # 3ティック帯域ハンドラ（段階3で追加: 17 Phase）
+        self._phase_engine.register_handler("8", self._phase8_handler)
+        self._phase_engine.register_handler("9", self._phase9_handler)
+        self._phase_engine.register_handler("10", self._phase10_handler)
+        self._phase_engine.register_handler("11", self._phase11_handler)
+        self._phase_engine.register_handler("12", self._phase12_handler)
+        self._phase_engine.register_handler("12b", self._phase12b_handler)
+        self._phase_engine.register_handler("13", self._phase13_handler)
+        self._phase_engine.register_handler("14", self._phase14_handler)
+        self._phase_engine.register_handler("14b", self._phase14b_handler)
+        self._phase_engine.register_handler("14c", self._phase14c_handler)
+        self._phase_engine.register_handler("14d", self._phase14d_handler)
+        self._phase_engine.register_handler("14e", self._phase14e_handler)
+        self._phase_engine.register_handler("14f", self._phase14f_handler)
+        self._phase_engine.register_handler("14g", self._phase14g_handler)
+        self._phase_engine.register_handler("14h", self._phase14h_handler)
+        self._phase_engine.register_handler("14i", self._phase14i_handler)
+        self._phase_engine.register_handler("14j", self._phase14j_handler)
 
         # ── Execution monitor (実運用向けログ・モニタリング基盤) ──
         # 永続化対象外。save/loadフィールド追加なし。
@@ -1808,7 +1829,34 @@ class PsycheOrchestrator:
     # ── Phase 8-14: Every 3 ticks ────────────────────────────────
 
     def _run_every_3_ticks(self, user_id: str) -> None:
-        """3ティック毎の自己モデル + 目標フェーズ (Phase 8-14)."""
+        """3ティック毎の自己モデル + 目標フェーズ (Phase 8-14).
+
+        実行エンジンが有効な場合は宣言的定義に基づいて駆動し、
+        無効な場合は既存の手続き的コードにフォールバックする。
+        外部から見た呼び出しインターフェースは不変。
+        """
+        if self._phase_engine.is_band_enabled(Band.EVERY_3_TICKS):
+            # 宣言的実行エンジンによる駆動
+            self._phase_engine.execute_band(self, user_id, band=Band.EVERY_3_TICKS)
+        else:
+            # フォールバック: 既存の手続き的コード
+            self._run_every_3_ticks_fallback(user_id)
+
+        # 帯域末尾のデバッグログ出力（エンジン/フォールバック共通）
+        logger.debug(
+            "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
+            self._tick_count,
+            "ok" if self._last_self_view else "none",
+            len(self._vector_gen.state.vectors) if self._vector_gen else 0,
+            "ok" if self._last_motives else "none",
+        )
+
+    def _run_every_3_ticks_fallback(self, user_id: str) -> None:
+        """3ティック帯域のフォールバック実行（既存手続き的コード）.
+
+        実行エンジン無効化時に使用される。
+        実行エンジンの安定性が確認された後の段階で除去を検討する（本設計の範囲外）。
+        """
 
         # Phase 8: tendency_awareness
         try:
@@ -1891,8 +1939,6 @@ class PsycheOrchestrator:
             logger.debug("Intrinsic motivation skipped: %s", e)
 
         # Phase 14b: meta_emotion_cognition — メタ感情認知と変動候補生成
-        # 3ティック毎の低頻度処理帯に配置（設計書の指示通り）。
-        # 感情処理パイプラインのパラメータを一切変更しない（READ-ONLY参照のみ）。
         try:
             me_inputs = self._build_meta_emotion_inputs()
             self._last_meta_emotion = self._meta_emotion_processor.tick(me_inputs)
@@ -1900,8 +1946,6 @@ class PsycheOrchestrator:
             logger.debug("Meta-emotion cognition skipped: %s", e)
 
         # Phase 14c: temporal_cognition — 多断面特徴量の記述（3ティック毎）
-        # 各モジュールからの統計参照はREAD-ONLYアクセサのみ使用。
-        # 出力が他モジュールの処理パラメータを変更する経路を作らない。
         try:
             # エピソード記憶のタイムスタンプ（READ-ONLY）
             ep_timestamps: list[float] = []
@@ -1928,18 +1972,12 @@ class PsycheOrchestrator:
                 pass
 
             # 帯域別キャッシュ鮮度情報の算出（READ-ONLY）
-            # 各帯域の最終発火ティックを_tick_countとの差分で算出。
-            # 帯域の発火条件: every_tick=毎回, every_3=% 3 == 0, every_5=% 5 == 0, every_10=% 10 == 0
             band_freshness_info: dict[str, int] = {}
             try:
                 tc = self._tick_count
-                # every_tick: 毎ティック発火なので経過は常に0
                 band_freshness_info["every_tick"] = 0
-                # every_3: 最後に % 3 == 0 だったティックからの経過
                 band_freshness_info["every_3"] = tc % 3
-                # every_5: 最後に % 5 == 0 だったティックからの経過
                 band_freshness_info["every_5"] = tc % 5
-                # every_10: 最後に % 10 == 0 だったティックからの経過
                 band_freshness_info["every_10"] = tc % 10
             except Exception:
                 band_freshness_info = {}
@@ -1954,9 +1992,6 @@ class PsycheOrchestrator:
             logger.debug("Temporal cognition describe skipped: %s", e)
 
         # Phase 14d: introspection_cross_section — 内省断面のスナップショット構成（3ティック毎）
-        # orchestratorが持つ6モジュールのキャッシュ出力を束ねて渡す。
-        # 横断的記述 = 並置（juxtaposition）であり、統合（integration）ではない。
-        # 出力は参照情報としてのみ流れる。
         try:
             ics_module_outputs = {
                 ICS_SELF_MODEL: (
@@ -1992,18 +2027,12 @@ class PsycheOrchestrator:
             logger.debug("Introspection cross-section skipped: %s", e)
 
         # Phase 14e: perceptual_context — 知覚推移特徴量の記述（3ティック毎）
-        # ウィンドウ内の既存データに基づいて4断面の段階値を記述する。
-        # 出力は参照情報としてのみ流れる。
         try:
             self._perceptual_context.describe_features()
         except Exception as e:
             logger.debug("Perceptual context describe skipped: %s", e)
 
         # Phase 14f: internal_contradiction_description — 内部状態の矛盾並置の構造的記述（3ティック毎）
-        # 複数の内省系モジュールの出力を READ-ONLY で参照し、数値的に反対方向を同時に
-        # 示している断面対を検出し、解消せず、評価せず、そのまま対として記述する。
-        # 矛盾を解消しない。矛盾に優先度を付けない。矛盾を評価しない。パターンを抽出しない。
-        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
         try:
             contradiction_inputs = self._build_contradiction_inputs()
             self._last_contradiction_result = self._contradiction_processor.process(
@@ -2013,9 +2042,6 @@ class PsycheOrchestrator:
             logger.debug("Internal contradiction description skipped: %s", e)
 
         # Phase 14g: emotional_backdrop_cognition — 感情基調の持続認知（3ティック毎）
-        # 感情状態の時系列をより広い時間窓で観測し、窓内の構成を等価に記述する。
-        # 感情処理パイプラインのパラメータを一切変更しない（READ-ONLY参照のみ）。
-        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
         try:
             backdrop_inputs = self._build_backdrop_inputs()
             self._last_backdrop_result = self._emotional_backdrop_processor.tick(backdrop_inputs)
@@ -2023,11 +2049,6 @@ class PsycheOrchestrator:
             logger.debug("Emotional backdrop cognition skipped: %s", e)
 
         # Phase 14h: introspection_longitudinal_view — 内省の時間的縦断参照（3ティック毎）
-        # 横断的記述のスナップショットウィンドウを唯一の入力源として、
-        # 断面別の時系列並置に変換する薄い変換層。
-        # 独自の永続的内部状態を保持しない。
-        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
-        # introspection_cross_section（Phase 14d）の後に配置する。
         try:
             ilv_snapshots = self._introspection_cross_section.get_snapshot_window()
             self._introspection_longitudinal_view.process(ilv_snapshots)
@@ -2035,10 +2056,6 @@ class PsycheOrchestrator:
             logger.debug("Introspection longitudinal view skipped: %s", e)
 
         # Phase 14i: drive_variation_description — 駆動の変動記述（3ティック毎）
-        # 駆動ベクトルの時間的推移をスライディングウィンドウで収集し、
-        # 窓内の構成を等価に列挙する記述構造。
-        # 駆動値・反応処理パラメータ・動機生成・ポリシー候補・感情パイプラインのパラメータを一切変更しない（READ-ONLY参照のみ）。
-        # 出力は参照情報としてのみ流れる。判断・行動・責任の各処理系統に接続しない。
         try:
             dv_inputs = self._build_drive_variation_inputs()
             self._last_drive_variation_result = self._drive_variation_processor.tick(dv_inputs)
@@ -2046,24 +2063,11 @@ class PsycheOrchestrator:
             logger.debug("Drive variation description skipped: %s", e)
 
         # Phase 14j: emotion_cooccurrence_description — 感情間の共起記述（3ティック毎）
-        # 毎ティックにおいて同時に閾値以上で存在した感情の組み合わせを、
-        # 事実としてFIFOに等価蓄積する。
-        # 感情処理パイプラインのパラメータ（減衰率、振幅、ムード、連動設定）を一切変更しない（READ-ONLY参照のみ）。
-        # 出力は参照情報としてのみ流れる。判断・行動・責任・ポリシー選択に接続しない。
-        # 設計書: 実行位置は「感情処理パイプライン完了後」かつ「enrichment構築前」。
         try:
             emo_values = self._psyche.emotions.as_dict()
             self._last_cooccurrence_result = self._emotion_cooccurrence_processor.tick(emo_values)
         except Exception as e:
             logger.debug("Emotion cooccurrence description skipped: %s", e)
-
-        logger.debug(
-            "Tick %d every-3: self_model=%s, goals=%d vectors, motives=%s",
-            self._tick_count,
-            "ok" if self._last_self_view else "none",
-            len(self._vector_gen.state.vectors) if self._vector_gen else 0,
-            "ok" if self._last_motives else "none",
-        )
 
     # ── Phase 15-26: Every 5 ticks ───────────────────────────────
     # 処理実行コードは psyche/orchestrator_5tick_phases.py に物理的に分離済み。
@@ -2072,6 +2076,255 @@ class PsycheOrchestrator:
     def _run_every_5_ticks(self, user_id: str) -> None:
         """5ティック毎の自己連続性 + 記憶 + 内省フェーズ (Phase 15-26)."""
         _run_5tick_phases(self, user_id)
+
+    # ── Phase 8-14j: 3ティック帯域ハンドラ ────────────────────────
+    # 実行エンジンから呼び出される個別Phase処理関数。
+    # 処理の「中身」は既存の手続き的コードをそのまま保持する。
+    # 統合管理構造インスタンスと追加引数を受け取る共通インターフェース。
+
+    def _phase8_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 8: tendency_awareness — 傾向認知。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        self._tendency_awareness = observe_tendencies(self._tendency_sys)
+
+    def _phase9_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 9: self_model — 統合自己ビュー。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        resp_state = self._responsibility_mgr.get_state(user_id)
+        self._last_self_view = self._self_model_sys.observe(
+            emotion_vector=self._psyche.emotions,
+            responsibility_state=resp_state,
+            tendency_system=self._tendency_sys,
+            tendency_awareness=self._tendency_awareness,
+            proto_goal_system=self._vector_gen,
+            value_orientation=self._value_orientation,
+        )
+
+    def _phase10_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 10: proto_goal_vector — 方向ベクトル更新。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        resp_influence = self._responsibility_mgr.get_influence(user_id)
+        self._vector_gen.observe_turn(
+            value_orientation=self._value_orientation,
+            introspection_trace=self._last_trace,
+            responsibility_pattern={
+                "caution": resp_influence.caution_bias,
+                "empathy": resp_influence.empathy_bias,
+            },
+            emotion_tendency=self._psyche.emotions.as_dict(),
+        )
+
+    def _phase11_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 11: goal_candidates — 目標候補生成。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        vectors = self._vector_gen.state.vectors
+        self._candidate_gen.observe_vectors(vectors)
+
+    def _phase12_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 12: transient_goal — 一時目標選択。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        candidates_list = self._candidate_gen.state.candidates
+        self._transient_goal_mgr.observe_turn(
+            available_candidates=candidates_list,
+        )
+
+    def _phase12b_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 12b: persistent_commitment — 持続的取り組み保持。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        self._run_persistent_commitment()
+
+    def _phase13_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 13: scoped_goal — スコープ目標コミット。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        self._scoped_goal_sys.begin_turn(
+            transient_manager=self._transient_goal_mgr,
+            active_goal=self._transient_goal_mgr.state.active_goal,
+        )
+
+    def _phase14_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14: intrinsic_motivation — 内的動機感知。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        self._last_motives = sense_motives_from_chain(
+            system=self._motivation_sys,
+            emotion=self._psyche.emotions,
+            mood=self._psyche.mood,
+            tendencies=self._tendency_sys.state.tendencies if self._tendency_sys else None,
+            vectors=self._vector_gen.state.vectors if self._vector_gen else None,
+            candidates=self._candidate_gen.state.candidates if self._candidate_gen else None,
+        )
+
+    def _phase14b_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14b: meta_emotion_cognition — メタ感情認知と変動候補生成。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        me_inputs = self._build_meta_emotion_inputs()
+        self._last_meta_emotion = self._meta_emotion_processor.tick(me_inputs)
+
+    def _phase14c_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14c: temporal_cognition — 多断面特徴量の記述。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        # エピソード記憶のタイムスタンプ（READ-ONLY）
+        ep_timestamps: list[float] = []
+        try:
+            if self._last_episodes is not None and self._last_episodes.has_episodes:
+                ep_timestamps = [ep.timestamp for ep in self._last_episodes.episodes]
+        except Exception:
+            pass
+
+        # 感情変動回数: dynamics の phase_turn_count を参照（READ-ONLY）
+        emotion_change_count = 0
+        try:
+            if self._dynamics is not None:
+                emotion_change_count = self._dynamics.phase_turn_count
+        except Exception:
+            pass
+
+        # 自己物語断片のタイムスタンプ（READ-ONLY）
+        narr_timestamps: list[float] = []
+        try:
+            if self._last_narrative is not None and self._last_narrative.has_fragments:
+                narr_timestamps = [f.timestamp for f in self._last_narrative.fragments]
+        except Exception:
+            pass
+
+        # 帯域別キャッシュ鮮度情報の算出（READ-ONLY）
+        band_freshness_info: dict[str, int] = {}
+        try:
+            tc = self._tick_count
+            band_freshness_info["every_tick"] = 0
+            band_freshness_info["every_3"] = tc % 3
+            band_freshness_info["every_5"] = tc % 5
+            band_freshness_info["every_10"] = tc % 10
+        except Exception:
+            band_freshness_info = {}
+
+        self._temporal_cognition.describe_features(
+            episodic_timestamps=ep_timestamps or None,
+            emotion_change_count=emotion_change_count,
+            narrative_timestamps=narr_timestamps or None,
+            band_freshness=band_freshness_info or None,
+        )
+
+    def _phase14d_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14d: introspection_cross_section — 内省断面のスナップショット構成。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        ics_module_outputs = {
+            ICS_SELF_MODEL: (
+                get_self_model_summary(self._last_self_view)
+                if self._last_self_view else None
+            ),
+            ICS_TEMPORAL_DIFF: (
+                get_difference_summary(self._last_diff_summary)
+                if self._last_diff_summary else None
+            ),
+            ICS_IDENTITY_COHERENCE: (
+                get_coherence_summary(self._last_coherence)
+                if self._last_coherence else None
+            ),
+            ICS_SELF_NARRATIVE: (
+                get_narrative_summary(self._last_narrative)
+                if self._last_narrative else None
+            ),
+            ICS_INTROSPECTION_CONSUMPTION: (
+                get_consumption_summary(self._last_consumption)
+                if self._last_consumption else None
+            ),
+            ICS_META_EMOTION: (
+                get_meta_emotion_summary(self._meta_emotion_processor.state)
+                if self._last_meta_emotion else None
+            ),
+        }
+        self._introspection_cross_section.process(
+            module_outputs=ics_module_outputs,
+            tick=self._tick_count,
+        )
+
+    def _phase14e_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14e: perceptual_context — 知覚推移特徴量の記述。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        self._perceptual_context.describe_features()
+
+    def _phase14f_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14f: internal_contradiction_description — 矛盾並置記述。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        contradiction_inputs = self._build_contradiction_inputs()
+        self._last_contradiction_result = self._contradiction_processor.process(
+            contradiction_inputs
+        )
+
+    def _phase14g_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14g: emotional_backdrop_cognition — 感情基調の持続認知。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        backdrop_inputs = self._build_backdrop_inputs()
+        self._last_backdrop_result = self._emotional_backdrop_processor.tick(backdrop_inputs)
+
+    def _phase14h_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14h: introspection_longitudinal_view — 内省の時間的縦断参照。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        ilv_snapshots = self._introspection_cross_section.get_snapshot_window()
+        self._introspection_longitudinal_view.process(ilv_snapshots)
+
+    def _phase14i_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14i: drive_variation_description — 駆動の変動記述。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        dv_inputs = self._build_drive_variation_inputs()
+        self._last_drive_variation_result = self._drive_variation_processor.tick(dv_inputs)
+
+    def _phase14j_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 14j: emotion_cooccurrence_description — 感情間の共起記述。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        emo_values = self._psyche.emotions.as_dict()
+        self._last_cooccurrence_result = self._emotion_cooccurrence_processor.tick(emo_values)
 
     # ── Phase 27-29: Every 10 ticks ──────────────────────────────
 

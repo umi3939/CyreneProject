@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import time
+from collections import deque
 from typing import Any, Optional
 
 # 独自ログ名前空間(既存ログとの混在防止)
@@ -127,6 +128,11 @@ class ExecutionMonitor:
         # ── セッション開始時刻 ──
         self._session_start_time: float = time.time()
 
+        # ── enrichment分布モニター(セッション境界で消失) ──
+        self._enrichment_dist: EnrichmentDistributionMonitor = (
+            EnrichmentDistributionMonitor()
+        )
+
     @property
     def enabled(self) -> bool:
         """モニタリングが有効かどうか。"""
@@ -166,6 +172,41 @@ class ExecutionMonitor:
     def last_compression_chars(self) -> tuple[int, int]:
         """直近の圧縮前後文字数(圧縮前, 圧縮後)。"""
         return self._last_compression_chars
+
+    @property
+    def enrichment_distribution(self) -> "EnrichmentDistributionMonitor":
+        """enrichment分布モニター(読み取り専用アクセサ)。"""
+        return self._enrichment_dist
+
+    # ── enrichment分布の記録 ────────────────────────────────────────
+
+    def record_enrichment_distribution(
+        self,
+        tick_count: int,
+        sections_data: list[dict],
+        compressed_text: str,
+    ) -> None:
+        """enrichment項目の出力分布を記述・記録する。
+
+        enrichment項目収集完了後かつ圧縮パイプライン適用後に呼び出す。
+
+        Args:
+            tick_count: 現在のティックカウント
+            sections_data: セクション定義のリスト
+            compressed_text: 圧縮パイプライン適用後のテキスト全体
+        """
+        if not self._enabled:
+            return
+        try:
+            self._enrichment_dist.record_enrichment_distribution(
+                tick_count=tick_count,
+                sections_data=sections_data,
+                compressed_text=compressed_text,
+                monitor=self,
+            )
+        except Exception:
+            # 安全弁1
+            pass
 
     # ── 帯域実行時間の記録 ────────────────────────────────────────
 
@@ -918,6 +959,397 @@ def read_orchestrator_fields(orchestrator: Any) -> dict[str, Any]:
         fields["_read_error"] = "top_level_error"
 
     return fields
+
+
+# ── EnrichmentDistributionMonitor ──────────────────────────────────
+#
+# enrichment項目の出力分布記述と構造的監視。
+# 設計書: design_enrichment_monitoring.md
+#
+# 本機能の構造的分離:
+# - enrichment項目の出力を読み取り専用で観測する(一方向のデータフロー)
+# - enrichmentテキスト、圧縮パイプライン、psycheモジュール、
+#   判断・行動の選択に出力を供給する経路が存在しない
+# - 出力先は既存の観測記録基盤(ExecutionMonitor)と読み取り専用アクセサのみ
+# - psycheモジュールの内部状態を一切変更しない
+# - save/loadの対象フィールドに一切追加しない
+# - orchestratorのPhase処理に組み込まれない
+#
+# 安全弁:
+# 1. 計測失敗時の安全な無視(例外を捕捉しスキップ)
+# 2. 時間窓の上限によるメモリ制御(FIFOリスト上限)
+# 3. 重複検出の計算量制御(比較回数上限)
+# 4. 記録出力量の制限(既存の出力量制御機構に従う)
+# 5. 環境変数による完全無効化(既存の観測機構と同一)
+# 6. 永続化の非対象(全内部状態はセッション境界で消失)
+# 7. psycheモジュール非変更
+
+
+# 既知の空パターン(enrichment_compression.pyの空状態検出と整合)
+_KNOWN_EMPTY_PATTERNS: frozenset[str] = frozenset({
+    "",
+    "(なし)",
+    "(空)",
+    "(蓄積前)",
+    "(未蓄積)",
+    "(安定)",
+})
+
+# 分布履歴FIFOのデフォルト上限
+_DISTRIBUTION_HISTORY_DEFAULT_MAX = 100
+
+# 重複検出の比較回数上限(安全弁3)
+_DUPLICATE_COMPARISON_LIMIT = 500
+
+# 重複検出間隔(ティック数)
+_DUPLICATE_CHECK_INTERVAL = 10
+
+# 部分一致判定の閾値(文字列長に対する共通部分の比率)
+_DUPLICATE_SIMILARITY_THRESHOLD = 0.8
+
+# スナップショット時の項目別詳細出力間隔(ティック数)
+_ITEM_DETAIL_SNAPSHOT_INTERVAL = 10
+
+
+class EnrichmentDistributionMonitor:
+    """enrichment項目の出力分布記述と構造的監視。
+
+    ExecutionMonitorと統合して動作し、enrichment項目の出力特性を
+    観測・記述する。psyche内部には一切の変更を加えない外部観測ツール。
+
+    全内部状態はインスタンス破棄時に消失する(永続化対象外)。
+    """
+
+    def __init__(
+        self,
+        history_max: int = _DISTRIBUTION_HISTORY_DEFAULT_MAX,
+        duplicate_check_interval: int = _DUPLICATE_CHECK_INTERVAL,
+        item_detail_interval: int = _ITEM_DETAIL_SNAPSHOT_INTERVAL,
+    ) -> None:
+        """初期化。
+
+        Args:
+            history_max: 分布履歴FIFOの上限サイズ(安全弁2)
+            duplicate_check_interval: 重複検出の実行間隔(ティック数)
+            item_detail_interval: 項目別詳細の出力間隔(ティック数)
+        """
+        # (a) 前回テキストキャッシュ: ラベル→直前ティックの出力テキスト
+        self._prev_texts: dict[str, str] = {}
+
+        # (b) 時間窓内の分布履歴: FIFO
+        self._history: deque[dict[str, Any]] = deque(maxlen=max(1, history_max))
+
+        # (c) 項目別累積カウンタ: ラベル→{non_empty, changed, observed}
+        self._item_counters: dict[str, dict[str, int]] = {}
+
+        # (d) 重複検出結果キャッシュ
+        self._duplicate_pairs: list[tuple[str, str, float]] = []
+        self._last_duplicate_check_tick: int = 0
+        self._duplicate_check_interval = max(1, duplicate_check_interval)
+
+        # 項目別詳細出力間隔
+        self._item_detail_interval = max(1, item_detail_interval)
+        self._last_item_detail_tick: int = 0
+
+        # 観測ティック数
+        self._observation_count: int = 0
+
+    @property
+    def observation_count(self) -> int:
+        """観測したティック数。"""
+        return self._observation_count
+
+    @property
+    def history(self) -> list[dict[str, Any]]:
+        """時間窓内の分布履歴(読み取り専用コピー)。"""
+        return list(self._history)
+
+    @property
+    def item_counters(self) -> dict[str, dict[str, int]]:
+        """項目別累積カウンタ(読み取り専用コピー)。"""
+        return {k: dict(v) for k, v in self._item_counters.items()}
+
+    @property
+    def duplicate_pairs(self) -> list[tuple[str, str, float]]:
+        """直近の重複検出結果(読み取り専用コピー)。"""
+        return list(self._duplicate_pairs)
+
+    def record_enrichment_distribution(
+        self,
+        tick_count: int,
+        sections_data: list[dict],
+        compressed_text: str,
+        monitor: Optional["ExecutionMonitor"] = None,
+    ) -> None:
+        """enrichment項目の出力分布を記述・記録する。
+
+        第1段(項目別出力特性記述)→第2段(集計)→第3段(履歴蓄積+重複検出)を
+        順に実行する。
+
+        Args:
+            tick_count: 現在のティックカウント
+            sections_data: セクション定義のリスト。各要素は:
+                {"header": str, "items": list[tuple[str, str]]}
+            compressed_text: 圧縮パイプライン適用後のテキスト全体
+            monitor: 親のExecutionMonitorインスタンス(ログ出力用)
+        """
+        try:
+            self._observation_count += 1
+
+            # ── 第1段: 項目別の出力特性記述 ──
+            item_details: list[dict[str, Any]] = []
+            section_summaries: list[dict[str, Any]] = []
+
+            for section in sections_data:
+                header = section.get("header", "")
+                items = section.get("items", [])
+                section_non_empty = 0
+                section_changed = 0
+                section_total = len(items)
+
+                for label, text in items:
+                    # 空判定
+                    is_empty = self._is_empty(text)
+                    non_empty = not is_empty
+
+                    # 変動判定(前回テキストとの文字列同一性比較)
+                    changed = False
+                    if label in self._prev_texts:
+                        changed = (self._prev_texts[label] != text)
+                    else:
+                        # 初回観測は変動扱い
+                        changed = True
+
+                    # テキスト長
+                    text_len = len(text)
+
+                    # 項目別詳細
+                    item_details.append({
+                        "label": label,
+                        "section": header,
+                        "non_empty": non_empty,
+                        "changed": changed,
+                        "text_length": text_len,
+                    })
+
+                    # 累積カウンタ更新
+                    if label not in self._item_counters:
+                        self._item_counters[label] = {
+                            "non_empty": 0,
+                            "changed": 0,
+                            "observed": 0,
+                        }
+                    self._item_counters[label]["observed"] += 1
+                    if non_empty:
+                        self._item_counters[label]["non_empty"] += 1
+                        section_non_empty += 1
+                    if changed:
+                        self._item_counters[label]["changed"] += 1
+                        section_changed += 1
+
+                    # 前回テキストキャッシュ更新(1ティック分のみ)
+                    self._prev_texts[label] = text
+
+                section_summaries.append({
+                    "header": header,
+                    "non_empty": section_non_empty,
+                    "changed": section_changed,
+                    "total": section_total,
+                })
+
+            # ── 第2段: 全体集計 ──
+            total_items = sum(s["total"] for s in section_summaries)
+            total_non_empty = sum(s["non_empty"] for s in section_summaries)
+            total_changed = sum(s["changed"] for s in section_summaries)
+            compressed_chars = len(compressed_text)
+
+            # ── 第3段: 履歴蓄積 ──
+            history_entry: dict[str, Any] = {
+                "tick": tick_count,
+                "sections": section_summaries,
+                "total_items": total_items,
+                "total_non_empty": total_non_empty,
+                "total_changed": total_changed,
+                "compressed_chars": compressed_chars,
+            }
+            self._history.append(history_entry)
+
+            # 重複検出(一定間隔で実行)
+            if (tick_count - self._last_duplicate_check_tick
+                    >= self._duplicate_check_interval):
+                self._detect_duplicates(sections_data, tick_count)
+
+            # ── ログ出力 ──
+            if monitor and monitor.enabled:
+                # 通常ティック: セクション別集計のみ
+                summary_record = {
+                    "type": "enrichment_distribution",
+                    "timestamp": time.time(),
+                    "tick_count": tick_count,
+                    "total_items": total_items,
+                    "total_non_empty": total_non_empty,
+                    "total_changed": total_changed,
+                    "compressed_chars": compressed_chars,
+                    "sections": section_summaries,
+                }
+                monitor._emit_json(summary_record)
+
+                # 項目別詳細はスナップショット間隔でのみ出力(記録出力量の制御)
+                if (tick_count - self._last_item_detail_tick
+                        >= self._item_detail_interval):
+                    self._last_item_detail_tick = tick_count
+                    detail_record = {
+                        "type": "enrichment_item_detail",
+                        "timestamp": time.time(),
+                        "tick_count": tick_count,
+                        "items": item_details,
+                    }
+                    monitor._emit_json(detail_record)
+
+                # 重複検出結果がある場合に出力
+                if self._duplicate_pairs:
+                    dup_record = {
+                        "type": "enrichment_duplicate_pairs",
+                        "timestamp": time.time(),
+                        "tick_count": tick_count,
+                        "pairs": [
+                            {"label_a": a, "label_b": b, "similarity": round(s, 4)}
+                            for a, b, s in self._duplicate_pairs
+                        ],
+                    }
+                    monitor._emit_json(dup_record)
+
+        except Exception:
+            # 安全弁1: 計測失敗時の安全な無視
+            pass
+
+    def get_distribution_summary(self) -> dict[str, Any]:
+        """現在の分布サマリを読み取り専用で返す。
+
+        外部の分析ツール(シミュレータ等)が呼び出す読み取り専用アクセサ。
+
+        Returns:
+            分布サマリの辞書。キー:
+            - observation_count: 観測ティック数
+            - item_counters: 項目別累積カウンタ
+            - history_length: 履歴バッファ内のエントリ数
+            - latest_entry: 最新の履歴エントリ(存在する場合)
+            - duplicate_pairs: 直近の重複検出結果
+        """
+        result: dict[str, Any] = {
+            "observation_count": self._observation_count,
+            "item_counters": self.item_counters,
+            "history_length": len(self._history),
+            "latest_entry": dict(self._history[-1]) if self._history else None,
+            "duplicate_pairs": self.duplicate_pairs,
+        }
+        return result
+
+    def _is_empty(self, text: str) -> bool:
+        """テキストが空状態を示すかを判定する。
+
+        空文字列、既知の空パターン(「(未蓄積)」「(安定)」等)を空として扱う。
+        """
+        stripped = text.strip()
+        if not stripped:
+            return True
+        # ラベル付き形式 "ラベル: (未蓄積)" からマーカー部分を抽出
+        if ": " in stripped:
+            after_colon = stripped.split(": ", 1)[1].strip()
+            if after_colon in _KNOWN_EMPTY_PATTERNS:
+                return True
+        if stripped in _KNOWN_EMPTY_PATTERNS:
+            return True
+        return False
+
+    def _detect_duplicates(
+        self,
+        sections_data: list[dict],
+        tick_count: int,
+    ) -> None:
+        """項目間の出力テキスト重複を検出する。
+
+        同一ティック内で異なる項目が返した出力テキスト間の部分一致度を検査する。
+        高い部分一致が検出された項目対をリストとして記録する。
+        重複の「理由」や「解消方法」は推測しない。
+
+        安全弁3: 比較回数に上限を設け、計算量爆発を防止する。
+        """
+        try:
+            self._last_duplicate_check_tick = tick_count
+
+            # 全項目の(ラベル, テキスト)を収集(空項目を除く)
+            items: list[tuple[str, str]] = []
+            for section in sections_data:
+                for label, text in section.get("items", []):
+                    if not self._is_empty(text):
+                        items.append((label, text))
+
+            pairs: list[tuple[str, str, float]] = []
+            comparison_count = 0
+
+            for i in range(len(items)):
+                for j in range(i + 1, len(items)):
+                    # 安全弁3: 比較回数上限
+                    comparison_count += 1
+                    if comparison_count > _DUPLICATE_COMPARISON_LIMIT:
+                        # 上限到達、打ち切り
+                        self._duplicate_pairs = pairs
+                        return
+
+                    label_a, text_a = items[i]
+                    label_b, text_b = items[j]
+
+                    similarity = self._compute_similarity(text_a, text_b)
+                    if similarity >= _DUPLICATE_SIMILARITY_THRESHOLD:
+                        pairs.append((label_a, label_b, similarity))
+
+            # 完全に上書き(次回検出実行時にキャッシュは完全に上書き)
+            self._duplicate_pairs = pairs
+
+        except Exception:
+            # 安全弁1
+            pass
+
+    @staticmethod
+    def _compute_similarity(text_a: str, text_b: str) -> float:
+        """2つのテキスト間の類似度を算出する。
+
+        文字レベルの共通部分比率で部分一致度を計測する。
+        短い方のテキスト長に対する一致文字数の比率を返す。
+
+        Args:
+            text_a: テキストA
+            text_b: テキストB
+
+        Returns:
+            0.0〜1.0の類似度
+        """
+        if not text_a or not text_b:
+            return 0.0
+        if text_a == text_b:
+            return 1.0
+
+        # 短い方のテキスト長を基準に類似度を算出
+        shorter = min(len(text_a), len(text_b))
+        if shorter == 0:
+            return 0.0
+
+        # 共通部分文字数(順序を考慮した最長共通部分列の近似)
+        # 計算量を抑えるため、文字のバイグラム集合の重複度で近似する
+        set_a = set(text_a[i:i+2] for i in range(len(text_a) - 1)) if len(text_a) > 1 else {text_a}
+        set_b = set(text_b[i:i+2] for i in range(len(text_b) - 1)) if len(text_b) > 1 else {text_b}
+
+        if not set_a or not set_b:
+            return 0.0
+
+        intersection = len(set_a & set_b)
+        union = len(set_a | set_b)
+
+        if union == 0:
+            return 0.0
+
+        return intersection / union
 
 
 def get_dispersion_active_units_safe(dispersion_state: Any) -> list:

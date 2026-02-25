@@ -679,6 +679,11 @@ from .persistence_helpers import (
 # READ-ONLY観測のみ。内部の判断・行動・選択に一切介入しない。
 # 永続化対象外。save/loadフィールド追加なし。
 from tools.execution_monitor import ExecutionMonitor, BandTimer, read_orchestrator_fields
+from tools.policy_selection_log import PolicySelectionLog, create_policy_selection_log
+
+# Save/load warmup (復帰時キャッシュ再導出)
+# 独自の内部状態を保持しない。永続化フィールド追加なし。
+from .save_load_warmup import execute_warmup
 
 logger = logging.getLogger(__name__)
 
@@ -1457,6 +1462,11 @@ class PsycheOrchestrator:
         # 永続化対象外。save/loadフィールド追加なし。
         # 内部の判断・行動・選択に一切介入しない(READ-ONLY観測のみ)。
         self._execution_monitor = ExecutionMonitor()
+
+        # ── Policy selection log (ポリシー選択ログ) ──
+        # 永続化対象外。save/loadフィールド追加なし。enrichment非接続。
+        # 方針選択処理への逆流経路を持たない(READ-ONLY観測のみ)。
+        self._policy_selection_log = create_policy_selection_log()
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
@@ -3220,6 +3230,16 @@ class PsycheOrchestrator:
         except Exception:
             pass  # 安全弁1
 
+        # ── Execution monitor: enrichment分布記録 (READ-ONLY観測) ──
+        try:
+            self._execution_monitor.record_enrichment_distribution(
+                tick_count=self._tick_count,
+                sections_data=sections_data,
+                compressed_text=compressed_text,
+            )
+        except Exception:
+            pass  # 安全弁1
+
         # キャッシュ更新（1ティック分のみ保持）
         self._enrichment_prev_cache = new_cache
 
@@ -3315,6 +3335,7 @@ class PsycheOrchestrator:
             responsibility_influence=resp_influence,
             decision_bias=decision_bias,
             extended_inputs=extended_inputs,
+            collect_breakdown=self._policy_selection_log.enabled,
         )
 
         # Phase 30b: policy_candidate_expansion — 内面反映候補拡張
@@ -4516,6 +4537,18 @@ class PsycheOrchestrator:
         except Exception:
             pass
 
+        # ポリシー選択ログ: スコア内訳を外部分析ツールに記録
+        # 方針選択処理の呼び出し直後に返却値からスコア内訳を抽出して渡す
+        try:
+            self._policy_selection_log.record(
+                tick=self._tick_count,
+                selected_label=self._last_selected_policy_label,
+                candidates=candidates,
+                selected_count=len(candidates),
+            )
+        except Exception:
+            pass
+
         return policy
 
     def get_policy_suggestions(
@@ -4678,6 +4711,11 @@ class PsycheOrchestrator:
                 # No timestamp in snapshot (pre-existing data) — no annotation
                 self._session_gap_seconds = None
                 self._session_resume_tick = None
+
+            # Cache warmup: 復元済みモジュール蓄積状態から中間キャッシュを再導出
+            # セッション境界鮮度注釈の計算後、最初のティック実行前に実行する。
+            # 独自の内部状態を保持しない(1回実行のみ)。
+            execute_warmup(self)
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

@@ -161,6 +161,7 @@ def generate_thought_candidates(
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
     decision_bias: Optional[DecisionBias] = None,
     extended_inputs: Optional[dict] = None,
+    collect_breakdown: bool = False,
 ) -> list[dict]:
     """Generate response policy candidates from local state analysis.
 
@@ -170,6 +171,10 @@ def generate_thought_candidates(
     extended_inputsがある場合、自己観測・傾向・他者推定・目的断面の
     情報がスコアリングに追加反映される。
 
+    collect_breakdown=True の場合、各候補に "_score_breakdown" フィールドを
+    オプショナルに付帯する。このフィールドは断面名→寄与量の辞書であり、
+    返却値の基本構造には影響しない。
+
     Args:
         state: Current psychological state.
         percept: Interpreted input stimulus.
@@ -177,6 +182,7 @@ def generate_thought_candidates(
         responsibility_influence: Optional responsibility influence on decisions.
         decision_bias: Optional bias from short-term memory and dynamics.
         extended_inputs: Optional dict of cross-section inputs for extended scoring.
+        collect_breakdown: If True, attach per-section score breakdown to each candidate.
 
     Returns a list of candidate dicts, each with:
       - policy_label, rationale, expected_drive_change, text
@@ -185,17 +191,26 @@ def generate_thought_candidates(
 
     for policy_def in POLICIES:
         label = policy_def["policy_label"]
-        score = _score_candidate(
+        result = _score_candidate(
             policy_def, state, percept, recalled,
             responsibility_influence, decision_bias, extended_inputs,
+            collect_breakdown=collect_breakdown,
         )
-        candidates.append({
+        if collect_breakdown:
+            score, breakdown = result
+        else:
+            score = result
+            breakdown = None
+        entry: dict = {
             "policy_label": label,
             "rationale": policy_def["rationale_template"],
             "expected_drive_change": dict(policy_def["expected_drive_change"]),
             "text": _FALLBACK_TEXT.get(label, "..."),
             "_score": score,
-        })
+        }
+        if breakdown is not None:
+            entry["_score_breakdown"] = breakdown
+        candidates.append(entry)
 
     # Sort by score descending
     candidates.sort(key=lambda c: c["_score"], reverse=True)
@@ -274,7 +289,8 @@ def _score_candidate(
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
     decision_bias: Optional[DecisionBias] = None,
     extended_inputs: Optional[dict] = None,
-) -> float:
+    collect_breakdown: bool = False,
+) -> float | tuple[float, dict[str, float]]:
     """Score a candidate policy against current state.  Pure function.
 
     責任の影響がある場合:
@@ -287,8 +303,13 @@ def _score_candidate(
 
     extended_inputsがある場合:
     - 自己観測・傾向・他者推定・目的断面の情報がスコアリングに追加反映
+
+    collect_breakdown=True の場合、(score, breakdown_dict) のタプルを返す。
+    breakdown_dict は断面名→寄与量の辞書。
     """
     score = 0.0
+    # 断面別寄与量の一時辞書（collect_breakdown=True の場合のみ使用）
+    bd: dict[str, float] = {} if collect_breakdown else {}
     drives = state.drives
     fear = state.fear_level
     mood_val = state.mood.valence
@@ -321,98 +342,140 @@ def _score_candidate(
     else:
         drive_val = 0.5
 
+    drive_contrib = 0.0
     if drive_val > 0.6:
-        score += drive_val * 2.0
+        drive_contrib = drive_val * 2.0
     elif drive_val > 0.4:
-        score += drive_val * 1.0
+        drive_contrib = drive_val * 1.0
+    score += drive_contrib
+    if collect_breakdown:
+        bd["drive_goal_match"] = drive_contrib
 
     # 2. Fear bias: high fear → prefer 共感/励ます, penalise からかう
+    fear_contrib = 0.0
     if fear > 0.3:
         if label in ("共感する", "励ます"):
-            score += fear * 3.0
+            fear_contrib = fear * 3.0
         elif label == "からかう":
-            score -= fear * 2.0
+            fear_contrib = -(fear * 2.0)
+    score += fear_contrib
+    if collect_breakdown:
+        bd["fear_bias"] = fear_contrib
 
     # 3. Mood alignment
+    mood_contrib = 0.0
     if mood_val < -0.3:
         # Negative mood → prefer empathy/encouragement
         if label in ("共感する", "励ます"):
-            score += abs(mood_val) * 2.0
+            mood_contrib = abs(mood_val) * 2.0
         elif label == "からかう":
-            score -= 1.0
+            mood_contrib = -1.0
     elif mood_val > 0.3:
         # Positive mood → teasing/sharing is fine
         if label in ("からかう", "感想を述べる"):
-            score += mood_val * 1.5
+            mood_contrib = mood_val * 1.5
+    score += mood_contrib
+    if collect_breakdown:
+        bd["mood_alignment"] = mood_contrib
 
     # 4. Percept intent matching
+    intent_contrib = 0.0
     intent = percept.intent
     if intent == "question":
         if label == "質問で会話を広げる":
-            score += 1.5
+            intent_contrib = 1.5
     elif intent in ("sharing", "complaint"):
         if label == "共感する":
-            score += 1.5
+            intent_contrib = 1.5
     elif intent == "greeting":
         if label in ("感想を述べる", "質問で会話を広げる"):
-            score += 1.0
+            intent_contrib = 1.0
     elif intent == "joke":
         if label == "からかう":
-            score += 2.0
+            intent_contrib = 2.0
+    score += intent_contrib
+    if collect_breakdown:
+        bd["percept_intent_match"] = intent_contrib
 
     # 5. Percept valence
+    valence_contrib = 0.0
     v = percept.emotion_valence
     if v < -0.3 and label in ("共感する", "励ます"):
-        score += abs(v) * 1.5
+        valence_contrib = abs(v) * 1.5
     elif v > 0.3 and label in ("からかう", "感想を述べる"):
-        score += v * 1.0
+        valence_contrib = v * 1.0
+    score += valence_contrib
+    if collect_breakdown:
+        bd["percept_emotion_valence"] = valence_contrib
 
     # 6. Attachment fear bonus
+    attach_contrib = 0.0
     if state.fear_index and state.fear_index.attachment_risk > 0.4:
         if label in ("共感する", "質問で会話を広げる"):
-            score += state.fear_index.attachment_risk * 2.0
+            attach_contrib = state.fear_index.attachment_risk * 2.0
+    score += attach_contrib
+    if collect_breakdown:
+        bd["attachment_risk_reaction"] = attach_contrib
 
     # 7. Identity fear → self-expression
+    identity_contrib = 0.0
     if state.fear_index and state.fear_index.identity_risk > 0.4:
         if label == "感想を述べる":
-            score += state.fear_index.identity_risk * 1.5
+            identity_contrib = state.fear_index.identity_risk * 1.5
+    score += identity_contrib
+    if collect_breakdown:
+        bd["identity_risk_reaction"] = identity_contrib
 
     # 8. Memory context: if recalled memories relate, slight boost to empathy
+    memory_contrib = 0.0
     if recalled:
-        score += 0.3
+        memory_contrib = 0.3
+    score += memory_contrib
+    if collect_breakdown:
+        bd["memory_context"] = memory_contrib
 
     # 9. 責任（Responsibility）による影響
     # 過去の判断の重みが、現在の選択を歪める
+    resp_contrib = 0.0
     if responsibility_influence:
         # 慎重さバイアス: リスキーな選択にペナルティ
         caution = responsibility_influence.caution_bias
         if caution > 0.1:
             if label == "からかう":
-                score -= caution * 4.0  # からかうは傷つけるリスクがある
+                resp_contrib -= caution * 4.0  # からかうは傷つけるリスクがある
             elif label == "話題を変える":
-                score -= caution * 1.5  # 逃げと見なされるリスク
+                resp_contrib -= caution * 1.5  # 逃げと見なされるリスク
 
         # 共感バイアス: 寄り添う選択にボーナス
         empathy = responsibility_influence.empathy_bias
         if empathy > 0.1:
             if label in ("共感する", "励ます"):
-                score += empathy * 3.0  # 傷つけないよう寄り添う
+                resp_contrib += empathy * 3.0  # 傷つけないよう寄り添う
             elif label == "質問で会話を広げる":
-                score += empathy * 1.5  # 相手に寄り添う姿勢
+                resp_contrib += empathy * 1.5  # 相手に寄り添う姿勢
 
         # 不安ベースライン: 全体的に慎重な選択を促す
         anxiety = responsibility_influence.anxiety_baseline
         if anxiety > 0.1:
             if label in ("共感する", "励ます", "質問で会話を広げる"):
-                score += anxiety * 2.0
+                resp_contrib += anxiety * 2.0
+    score += resp_contrib
+    if collect_breakdown:
+        bd["responsibility_influence"] = resp_contrib
 
     # 10. 短期記憶/ダイナミクス由来のバイアス（DecisionBias）
     # 直近の体験や感情の余韻によって判断が微妙に傾く
     # バイアスは一時的で、時間経過により自然に減衰する
+    stm_bias_contrib = 0.0
     if decision_bias is not None:
+        score_before = score
         score = apply_bias_to_score(score, decision_bias, label, policy_def)
+        stm_bias_contrib = score - score_before
+    if collect_breakdown:
+        bd["stm_decision_bias"] = stm_bias_contrib
 
     # ── 追加条件 #11-16: 内部状態断面の反映 ──
+    extended_contrib = 0.0
 
     # 11. 自己像負荷反応
     if extended_inputs:
@@ -420,14 +483,14 @@ def _score_candidate(
         strain = extended_inputs.get("strain_level", 0.0)
         if stability < 0.4 or strain > 0.5:
             if label in ("黙って聞く", "確認する", "謝る"):
-                score += (1.0 - stability + strain) * 1.5
+                extended_contrib += (1.0 - stability + strain) * 1.5
 
     # 12. 傾向親和性
     if extended_inputs:
         t_strength = extended_inputs.get("tendency_strength", 0.0)
         if t_strength > 0.3:
             if label in ("自分の経験を話す", "感想を述べる"):
-                score += t_strength * 1.5
+                extended_contrib += t_strength * 1.5
 
     # 13. 他者境界反応
     if extended_inputs:
@@ -435,9 +498,9 @@ def _score_candidate(
         b_clarity = extended_inputs.get("boundary_clarity", 0.5)
         if o_count > 0 and b_clarity < 0.5:
             if label == "確認する":
-                score += (1.0 - b_clarity) * 2.0
+                extended_contrib += (1.0 - b_clarity) * 2.0
             elif label in ("見守る", "反論する"):
-                score += (1.0 - b_clarity) * 1.0
+                extended_contrib += (1.0 - b_clarity) * 1.0
 
     # 14. 目的指向親和性
     if extended_inputs:
@@ -446,10 +509,10 @@ def _score_candidate(
         m_count = extended_inputs.get("motive_count", 0)
         if has_goal and g_strength > 0.3:
             if label in ("提案する", "見守る"):
-                score += g_strength * 1.5
+                extended_contrib += g_strength * 1.5
         if m_count > 2:
             if label in ("提案する", "質問で会話を広げる"):
-                score += min(m_count * 0.2, 1.0)
+                extended_contrib += min(m_count * 0.2, 1.0)
 
     # 15. 一貫性水準反応
     if extended_inputs:
@@ -458,16 +521,22 @@ def _score_candidate(
         avg_coherence = (coherence + narr_coh) / 2
         if avg_coherence > 0.6:
             if label in ("自分の経験を話す", "感想を述べる", "反論する"):
-                score += avg_coherence * 1.0
+                extended_contrib += avg_coherence * 1.0
         elif avg_coherence < 0.3:
             if label in ("黙って聞く", "確認する", "同意する"):
-                score += (1.0 - avg_coherence) * 1.0
+                extended_contrib += (1.0 - avg_coherence) * 1.0
 
     # 16. メタ感情供給反応
     if extended_inputs:
         me_supply = extended_inputs.get("me_supply_strength", 0.0)
         if me_supply > 0.3:
             if label in ("自分の経験を話す", "冗談を言う"):
-                score += me_supply * 1.5
+                extended_contrib += me_supply * 1.5
 
+    score += extended_contrib
+    if collect_breakdown:
+        bd["extended_input_reaction"] = extended_contrib
+
+    if collect_breakdown:
+        return score, bd
     return score

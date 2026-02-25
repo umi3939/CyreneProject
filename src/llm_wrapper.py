@@ -9,6 +9,10 @@ Gemini NEVER makes decisions, updates state, or manages memory.
 System prompt templates enforce this boundary.  An output filter strips
 any forbidden patterns that would indicate Gemini overstepping.
 
+Error resilience: All API calls use exponential backoff with jitter,
+error classification, rate limit handling, and structured observation
+recording via src.api_error_resilience.
+
 Usage::
 
     text = await llm_call("translate this")
@@ -25,6 +29,18 @@ import logging
 import os
 import re
 from typing import Any, AsyncIterator
+
+from src.api_error_resilience import (
+    ErrorCategory,
+    ErrorStats,
+    FallbackModeState,
+    RetryConfig,
+    classify_error,
+    compute_backoff_delay,
+    is_retryable,
+    resilient_call,
+    _extract_retry_after,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +125,56 @@ DEFAULT_TIMEOUT = 30.0
 MAX_RETRIES = 3
 RETRY_DELAY = 1.0
 
+# Shared resilience state (module-level singletons, session-scoped)
+_error_stats = ErrorStats()
+_fallback_state = FallbackModeState()
+_retry_config = RetryConfig(
+    max_retries=MAX_RETRIES,
+    initial_delay=RETRY_DELAY,
+    max_delay=30.0,
+    backoff_multiplier=2.0,
+    jitter_fraction=0.25,
+    timeout=DEFAULT_TIMEOUT,
+)
+
+# ── Public accessors for resilience state ─────────────────────
+
+def get_error_stats() -> ErrorStats:
+    """Return the module-level error statistics (READ-ONLY observation)."""
+    return _error_stats
+
+
+def get_fallback_state() -> FallbackModeState:
+    """Return the module-level fallback mode state."""
+    return _fallback_state
+
+
+def reset_error_stats() -> None:
+    """Reset error statistics (for session boundary)."""
+    global _error_stats
+    _error_stats = ErrorStats()
+
+
+def reset_fallback_state() -> None:
+    """Reset fallback state (for session boundary)."""
+    global _fallback_state
+    _fallback_state = FallbackModeState()
+
+
+def is_api_available() -> bool:
+    """Check if API is currently considered available (not in fallback mode)."""
+    return not _fallback_state.is_in_fallback
+
+
+def should_safe_shutdown() -> bool:
+    """Check if fallback mode duration exceeds the maximum, requiring safe shutdown."""
+    return _fallback_state.should_safe_shutdown()
+
+
+# ── Fallback response ─────────────────────────────────────────
+
+_FALLBACK_RESPONSE = json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+
 
 # ── Core API ───────────────────────────────────────────────────
 
@@ -133,11 +199,34 @@ async def llm_call_streaming(
     prompt: str,
     params: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
-    """Yield text chunks from Gemini streaming response."""
+    """Yield text chunks from Gemini streaming response.
+
+    Streaming retry strategy:
+    - Connection failure before stream starts: retry with exponential backoff
+    - Partial stream received then disconnected: return partial data (no retry)
+    - No data received at all: retry
+    """
     params = params or {}
     api_key = os.getenv("LLM_API_KEY") or os.getenv("GEMINI_API_KEY")
 
-    if api_key:
+    if not api_key:
+        yield _FALLBACK_RESPONSE
+        return
+
+    cfg = RetryConfig(
+        max_retries=_retry_config.max_retries,
+        initial_delay=_retry_config.initial_delay,
+        max_delay=_retry_config.max_delay,
+        backoff_multiplier=_retry_config.backoff_multiplier,
+        jitter_fraction=_retry_config.jitter_fraction,
+        timeout=params.get("timeout", DEFAULT_TIMEOUT),
+    )
+
+    last_error = None
+    total_wait = 0.0
+
+    for attempt in range(cfg.max_retries + 1):
+        received_any = False
         try:
             from google import genai
             from google.genai import types
@@ -147,18 +236,73 @@ async def llm_call_streaming(
                 temperature=params.get("temperature", 0.7),
                 max_output_tokens=params.get("max_tokens", 512),
             )
-            async for chunk in await client.aio.models.generate_content_stream(
-                model=params.get("model", DEFAULT_MODEL),
-                contents=prompt,
-                config=config,
-            ):
-                if chunk.text:
-                    yield chunk.text
-            return
-        except Exception as e:
-            logger.warning("llm_call_streaming failed: %s", e)
 
-    yield json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+            stream = await asyncio.wait_for(
+                client.aio.models.generate_content_stream(
+                    model=params.get("model", DEFAULT_MODEL),
+                    contents=prompt,
+                    config=config,
+                ),
+                timeout=cfg.timeout,
+            )
+
+            async for chunk in stream:
+                if chunk.text:
+                    received_any = True
+                    yield chunk.text
+
+            # Successful completion
+            _fallback_state.on_success()
+
+            if attempt > 0:
+                _error_stats.record_error(
+                    category=classify_error(last_error) if last_error else ErrorCategory.UNKNOWN,
+                    error_message=str(last_error) if last_error else "",
+                    retry_count=attempt,
+                    total_wait_time=total_wait,
+                    final_result="retry_success",
+                    call_type="streaming",
+                )
+            return
+
+        except Exception as e:
+            last_error = e
+            category = classify_error(e)
+
+            logger.warning(
+                "llm_call_streaming error (attempt %d/%d, category=%s): %s",
+                attempt + 1, cfg.max_retries + 1, category.name, str(e)[:200],
+            )
+
+            # If we received partial data, return what we have (no retry)
+            if received_any:
+                logger.info("Streaming: partial data received, not retrying")
+                _fallback_state.on_success()  # Partial success still counts
+                return
+
+            # Non-retryable or last attempt
+            if not is_retryable(category) or attempt >= cfg.max_retries:
+                break
+
+            # Backoff
+            retry_after = _extract_retry_after(e) if category == ErrorCategory.RATE_LIMIT else None
+            delay = compute_backoff_delay(attempt, cfg, retry_after=retry_after)
+            total_wait += delay
+            logger.info("Streaming: retrying in %.2fs", delay)
+            await asyncio.sleep(delay)
+
+    # All retries failed
+    _fallback_state.on_failure()
+    _error_stats.record_error(
+        category=classify_error(last_error) if last_error else ErrorCategory.UNKNOWN,
+        error_message=str(last_error) if last_error else "",
+        retry_count=min(attempt, cfg.max_retries) if 'attempt' in dir() else 0,
+        total_wait_time=total_wait,
+        final_result="fallback",
+        call_type="streaming",
+    )
+
+    yield _FALLBACK_RESPONSE
 
 
 async def llm_call_with_image(
@@ -167,53 +311,54 @@ async def llm_call_with_image(
     image: Any,  # PIL.Image
     params: dict[str, Any] | None = None,
 ) -> str:
-    """Send *user_prompt* + *image* with a *system_prompt* to Gemini (multimodal)."""
+    """Send *user_prompt* + *image* with a *system_prompt* to Gemini (multimodal).
+
+    Uses resilient_call for exponential backoff retry, error classification,
+    rate limit handling, and observation recording.
+    """
     params = params or {}
     api_key = os.getenv("LLM_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        return json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+        return _FALLBACK_RESPONSE
 
-    last_error: Exception | None = None
+    cfg = RetryConfig(
+        max_retries=_retry_config.max_retries,
+        initial_delay=_retry_config.initial_delay,
+        max_delay=_retry_config.max_delay,
+        backoff_multiplier=_retry_config.backoff_multiplier,
+        jitter_fraction=_retry_config.jitter_fraction,
+        timeout=params.get("timeout", DEFAULT_TIMEOUT),
+    )
 
-    for attempt in range(MAX_RETRIES):
-        try:
-            from google import genai
-            from google.genai import types
+    async def _do_image_call() -> str:
+        from google import genai
+        from google.genai import types
 
-            client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key)
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=params.get("temperature", 0.3),
+            max_output_tokens=params.get("max_tokens", 256),
+        )
+        response = await client.aio.models.generate_content(
+            model=params.get("model", DEFAULT_MODEL),
+            contents=[user_prompt, image],
+            config=config,
+        )
+        if response and response.text:
+            return filter_forbidden(response.text.strip())
+        return _FALLBACK_RESPONSE
 
-            config = types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=params.get("temperature", 0.3),
-                max_output_tokens=params.get("max_tokens", 256),
-            )
-
-            response = await asyncio.wait_for(
-                client.aio.models.generate_content(
-                    model=params.get("model", DEFAULT_MODEL),
-                    contents=[user_prompt, image],
-                    config=config,
-                ),
-                timeout=params.get("timeout", DEFAULT_TIMEOUT),
-            )
-
-            if response and response.text:
-                text = response.text.strip()
-                return filter_forbidden(text)
-
-        except asyncio.TimeoutError:
-            logger.warning("llm_call_with_image timeout (attempt %d/%d)", attempt + 1, MAX_RETRIES)
-            last_error = TimeoutError("LLM image call timed out")
-        except Exception as e:
-            logger.warning("llm_call_with_image error (attempt %d/%d): %s", attempt + 1, MAX_RETRIES, e)
-            last_error = e
-
-        if attempt < MAX_RETRIES - 1:
-            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
-
-    logger.error("llm_call_with_image failed after %d retries: %s", MAX_RETRIES, last_error)
-    return json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+    result = await resilient_call(
+        _do_image_call,
+        config=cfg,
+        call_type="perception",
+        stats=_error_stats,
+        fallback_state=_fallback_state,
+        fallback_value=_FALLBACK_RESPONSE,
+    )
+    return result
 
 
 # ── Internal ───────────────────────────────────────────────────
@@ -223,56 +368,57 @@ async def _call_gemini(
     system_prompt: str | None = None,
     params: dict[str, Any] | None = None,
 ) -> str:
-    """Core Gemini call with retry, timeout, and output filter."""
+    """Core Gemini call with resilient retry, timeout, and output filter.
+
+    Uses resilient_call for exponential backoff retry with jitter,
+    error classification, rate limit adaptation, and observation recording.
+    """
     params = params or {}
     api_key = os.getenv("LLM_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        return json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+        return _FALLBACK_RESPONSE
 
-    last_error: Exception | None = None
+    cfg = RetryConfig(
+        max_retries=_retry_config.max_retries,
+        initial_delay=_retry_config.initial_delay,
+        max_delay=_retry_config.max_delay,
+        backoff_multiplier=_retry_config.backoff_multiplier,
+        jitter_fraction=_retry_config.jitter_fraction,
+        timeout=params.get("timeout", DEFAULT_TIMEOUT),
+    )
 
-    for attempt in range(MAX_RETRIES):
-        try:
-            from google import genai
-            from google.genai import types
+    async def _do_call() -> str:
+        from google import genai
+        from google.genai import types
 
-            client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key)
+        config_kwargs: dict[str, Any] = {
+            "temperature": params.get("temperature", 0.7),
+            "max_output_tokens": params.get("max_tokens", 512),
+        }
+        if system_prompt:
+            config_kwargs["system_instruction"] = system_prompt
 
-            config_kwargs: dict[str, Any] = {
-                "temperature": params.get("temperature", 0.7),
-                "max_output_tokens": params.get("max_tokens", 512),
-            }
-            if system_prompt:
-                config_kwargs["system_instruction"] = system_prompt
+        config = types.GenerateContentConfig(**config_kwargs)
+        response = await client.aio.models.generate_content(
+            model=params.get("model", DEFAULT_MODEL),
+            contents=user_prompt,
+            config=config,
+        )
+        if response and response.text:
+            return filter_forbidden(response.text.strip())
+        return _FALLBACK_RESPONSE
 
-            config = types.GenerateContentConfig(**config_kwargs)
-
-            response = await asyncio.wait_for(
-                client.aio.models.generate_content(
-                    model=params.get("model", DEFAULT_MODEL),
-                    contents=user_prompt,
-                    config=config,
-                ),
-                timeout=params.get("timeout", DEFAULT_TIMEOUT),
-            )
-
-            if response and response.text:
-                text = response.text.strip()
-                return filter_forbidden(text)
-
-        except asyncio.TimeoutError:
-            logger.warning("llm_call timeout (attempt %d/%d)", attempt + 1, MAX_RETRIES)
-            last_error = TimeoutError("LLM call timed out")
-        except Exception as e:
-            logger.warning("llm_call error (attempt %d/%d): %s", attempt + 1, MAX_RETRIES, e)
-            last_error = e
-
-        if attempt < MAX_RETRIES - 1:
-            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
-
-    logger.error("llm_call failed after %d retries: %s", MAX_RETRIES, last_error)
-    return json.dumps({"result": "no_llm_available"}, ensure_ascii=False)
+    result = await resilient_call(
+        _do_call,
+        config=cfg,
+        call_type="expression",
+        stats=_error_stats,
+        fallback_state=_fallback_state,
+        fallback_value=_FALLBACK_RESPONSE,
+    )
+    return result
 
 
 def filter_forbidden(text: str) -> str:

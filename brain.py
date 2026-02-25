@@ -27,12 +27,47 @@ from psyche.memory_link import recall_with_mood
 from psyche.perception import parse_percept
 from psyche.expression import render_expression
 from psyche.silence_hesitation import is_silence_policy
-from src.llm_wrapper import llm_call, llm_call_with_image, VISION_SYSTEM_PROMPT
+from src.llm_wrapper import (
+    llm_call,
+    llm_call_with_image,
+    VISION_SYSTEM_PROMPT,
+    get_error_stats,
+    get_fallback_state,
+    is_api_available,
+    should_safe_shutdown,
+    reset_error_stats,
+    reset_fallback_state,
+)
 
 from src.logging_config import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+# ── API Fallback Detection ────────────────────────────────────
+
+# Marker substring present in all LLM fallback responses
+_FALLBACK_INDICATOR = "no_llm_available"
+
+
+def _is_perception_fallback(text: str) -> bool:
+    """Check if a perception result is a fallback (API unavailable) response.
+
+    When perception call fails, llm_wrapper returns a JSON string containing
+    "no_llm_available". This function detects that case so the think methods
+    can skip the current frame instead of feeding garbage into psyche.
+    """
+    return _FALLBACK_INDICATOR in text
+
+
+class SafeShutdownRequested(Exception):
+    """Raised when fallback mode duration exceeds the maximum.
+
+    The main loop should catch this, persist internal state, and exit.
+    This exception never propagates into psyche processing.
+    """
+    pass
 
 
 # ── Structured Context Entry ────────────────────────────────────
@@ -421,6 +456,43 @@ class CyreneBrain:
             },
         }
 
+    # ── API Error Resilience: Observation & Fallback Mode ──────
+
+    @property
+    def api_error_summary(self) -> dict:
+        """Return READ-ONLY API error statistics for observation.
+
+        This data is never referenced by psyche processing.
+        """
+        return get_error_stats().get_summary()
+
+    @property
+    def api_fallback_status(self) -> dict:
+        """Return READ-ONLY fallback mode status for observation."""
+        return get_fallback_state().get_status()
+
+    @property
+    def is_api_available(self) -> bool:
+        """Whether the API is currently reachable (not in fallback mode)."""
+        return is_api_available()
+
+    def _check_safe_shutdown(self) -> None:
+        """Check if fallback mode duration requires safe shutdown.
+
+        If the API has been unreachable for longer than the configured
+        maximum fallback duration, persist state and raise SafeShutdownRequested.
+        This ensures the system does not run indefinitely without external input.
+        """
+        if should_safe_shutdown():
+            logger.critical(
+                "Fallback mode duration exceeded maximum. "
+                "Persisting state and requesting safe shutdown."
+            )
+            self.save_state()
+            raise SafeShutdownRequested(
+                "API unreachable for too long, safe shutdown initiated"
+            )
+
     async def think(
         self,
         image_path: str = "",
@@ -438,8 +510,14 @@ class CyreneBrain:
 
         Returns:
             Generated text in Cyrene's voice, or None for silence.
+
+        Raises:
+            SafeShutdownRequested: If fallback mode duration exceeds maximum.
         """
         try:
+            # Check if safe shutdown is needed due to prolonged API unavailability
+            self._check_safe_shutdown()
+
             if image is None:
                 image_file = Path(image_path)
                 if not image_file.exists():
@@ -457,6 +535,13 @@ class CyreneBrain:
                 image,
                 self._perception_config,
             )
+
+            # Vision pathway: if perception call failed (API unreachable),
+            # skip this frame entirely. Psyche processing is not executed
+            # with invalid perception data.
+            if _is_perception_fallback(screen_description):
+                logger.warning("Perception call returned fallback, skipping frame")
+                return None
 
             # Phase 2: Parse (with LLM enrichment)
             percept = await parse_percept(
@@ -525,6 +610,8 @@ class CyreneBrain:
 
             return full_text
 
+        except SafeShutdownRequested:
+            raise  # Propagate to main loop for safe shutdown
         except Exception as e:
             logger.error(f"Think failed: {e}")
             return "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
@@ -554,6 +641,9 @@ class CyreneBrain:
         self._turn_count += 1
 
         try:
+            # Check if safe shutdown is needed due to prolonged API unavailability
+            self._check_safe_shutdown()
+
             # Load image (direct PIL Image preferred over file path)
             if image is None:
                 image_file = Path(image_path)
@@ -573,6 +663,11 @@ class CyreneBrain:
                 self._perception_config,
             )
             logger.debug(f"Perception: {screen_description}")
+
+            # Vision pathway: if perception call failed, skip this frame
+            if _is_perception_fallback(screen_description):
+                logger.warning("Perception call returned fallback, skipping frame")
+                return
 
             # === Phase 2: parse_percept (with LLM enrichment) ===
             percept = await parse_percept(
@@ -701,6 +796,8 @@ class CyreneBrain:
                 logger.debug("Periodic memory save triggered")
                 await self.summarize_and_save()
 
+        except SafeShutdownRequested:
+            raise  # Propagate to main loop for safe shutdown
         except Exception as e:
             logger.error(f"Think streaming failed: {e}")
             import traceback
@@ -718,9 +815,18 @@ class CyreneBrain:
 
         画面知覚なしでテキスト入力のみから応答を生成する。
         Returns None if psyche decides silence.
+
+        Raises:
+            SafeShutdownRequested: If fallback mode duration exceeds maximum.
         """
         try:
+            # Check if safe shutdown is needed
+            self._check_safe_shutdown()
+
             # Phase 1: parse_percept (with LLM enrichment)
+            # Text pathway: parse_percept has its own LLM-less fallback
+            # (heuristic analysis). If LLM enrichment fails, it continues
+            # with heuristic results. No frame skip needed.
             percept = await parse_percept(
                 user_text,
                 llm_call_fn=llm_call,
@@ -809,6 +915,8 @@ class CyreneBrain:
 
             return full_text
 
+        except SafeShutdownRequested:
+            raise  # Propagate to main loop for safe shutdown
         except Exception as e:
             logger.error(f"Think text failed: {e}")
             return "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
@@ -823,10 +931,16 @@ class CyreneBrain:
 
         画面知覚なしでテキスト入力のみから応答を生成する。
         Yields complete sentences.
+
+        Raises:
+            SafeShutdownRequested: If fallback mode duration exceeds maximum.
         """
         self._turn_count += 1
 
         try:
+            # Check if safe shutdown is needed
+            self._check_safe_shutdown()
+
             # Phase 1: parse_percept
             percept = await parse_percept(
                 user_text,
@@ -944,6 +1058,8 @@ class CyreneBrain:
             if self._turn_count % 5 == 0:
                 await self.summarize_and_save()
 
+        except SafeShutdownRequested:
+            raise  # Propagate to main loop for safe shutdown
         except Exception as e:
             logger.error(f"Think streaming text failed: {e}")
             yield "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"
@@ -955,8 +1071,19 @@ class CyreneBrain:
         外部入力なし時に内部状態から起動候補を形成し、
         起動すべきと判定された場合のみ応答を生成する。
         Returns None if no spontaneous activation or silence chosen.
+
+        Note: Spontaneous pathway does not use external API for perception
+        (psyche only). However, the expression call uses API.
+        Safe shutdown check is still performed.
+
+        Raises:
+            SafeShutdownRequested: If fallback mode duration exceeds maximum.
         """
         try:
+            # Check safe shutdown (spontaneous can still run during fallback,
+            # but not indefinitely)
+            self._check_safe_shutdown()
+
             result = self._orchestrator.check_spontaneous_activation()
             if result is None or not result.should_activate:
                 return None
@@ -1038,6 +1165,8 @@ class CyreneBrain:
 
             return full_text
 
+        except SafeShutdownRequested:
+            raise  # Propagate to main loop for safe shutdown
         except Exception as e:
             logger.error(f"Think spontaneous failed: {e}")
             return None
@@ -1050,8 +1179,14 @@ class CyreneBrain:
         外部入力なし時に内部状態から起動候補を形成し、
         起動すべきと判定された場合のみ応答を生成する。
         Yields complete sentences.
+
+        Raises:
+            SafeShutdownRequested: If fallback mode duration exceeds maximum.
         """
         try:
+            # Check safe shutdown
+            self._check_safe_shutdown()
+
             result = self._orchestrator.check_spontaneous_activation()
             if result is None or not result.should_activate:
                 return
@@ -1158,6 +1293,8 @@ class CyreneBrain:
             for sentence in sentences:
                 yield sentence
 
+        except SafeShutdownRequested:
+            raise  # Propagate to main loop for safe shutdown
         except Exception as e:
             logger.error(f"Think streaming spontaneous failed: {e}")
             yield "ごめんなさい、ちょっと回線が重いみたい…少し待ってね？"

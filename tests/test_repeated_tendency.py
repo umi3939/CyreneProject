@@ -730,3 +730,66 @@ class TestIntegration:
 
         # Both are still viable choices
         assert withdraw_score > 0.3
+
+
+class TestJapanesePolicyLabelAlignment:
+    """Tests verifying that category_policy_affinity uses Japanese labels
+    matching thought.py POLICIES, so alignment calculation actually works."""
+
+    def test_approach_category_matches_japanese_labels(self):
+        """APPROACH category should match Japanese policy labels like '共感する'."""
+        from psyche.repeated_tendency import _calculate_tendency_alignment
+
+        bias = TendencyBias(
+            has_bias=True,
+            biases={"approach": 0.06},
+            strongest_category=CandidateCategory.APPROACH,
+            strongest_bias=0.06,
+        )
+        for label in ["共感する", "励ます", "質問で会話を広げる", "提案する"]:
+            candidate = {"policy": label, "score": 0.5}
+            alignment = _calculate_tendency_alignment(candidate, bias)
+            assert alignment > 0, f"'{label}' should produce positive alignment for APPROACH"
+
+    def test_expression_category_matches_japanese_labels(self):
+        """EXPRESSION category should match Japanese policy labels."""
+        from psyche.repeated_tendency import _calculate_tendency_alignment
+
+        bias = TendencyBias(
+            has_bias=True,
+            biases={"expression": 0.06},
+            strongest_category=CandidateCategory.EXPRESSION,
+            strongest_bias=0.06,
+        )
+        for label in ["感想を述べる", "冗談を言う", "からかう", "自分の経験を話す"]:
+            candidate = {"policy": label, "score": 0.5}
+            alignment = _calculate_tendency_alignment(candidate, bias)
+            assert alignment > 0, f"'{label}' should produce positive alignment for EXPRESSION"
+
+    def test_bias_actually_changes_score_with_japanese_label(self):
+        """Verify that apply_tendency_bias_to_candidate changes score with Japanese label."""
+        bias = TendencyBias(
+            has_bias=True,
+            biases={"connection": 0.06},
+            strongest_category=CandidateCategory.CONNECTION,
+            strongest_bias=0.06,
+        )
+        # "共感する" is in CONNECTION affinity list
+        candidate = {"policy": "共感する", "score": 0.5}
+        result = apply_tendency_bias_to_candidate(candidate, bias)
+        assert result["score"] != 0.5, "Score should change when Japanese label matches"
+
+    def test_non_matching_label_no_alignment(self):
+        """A label not in the category's affinity list should get 0 alignment."""
+        from psyche.repeated_tendency import _calculate_tendency_alignment
+
+        bias = TendencyBias(
+            has_bias=True,
+            biases={"isolation": 0.06},
+            strongest_category=CandidateCategory.ISOLATION,
+            strongest_bias=0.06,
+        )
+        # "反論する" is not in ISOLATION
+        candidate = {"policy": "反論する", "score": 0.5}
+        alignment = _calculate_tendency_alignment(candidate, bias)
+        assert alignment == 0.0, "Non-matching label should produce 0 alignment"

@@ -709,16 +709,16 @@ def _calculate_tendency_alignment(
     """
     policy = candidate.get("policy", "")
 
-    # Category-based alignment
+    # Category-based alignment (keys must match thought.py POLICIES policy_label)
     category_policy_affinity = {
-        CandidateCategory.APPROACH: ["engage", "speak", "respond", "action"],
-        CandidateCategory.AVOIDANCE: ["silence", "wait", "hesitate", "caution"],
-        CandidateCategory.CONNECTION: ["speak", "engage", "warmth", "friendly"],
-        CandidateCategory.ISOLATION: ["silence", "withdraw", "distance"],
-        CandidateCategory.EXPRESSION: ["speak", "joke", "elaborate", "express"],
-        CandidateCategory.ABSORPTION: ["listen", "observe", "wait", "silence"],
-        CandidateCategory.EXPLORATION: ["question", "probe", "curious"],
-        CandidateCategory.MAINTENANCE: ["neutral", "standard", "normal"],
+        CandidateCategory.APPROACH: ["共感する", "励ます", "質問で会話を広げる", "提案する"],
+        CandidateCategory.AVOIDANCE: ["黙って聞く", "見守る", "話題を変える", "確認する"],
+        CandidateCategory.CONNECTION: ["共感する", "励ます", "質問で会話を広げる", "同意する"],
+        CandidateCategory.ISOLATION: ["黙って聞く", "見守る", "話題を変える"],
+        CandidateCategory.EXPRESSION: ["感想を述べる", "冗談を言う", "からかう", "自分の経験を話す"],
+        CandidateCategory.ABSORPTION: ["黙って聞く", "見守る", "確認する"],
+        CandidateCategory.EXPLORATION: ["質問で会話を広げる", "確認する", "提案する"],
+        CandidateCategory.MAINTENANCE: ["同意する", "感想を述べる", "確認する"],
     }
 
     alignment = 0.0

@@ -662,3 +662,96 @@ class TestIntegration:
 
         # Spread shouldn't be huge (subtle effect)
         assert max_biased_score - min_biased_score < 0.5
+
+
+class TestJapanesePolicyLabelAlignment:
+    """Tests verifying that category_policy_affinity uses Japanese labels
+    matching thought.py POLICIES, so alignment calculation actually works."""
+
+    def test_approach_category_matches_japanese_labels(self):
+        """APPROACH category should match Japanese policy labels like '共感する'."""
+        from psyche.transient_goal import _calculate_alignment
+
+        bias = GoalBias(
+            is_active=True,
+            goal_id="g1",
+            candidate_category=CandidateCategory.APPROACH,
+            bias_strength=0.12,
+        )
+        # "共感する" is in APPROACH affinity list
+        candidate = {"policy": "共感する", "score": 0.5}
+        alignment = _calculate_alignment(candidate, bias)
+        assert alignment > 0, "Japanese policy label should produce positive alignment"
+
+    def test_expression_category_matches_japanese_labels(self):
+        """EXPRESSION category should match Japanese policy labels like '感想を述べる'."""
+        from psyche.transient_goal import _calculate_alignment
+
+        bias = GoalBias(
+            is_active=True,
+            goal_id="g1",
+            candidate_category=CandidateCategory.EXPRESSION,
+            bias_strength=0.12,
+        )
+        for label in ["感想を述べる", "冗談を言う", "からかう", "自分の経験を話す"]:
+            candidate = {"policy": label, "score": 0.5}
+            alignment = _calculate_alignment(candidate, bias)
+            assert alignment > 0, f"'{label}' should produce positive alignment for EXPRESSION"
+
+    def test_avoidance_category_matches_japanese_labels(self):
+        """AVOIDANCE category should match '黙って聞く' etc."""
+        from psyche.transient_goal import _calculate_alignment
+
+        bias = GoalBias(
+            is_active=True,
+            goal_id="g1",
+            candidate_category=CandidateCategory.AVOIDANCE,
+            bias_strength=0.12,
+        )
+        for label in ["黙って聞く", "見守る", "話題を変える", "確認する"]:
+            candidate = {"policy": label, "score": 0.5}
+            alignment = _calculate_alignment(candidate, bias)
+            assert alignment > 0, f"'{label}' should produce positive alignment for AVOIDANCE"
+
+    def test_exploration_category_matches_japanese_labels(self):
+        """EXPLORATION category should match '質問で会話を広げる' etc."""
+        from psyche.transient_goal import _calculate_alignment
+
+        bias = GoalBias(
+            is_active=True,
+            goal_id="g1",
+            candidate_category=CandidateCategory.EXPLORATION,
+            bias_strength=0.12,
+        )
+        for label in ["質問で会話を広げる", "確認する", "提案する"]:
+            candidate = {"policy": label, "score": 0.5}
+            alignment = _calculate_alignment(candidate, bias)
+            assert alignment > 0, f"'{label}' should produce positive alignment for EXPLORATION"
+
+    def test_bias_actually_changes_score_with_japanese_label(self):
+        """Verify that apply_goal_bias_to_candidate changes score with Japanese label."""
+        bias = GoalBias(
+            is_active=True,
+            goal_id="g1",
+            candidate_category=CandidateCategory.EXPRESSION,
+            bias_strength=0.12,
+        )
+        candidate = {"policy": "感想を述べる", "score": 0.5}
+        result = apply_goal_bias_to_candidate(candidate, bias)
+        assert result["score"] != 0.5, "Score should change when Japanese label matches"
+        assert result["score"] > 0.5, "Aligned label should increase score"
+
+    def test_non_matching_label_no_alignment(self):
+        """A label not in the category's affinity list should get 0 alignment."""
+        from psyche.transient_goal import _calculate_alignment
+
+        bias = GoalBias(
+            is_active=True,
+            goal_id="g1",
+            candidate_category=CandidateCategory.AVOIDANCE,
+            bias_strength=0.12,
+        )
+        # "からかう" is EXPRESSION, not AVOIDANCE
+        candidate = {"policy": "からかう", "score": 0.5}
+        alignment = _calculate_alignment(candidate, bias)
+        assert alignment == 0.0, "Non-matching label should produce 0 alignment"

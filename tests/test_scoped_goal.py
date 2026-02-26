@@ -668,3 +668,66 @@ class TestClearResponsibilities:
 
         weight = system.get_total_pending_weight()
         assert weight == pytest.approx(0.05, rel=0.01)
+
+
+class TestJapanesePolicyLabelAlignment:
+    """Tests verifying that category_policy_affinity uses Japanese labels
+    matching thought.py POLICIES, so alignment calculation actually works."""
+
+    def test_approach_category_matches_japanese_labels(self):
+        """APPROACH category should match Japanese policy labels like '共感する'."""
+        from psyche.scoped_goal import _calculate_scope_alignment
+
+        bias = ScopedBias(
+            is_active=True,
+            scope_id="s1",
+            category=CandidateCategory.APPROACH,
+            bias_strength=0.08,
+        )
+        for label in ["共感する", "励ます", "質問で会話を広げる", "提案する"]:
+            candidate = {"policy": label, "score": 0.5}
+            alignment = _calculate_scope_alignment(candidate, bias)
+            assert alignment > 0, f"'{label}' should produce positive alignment for APPROACH"
+
+    def test_expression_category_matches_japanese_labels(self):
+        """EXPRESSION category should match Japanese policy labels."""
+        from psyche.scoped_goal import _calculate_scope_alignment
+
+        bias = ScopedBias(
+            is_active=True,
+            scope_id="s1",
+            category=CandidateCategory.EXPRESSION,
+            bias_strength=0.08,
+        )
+        for label in ["感想を述べる", "冗談を言う", "からかう", "自分の経験を話す"]:
+            candidate = {"policy": label, "score": 0.5}
+            alignment = _calculate_scope_alignment(candidate, bias)
+            assert alignment > 0, f"'{label}' should produce positive alignment for EXPRESSION"
+
+    def test_bias_actually_changes_score_with_japanese_label(self):
+        """Verify that apply_scoped_bias_to_candidate changes score with Japanese label."""
+        bias = ScopedBias(
+            is_active=True,
+            scope_id="s1",
+            category=CandidateCategory.CONNECTION,
+            bias_strength=0.08,
+        )
+        candidate = {"policy": "共感する", "score": 0.5}
+        result = apply_scoped_bias_to_candidate(candidate, bias)
+        assert result["score"] != 0.5, "Score should change when Japanese label matches"
+        assert result["score"] > 0.5, "Aligned label should increase score"
+
+    def test_non_matching_label_no_alignment(self):
+        """A label not in the category's affinity list should get 0 alignment."""
+        from psyche.scoped_goal import _calculate_scope_alignment
+
+        bias = ScopedBias(
+            is_active=True,
+            scope_id="s1",
+            category=CandidateCategory.ISOLATION,
+            bias_strength=0.08,
+        )
+        # "反論する" is not in ISOLATION
+        candidate = {"policy": "反論する", "score": 0.5}
+        alignment = _calculate_scope_alignment(candidate, bias)
+        assert alignment == 0.0, "Non-matching label should produce 0 alignment"

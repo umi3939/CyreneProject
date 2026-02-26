@@ -176,11 +176,22 @@ class PsycheState(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict for JSON persistence."""
+        if self.fear_index is not None:
+            fi = self.fear_index
+            fear_data: Any = {
+                "identity_risk": round(fi.identity_risk, 4),
+                "attachment_risk": round(fi.attachment_risk, 4),
+                "continuity_risk": round(fi.continuity_risk, 4),
+                "projection_risk": round(fi.projection_risk, 4),
+                "value": round(fi.value, 4),
+            }
+        else:
+            fear_data = 0.0
         d: dict[str, Any] = {
             "emotions": self.emotions.as_dict(),
             "drives": self.drives.as_dict(),
             "mood": {"valence": self.mood.valence, "arousal": self.mood.arousal},
-            "fear_index": round(self.fear_level, 4),
+            "fear_index": fear_data,
             "loss_aversion": self.loss_aversion,
             "last_updated": self.last_updated,
         }
@@ -197,10 +208,20 @@ class PsycheState(BaseModel):
         else:
             mood = Mood(valence=float(mood_raw), arousal=0.3)
         fear_val = d.get("fear_index", 0.0)
-        fear_index = FearIndex(
-            identity_risk=0.0, attachment_risk=0.0,
-            continuity_risk=0.0, projection_risk=0.0,
-        ) if isinstance(fear_val, (int, float)) else None
+        if isinstance(fear_val, dict):
+            fear_index = FearIndex(
+                identity_risk=fear_val.get("identity_risk", 0.0),
+                attachment_risk=fear_val.get("attachment_risk", 0.0),
+                continuity_risk=fear_val.get("continuity_risk", 0.0),
+                projection_risk=fear_val.get("projection_risk", 0.0),
+            )
+        elif isinstance(fear_val, (int, float)):
+            fear_index = FearIndex(
+                identity_risk=0.0, attachment_risk=0.0,
+                continuity_risk=0.0, projection_risk=0.0,
+            )
+        else:
+            fear_index = None
         return cls(
             emotions=emotions,
             drives=drives,

@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from .state import PsycheState, Percept, EmotionVector
+from .state import PsycheState, Percept, EmotionVector, DriveVector
 from .pillars import (
     AttachmentState,
     ContinuityState,
@@ -4549,7 +4549,63 @@ class PsycheOrchestrator:
         except Exception:
             pass
 
+        # ── expected_drive_change の実適用 ──
+        # ポリシー選択直後にドライブ帰還を適用する（1選択イベントにつき1回）
+        try:
+            self._apply_expected_drive_change(policy)
+        except Exception:
+            pass
+
         return policy
+
+    def _apply_expected_drive_change(self, policy: dict[str, Any]) -> None:
+        """選択されたポリシーの expected_drive_change をドライブに実適用する。
+
+        安全弁5種:
+        1. 帰還量の軸別上限: 各軸の変化量を max_bias_strength 以下にクランプ
+        2. ドライブ有効範囲のクランプ: 0.0-1.0
+        3. 適用回数制限: select_policy_dict 直後の1回のみ（構造的に保証）
+        4. 宣言値の不変性保証: コピーして使用
+        5. 正の帰還の禁止: 正の値は適用しない
+        """
+        edc = policy.get("expected_drive_change")
+        if not edc or not isinstance(edc, dict):
+            return
+
+        # 安全弁4: 宣言値をコピーして使用（元の定義を変更しない）
+        changes = dict(edc)
+
+        # 帰還量の上限: ValueOrientationConfig.max_bias_strength と同値
+        # （価値方向性の最大影響幅を超えない保証）
+        max_change = 0.15
+
+        current_drives = self._psyche.drives.as_dict()
+        new_drives = dict(current_drives)
+
+        for axis in ("social", "curiosity", "expression"):
+            delta = changes.get(axis, 0.0)
+            if not isinstance(delta, (int, float)):
+                continue
+
+            # 安全弁5: 正の帰還の禁止
+            if delta > 0.0:
+                continue
+
+            # 安全弁1: 帰還量の軸別上限クランプ
+            if abs(delta) > max_change:
+                delta = -max_change  # delta は負なので符号を保持
+
+            # 加算
+            new_val = current_drives.get(axis, 0.5) + delta
+
+            # 安全弁2: ドライブ有効範囲のクランプ (0.0-1.0)
+            new_drives[axis] = max(0.0, min(1.0, new_val))
+
+        # ドライブ更新を反映
+        updated_drive_vector = DriveVector(**new_drives)
+        self._psyche = self._psyche.model_copy(
+            update={"drives": updated_drive_vector}
+        )
 
     def get_policy_suggestions(
         self,

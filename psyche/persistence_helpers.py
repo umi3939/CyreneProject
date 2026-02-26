@@ -297,7 +297,7 @@ MIGRATION_CHAIN: tuple[MigrationEntry, ...] = (
 )
 
 # 現在のバージョン番号
-CURRENT_VERSION: int = 42
+CURRENT_VERSION: int = 43
 
 
 # ── 段階A: マイグレーション処理 ────────────────────────────────────

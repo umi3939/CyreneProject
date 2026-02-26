@@ -445,6 +445,13 @@ from .spontaneous_recall import (
     create_spontaneous_recall,
 )
 
+# Memory emotion return (記憶想起から感情への帰還経路)
+from .memory_emotion_return import (
+    MemoryEmotionReturnProcessor,
+    MemoryEmotionReturnState,
+    create_memory_emotion_return,
+)
+
 # Introspection cross-section (内省断面間の横断的記述)
 from .introspection_cross_section import (
     IntrospectionCrossSectionProcessor,
@@ -941,6 +948,12 @@ def _build_field_definitions() -> list[FieldDef]:
             load_type=SpontaneousRecallState, version=28, group=SG.MEMORY,
             state_sub_attr="state",
         ),
+        FieldDef(
+            key="memory_emotion_return_state", attr_path="_memory_emotion_return",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=MemoryEmotionReturnState, version=43, group=SG.MEMORY,
+            state_sub_attr="state",
+        ),
 
         # ── 他者モデル (OTHER_MODEL) ─────────────────────────────
         FieldDef(
@@ -1337,6 +1350,9 @@ class PsycheOrchestrator:
 
         # ── Spontaneous recall (記憶の自発的想起 - 非参照型想起) ──
         self._spontaneous_recall = create_spontaneous_recall()
+
+        # ── Memory emotion return (記憶想起から感情への帰還経路) ──
+        self._memory_emotion_return = create_memory_emotion_return()
 
         # ── Introspection cross-section (内省断面間の横断的記述) ──
         self._introspection_cross_section = create_introspection_cross_section()

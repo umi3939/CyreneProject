@@ -398,6 +398,16 @@ from .spontaneous_recall import (
     create_spontaneous_recall,
 )
 
+# Memory emotion return (記憶想起から感情への帰還経路)
+from .memory_emotion_return import (
+    MemoryEmotionReturnProcessor,
+    MemoryEmotionReturnState,
+    MemoryEmotionReturnConfig,
+    ReturnRecord,
+    ReturnResult,
+    create_memory_emotion_return,
+)
+
 # Data structures, Functions
 from .forgetting_recall_balance import (
     ForgettingRecallBalanceConfig,
@@ -2018,6 +2028,10 @@ __all__ = [
     "SpontaneousRecallConfig", "SpontaneousRecallProcessor",
     "extract_recall_cross_sections", "get_spontaneous_recall_summary",
     "create_spontaneous_recall",
+    # Memory Emotion Return
+    "MemoryEmotionReturnProcessor", "MemoryEmotionReturnState",
+    "MemoryEmotionReturnConfig", "ReturnRecord", "ReturnResult",
+    "create_memory_emotion_return",
     # Forgetting-Recall Balance
     "ForgettingRecallBalanceConfig", "ForgettingRecallBalanceState",
     "ForgettingSectionSnapshot", "ExternalRecallSectionSnapshot",

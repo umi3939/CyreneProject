@@ -108,6 +108,10 @@ from .forgetting_recall_balance import (
     process_forgetting_recall_balance,
 )
 
+from .memory_emotion_return import (
+    MemoryEmotionReturnProcessor,
+)
+
 from .responsibility_dispersion import (
     get_active_units as get_dispersion_active_units,
     get_total_active_weight as get_dispersion_active_weight,
@@ -482,6 +486,64 @@ def _run_5t_narrative_memory(orch: PsycheOrchestrator, user_id: str) -> None:
         )
     except Exception as e:
         logger.debug("Spontaneous recall skipped: %s", e)
+
+    # Phase 21g: memory_emotion_return — 記憶想起から感情への帰還経路
+    # 想起処理(21d, 21e)の完了後、反応処理の適用後に実行。
+    # 想起された記憶に付随する感情痕跡を読み取り、感情ベクトルへの帰還量を適用する。
+    # 出力は感情ベクトルの変化量のみ。enrichmentへの直接露出なし。
+    # 想起モジュールへの逆流経路なし。忘却処理への経路なし。
+    try:
+        if orch._memory_emotion_return is not None:
+            # 想起候補リストの取得（READ-ONLY参照）
+            mer_mpr_candidates = []
+            if orch._multi_path_recall is not None:
+                mer_mpr_candidates = orch._multi_path_recall.get_recall_candidates()
+
+            mer_sr_candidates = []
+            if orch._spontaneous_recall is not None:
+                mer_sr_candidates = orch._spontaneous_recall.get_recall_candidates()
+
+            # 現在の感情ベクトル（READ-ONLY参照）
+            mer_current_emotions = orch._psyche.emotions.as_dict()
+
+            # ムード
+            mer_mood_valence = orch._psyche.mood.valence
+            mer_mood_arousal = orch._psyche.mood.arousal
+
+            # 価値方向性の最大バイアス強度
+            mer_max_bias = 0.15
+            try:
+                if orch._orientation is not None:
+                    mer_max_bias = getattr(
+                        orch._orientation_config, "max_bias_strength", 0.15
+                    )
+            except Exception:
+                pass
+
+            # 帰還処理実行
+            mer_result = orch._memory_emotion_return.process(
+                multi_path_candidates=mer_mpr_candidates,
+                spontaneous_candidates=mer_sr_candidates,
+                binding_store=orch._last_bindings,
+                current_emotions=mer_current_emotions,
+                mood_valence=mer_mood_valence,
+                mood_arousal=mer_mood_arousal,
+                max_bias_strength=mer_max_bias,
+                tick_number=orch._tick_count,
+            )
+
+            # 帰還量を感情ベクトルに適用
+            if mer_result.emotion_deltas:
+                emo_dict = orch._psyche.emotions.as_dict()
+                for label, delta in mer_result.emotion_deltas.items():
+                    if label in emo_dict:
+                        emo_dict[label] = max(0.0, min(1.0, emo_dict[label] + delta))
+                from .state import EmotionVector
+                orch._psyche = orch._psyche.model_copy(
+                    update={"emotions": EmotionVector(**emo_dict)}
+                )
+    except Exception as e:
+        logger.debug("Memory emotion return skipped: %s", e)
 
     # Phase 21f: forgetting_recall_balance — 忘却と想起の均衡記述
     # 忘却側1構造・想起側2構造の状態を読み取り専用で参照し、

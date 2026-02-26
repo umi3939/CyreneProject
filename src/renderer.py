@@ -1,6 +1,11 @@
 """
 src/renderer.py - Thin wrapper around psyche/expression.py (Gemini VOICE ONLY).
 
+DEPRECATED: This module is no longer used by the main pipeline.
+src/api.py and src/simulation.py now use PsycheOrchestrator (via brain.py pattern)
+which calls psyche.expression.render_expression() directly with enrichment context.
+This module is retained for backward compatibility but should not be used for new code.
+
 **Architecture**: Gemini is used ONLY for text rendering. It NEVER makes decisions.
 This module wraps psyche.expression for backward compatibility.
 

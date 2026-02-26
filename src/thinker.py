@@ -1,6 +1,11 @@
 """
 src/thinker.py - Thin wrapper around psyche/thought.py (LOCAL ONLY).
 
+DEPRECATED: This module is no longer used by the main pipeline.
+src/api.py and src/simulation.py now use PsycheOrchestrator (via brain.py pattern)
+which routes through orchestrator.select_policy_dict() with all 70+ systems active.
+This module is retained for backward compatibility but should not be used for new code.
+
 **Architecture**: All thinking/policy logic is LOCAL. No LLM calls.
 This module wraps psyche.thought for backward compatibility with
 existing code that imports from src.thinker.

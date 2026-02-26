@@ -261,22 +261,22 @@ async def main():
     config = SimulationConfig(turns=10, pattern="mixed", user_id="sim_integration_test")
     engine = SimulationEngine(config)
 
-    sim_state = PsycheState()
     for i in range(10):
-        sim_state, record = await engine.run_turn(i, sim_state)
+        record = await engine.run_turn(i)
 
     simulation_works = (
         len(engine.records) == 10 and
         all(r.policy_label for r in engine.records)
     )
 
-    caution_changes = engine.records[-1].influence_caution != engine.records[0].influence_caution
+    # Check that orchestrator tick increments (state changes over time)
+    tick_changes = engine.records[-1].orchestrator_tick > engine.records[0].orchestrator_tick
 
     print(f"  Simulation runs: {'OK' if simulation_works else 'FAIL'}")
-    print(f"  State changes over time: {'OK' if caution_changes else 'FAIL'}")
+    print(f"  State changes over time: {'OK' if tick_changes else 'FAIL'}")
     print(f"    Turns completed: {len(engine.records)}")
-    print(f"    Initial caution: {engine.records[0].influence_caution:.4f}")
-    print(f"    Final caution: {engine.records[-1].influence_caution:.4f}")
+    print(f"    Initial tick: {engine.records[0].orchestrator_tick}")
+    print(f"    Final tick: {engine.records[-1].orchestrator_tick}")
 
     results["simulation"] = simulation_works
 

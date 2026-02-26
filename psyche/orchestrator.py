@@ -35,6 +35,7 @@ from .pillars import (
 )
 
 # Core reaction pipeline
+from .reaction import MoodContextInputs
 from .reaction_with_stm import react_with_stm
 from .short_term_loop import LoopState, create_loop_state
 
@@ -1580,6 +1581,63 @@ class PsycheOrchestrator:
             logger.debug("Spontaneous activation check failed: %s", e)
             return None
 
+    # ── Mood context builder ────────────────────────────────────────
+
+    def _build_mood_context(
+        self,
+        resp_influence: Optional[Any] = None,
+    ) -> MoodContextInputs:
+        """ムード自律更新のための入力コンテキストを構築する。
+
+        各入力源は利用可能な場合のみ設定され、
+        利用不能な場合はデフォルト値（寄与ゼロ）のまま残される。
+        """
+        ctx = MoodContextInputs(
+            emotions=self._psyche.emotions.as_dict(),
+            drives=self._psyche.drives.as_dict(),
+            current_valence=self._psyche.mood.valence,
+            current_arousal=self._psyche.mood.arousal,
+            fear_level=self._psyche.fear_level,
+        )
+
+        # 責任影響
+        if resp_influence is not None:
+            ctx.responsibility_anxiety = getattr(
+                resp_influence, "anxiety_baseline", 0.0
+            )
+
+        # 目的階層の存在情報
+        try:
+            tg_state = self._transient_goal_mgr.state
+            ctx.has_transient_goal = tg_state.active_goal is not None
+        except Exception:
+            pass
+
+        try:
+            active_items = [
+                it for it in self._persistent_commitment._state.items
+                if not it.released
+            ]
+            ctx.persistent_commitment_count = len(active_items)
+        except Exception:
+            pass
+
+        try:
+            ctx.has_scoped_goal = self._scoped_goal_sys.has_active_scope
+        except Exception:
+            pass
+
+        # 時間認知の段階値
+        try:
+            snapshot = self._temporal_cognition.get_snapshot()
+            activity = snapshot.get("activity_density")
+            if activity:
+                ctx.time_density_label = activity
+        except Exception:
+            pass
+
+        return ctx
+
     # ── Phase 1-7: Every-tick update ──────────────────────────────
 
     def _run_every_tick(
@@ -1593,14 +1651,19 @@ class PsycheOrchestrator:
         # Preserve percept for 5-tick phase input supply
         self._last_percept = percept
 
-        # Phase 1: react_with_stm — 感情更新 + STM残留
+        # Phase 1: react_with_stm — 感情更新 + STM残留 + ムード自律更新
         resp_influence = self._responsibility_mgr.get_influence(user_id)
+
+        # Construct mood context for autonomous mood update
+        mood_ctx = self._build_mood_context(resp_influence)
+
         new_psyche, new_loop, loop_result = react_with_stm(
             percept=percept,
             psyche_state=self._psyche,
             loop_state=self._loop_state,
             delta_time=delta_time,
             responsibility_influence=resp_influence,
+            mood_context=mood_ctx,
         )
         self._psyche = new_psyche
         self._loop_state = new_loop

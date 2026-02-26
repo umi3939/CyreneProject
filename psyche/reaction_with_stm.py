@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 import time
 
-from .reaction import react, DECAY_RATE, _EMOTION_MAP
+from .reaction import react, DECAY_RATE, _EMOTION_MAP, MoodContextInputs
 from .responsibility import ResponsibilityInfluence
 from .state import EmotionVector, Percept, PsycheState
 from .short_term_loop import (
@@ -133,6 +133,7 @@ def react_with_stm(
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
     residue_scale_override: Optional[float] = None,
     current_time: Optional[float] = None,
+    mood_context: Optional[MoodContextInputs] = None,
 ) -> tuple[PsycheState, LoopState, LoopResult]:
     """
     Extended reaction that includes short-term memory loop.
@@ -154,6 +155,7 @@ def react_with_stm(
         responsibility_influence: Optional responsibility influence.
         residue_scale_override: Optional override for residue influence scale.
         current_time: Optional current timestamp.
+        mood_context: Optional context for autonomous mood update.
 
     Returns:
         Tuple of (new_psyche_state, new_loop_state, loop_result)
@@ -173,6 +175,7 @@ def react_with_stm(
         state=psyche_state,
         delta_time=delta_time,
         responsibility_influence=responsibility_influence,
+        mood_context=mood_context,
     )
 
     # ── Step 3: Apply residue influence ──
@@ -223,6 +226,7 @@ def react_combined(
     responsibility_influence: Optional[ResponsibilityInfluence] = None,
     residue_scale_override: Optional[float] = None,
     current_time: Optional[float] = None,
+    mood_context: Optional[MoodContextInputs] = None,
 ) -> tuple[CombinedReactionState, LoopResult]:
     """
     Convenience wrapper for react_with_stm using combined state.
@@ -238,6 +242,7 @@ def react_combined(
         responsibility_influence=responsibility_influence,
         residue_scale_override=residue_scale_override,
         current_time=current_time,
+        mood_context=mood_context,
     )
 
     return CombinedReactionState(psyche=new_psyche, loop=new_loop), loop_result

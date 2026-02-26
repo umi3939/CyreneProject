@@ -77,8 +77,8 @@ from .persistence import (
 # 感情 -- Emotion
 # ============================================================
 
-# Functions
-from .reaction import react
+# Functions, Data structures
+from .reaction import react, MoodContextInputs
 
 # Enums, Data structures, Functions
 from .dynamics import (

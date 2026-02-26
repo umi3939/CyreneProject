@@ -4635,6 +4635,13 @@ class PsycheOrchestrator:
         except Exception:
             pass
 
+        # ── 選択結果から感情への帰還 ──
+        # ドライブ帰還の直後に感情帰還を適用する（1選択イベントにつき1回）
+        try:
+            self._apply_selection_emotion_return(policy, len(candidates))
+        except Exception:
+            pass
+
         return policy
 
     def _apply_expected_drive_change(self, policy: dict[str, Any]) -> None:
@@ -4685,6 +4692,164 @@ class PsycheOrchestrator:
         self._psyche = self._psyche.model_copy(
             update={"drives": updated_drive_vector}
         )
+
+    def _apply_selection_emotion_return(
+        self, policy: dict[str, Any], candidate_count: int,
+    ) -> None:
+        """選択結果から感情ベクトルへの帰還経路。
+
+        3段パイプライン:
+          段階1: 帰還方向の導出（ドライブ対象軸 + 選択時内部状態から間接導出）
+          段階2: 帰還量の導出（距離比例・候補数スケーリング・arousalスケーリング）
+          段階3: 適用と安全弁
+
+        安全弁6種:
+          1. 帰還帯域の上限制限: 各感情次元の帰還量をドライブ帰還上限(0.15)の半分以下にクランプ
+          2. 合計帰還量の上限: 全次元合計に上限を設ける
+          3. 距離比例による自動抑制: 境界付近で帰還量が自動縮小
+          4. 正帰還ループの3重遮断: 帯域制限 + 非固定性 + 距離比例
+          5. 適用回数の構造的制限: select_policy_dict内で1回のみ呼ばれる
+          6. 有効範囲クランプ: 適用後の感情値を0.0-1.0にクランプ
+
+        独自の永続的状態を保持しない（純粋関数として構成）。
+        """
+        edc = policy.get("expected_drive_change")
+        if not edc or not isinstance(edc, dict):
+            return
+
+        # ── 定数 ──
+        # 安全弁1: ドライブ帰還の軸別上限(0.15)の半分以下
+        MAX_PER_DIM = 0.075
+        # 安全弁2: 全次元合計の上限（ドライブ帰還合計上限 0.15*3=0.45 より小さい）
+        MAX_TOTAL = 0.30
+
+        # 感情7次元
+        EMOTION_DIMS = ("joy", "anger", "sorrow", "fear", "surprise", "love", "fun")
+
+        # 選択時の内部状態スナップショット（読み取り専用）
+        current_emotions = self._psyche.emotions.as_dict()
+        mood_valence = self._psyche.mood.valence
+        mood_arousal = self._psyche.mood.arousal
+        fear_level = self._psyche.fear_level
+        current_drives = self._psyche.drives.as_dict()
+
+        # ドライブ対象軸の取得
+        drive_target = policy.get("drive_target", "")
+        if not drive_target:
+            # drive_target がない場合は expected_drive_change から推定
+            # 最も大きな変化量の軸をドライブ対象とする
+            max_abs = 0.0
+            for axis, val in edc.items():
+                if isinstance(val, (int, float)) and abs(val) > max_abs:
+                    max_abs = abs(val)
+                    drive_target = axis
+
+        if not drive_target:
+            return
+
+        # ドライブの現在値を取得
+        drive_val = current_drives.get(drive_target, 0.5)
+        # ドライブの宣言変化量（充足方向かどうかの判定に使用）
+        drive_change = edc.get(drive_target, 0.0)
+        if not isinstance(drive_change, (int, float)):
+            drive_change = 0.0
+
+        # ── 段階1: 帰還方向の導出 ──
+        # 方針ラベルを直接参照しない。ドライブ対象軸と選択時内部状態から間接導出。
+        # ドライブの充足が生じる場合（drive_change < 0）、関連感情次元に微弱な変化。
+        # 方向は mood_valence と fear_level と感情の偏りから都度導出。
+        directions: dict[str, float] = {}
+        for dim in EMOTION_DIMS:
+            emo_val = current_emotions.get(dim, 0.0)
+
+            # 方向は状態断面に依存して都度異なる
+            # 基本方向: mood_valence の符号とドライブ充足方向から導出
+            if drive_change >= 0.0:
+                # ドライブ充足なし → 帰還方向は中立に近い
+                directions[dim] = 0.0
+                continue
+
+            # ドライブ充足がある場合: 感情偏りとムード正負から方向を導出
+            # 感情値が高い次元ほど帰還方向がその次元に向かいやすい（状態依存）
+            # fear_level が高い場合は fear/sorrow 次元に正方向、joy/fun に負方向
+            if dim in ("fear", "sorrow"):
+                direction = fear_level * 0.5 - mood_valence * 0.3 - emo_val * 0.2
+            elif dim in ("joy", "fun", "love"):
+                direction = mood_valence * 0.5 - fear_level * 0.3 + emo_val * 0.2
+            elif dim == "anger":
+                direction = -mood_valence * 0.3 + (1.0 - drive_val) * 0.2 - emo_val * 0.1
+            elif dim == "surprise":
+                direction = abs(drive_change) * 0.5 - emo_val * 0.3
+            else:
+                direction = 0.0
+
+            directions[dim] = direction
+
+        # ── 段階2: 帰還量の導出 ──
+        deltas: dict[str, float] = {}
+        total_abs = 0.0
+
+        for dim in EMOTION_DIMS:
+            direction = directions.get(dim, 0.0)
+            if abs(direction) < 1e-9:
+                deltas[dim] = 0.0
+                continue
+
+            emo_val = current_emotions.get(dim, 0.0)
+            sign = 1.0 if direction > 0 else -1.0
+
+            # 安全弁3: 距離比例による自動抑制
+            # 境界値(1.0 or 0.0)との距離に比例して帰還量を縮小
+            if sign > 0:
+                distance = 1.0 - emo_val  # 上限との距離
+            else:
+                distance = emo_val  # 下限との距離
+            distance = max(distance, 0.0)
+
+            # 基本帰還量: |direction| * |drive_change| * 距離比例
+            raw_amount = abs(direction) * abs(drive_change) * distance
+
+            # 候補数スケーリング: 候補が少ないほど帰還量が抑制される
+            # candidate_count=1 → scale=0.2, =3 → 0.6, =5+ → 1.0
+            if candidate_count <= 0:
+                count_scale = 0.0
+            else:
+                count_scale = min(1.0, candidate_count / 5.0)
+            raw_amount *= count_scale
+
+            # arousalスケーリング: 低覚醒時は帰還量が抑制される
+            arousal_scale = max(0.1, mood_arousal)
+            raw_amount *= arousal_scale
+
+            # 安全弁1: 帰還帯域の上限制限（各次元）
+            raw_amount = min(raw_amount, MAX_PER_DIM)
+
+            deltas[dim] = sign * raw_amount
+            total_abs += abs(deltas[dim])
+
+        # 安全弁2: 合計帰還量の上限
+        if total_abs > MAX_TOTAL:
+            scale = MAX_TOTAL / total_abs
+            for dim in EMOTION_DIMS:
+                deltas[dim] *= scale
+
+        # ── 段階3: 適用 ──
+        new_emotions = dict(current_emotions)
+        any_changed = False
+        for dim in EMOTION_DIMS:
+            delta = deltas.get(dim, 0.0)
+            if abs(delta) < 1e-9:
+                continue
+            new_val = current_emotions.get(dim, 0.0) + delta
+            # 安全弁6: 有効範囲クランプ (0.0-1.0)
+            new_emotions[dim] = max(0.0, min(1.0, new_val))
+            any_changed = True
+
+        if any_changed:
+            updated_emotions = EmotionVector(**new_emotions)
+            self._psyche = self._psyche.model_copy(
+                update={"emotions": updated_emotions}
+            )
 
     def get_policy_suggestions(
         self,

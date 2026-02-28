@@ -92,8 +92,12 @@ from .other_agent_model import (
 
 from .value_orientation import (
     update_orientation,
+    update_from_decision,
     generate_emotion_signal,
     generate_responsibility_signal,
+    generate_decision_signal,
+    ValueOrientationConfig,
+    compute_effective_learning_rate,
 )
 
 from .stabilization_description import (
@@ -545,6 +549,69 @@ def _run_5t_narrative_memory(orch: PsycheOrchestrator, user_id: str) -> None:
     except Exception as e:
         logger.debug("Memory emotion return skipped: %s", e)
 
+    # Phase 21h: other_hypothesis_emotion_return — 他者仮説由来の感情帰還経路
+    # 他者モデルの活性仮説に含まれる感情関連語を検出し、
+    # 感情ベクトルへの微弱な帰還量を導出する。
+    # 記憶帰還経路(21g)の直後に配置。帯域は記憶帰還経路より狭い。
+    # 出力は感情ベクトルの変化量のみ。enrichmentへの直接露出なし。
+    # 他者モデルへの書き込み経路なし。記憶系・忘却系への経路なし。
+    try:
+        if orch._other_hypothesis_emotion_return is not None:
+            # 活性仮説の取得（READ-ONLY参照）
+            oher_active_hypotheses = []
+            if orch._other_model_sys is not None:
+                oher_active_hypotheses = orch._other_model_sys.get_active_hypotheses()
+
+            # 現在の感情ベクトル（READ-ONLY参照）
+            oher_current_emotions = orch._psyche.emotions.as_dict()
+
+            # ムード
+            oher_mood_valence = orch._psyche.mood.valence
+            oher_mood_arousal = orch._psyche.mood.arousal
+
+            # 価値方向性の最大バイアス強度
+            oher_max_bias = 0.15
+            try:
+                if orch._orientation is not None:
+                    oher_max_bias = getattr(
+                        orch._orientation_config, "max_bias_strength", 0.15
+                    )
+            except Exception:
+                pass
+
+            # 記憶帰還経路の帰還量（合算帯域制約用、READ-ONLY）
+            # mer_result は Phase 21g で定義される局所変数。
+            # Phase 21g がスキップされた場合は未定義のため NameError を捕捉する。
+            oher_memory_return_deltas = None
+            try:
+                oher_memory_return_deltas = mer_result.emotion_deltas
+            except NameError:
+                pass
+
+            # 帰還処理実行
+            oher_result = orch._other_hypothesis_emotion_return.process(
+                active_hypotheses=oher_active_hypotheses,
+                current_emotions=oher_current_emotions,
+                mood_valence=oher_mood_valence,
+                mood_arousal=oher_mood_arousal,
+                max_bias_strength=oher_max_bias,
+                memory_return_deltas=oher_memory_return_deltas,
+                tick_number=orch._tick_count,
+            )
+
+            # 帰還量を感情ベクトルに適用
+            if oher_result.emotion_deltas:
+                emo_dict = orch._psyche.emotions.as_dict()
+                for label, delta in oher_result.emotion_deltas.items():
+                    if label in emo_dict:
+                        emo_dict[label] = max(0.0, min(1.0, emo_dict[label] + delta))
+                from .state import EmotionVector
+                orch._psyche = orch._psyche.model_copy(
+                    update={"emotions": EmotionVector(**emo_dict)}
+                )
+    except Exception as e:
+        logger.debug("Other hypothesis emotion return skipped: %s", e)
+
     # Phase 21f: forgetting_recall_balance — 忘却と想起の均衡記述
     # 忘却側1構造・想起側2構造の状態を読み取り専用で参照し、
     # 3断面（忘却断面・外部トリガー型想起断面・自発的想起断面）を等価に並置記述する。
@@ -934,6 +1001,16 @@ def _run_5t_value_responsibility(orch: PsycheOrchestrator, user_id: str) -> None
     except Exception as e:
         logger.debug("Value orientation skipped: %s", e)
 
+    # Phase 26-EXP: 経験強度による価値更新帯域拡大
+    # 設計書: design_experience_driven_value_update.md
+    # 既存のポリシー選択→価値指向更新の帯域を、経験時の内部状態の強度に応じて
+    # 一時的に拡大する。新たな感情→価値次元の固定対応関係は導入しない。
+    # 帯域拡大はconfidence dampingの前段で適用され、高確信度次元は変動しにくい。
+    try:
+        _apply_experience_driven_value_update(orch)
+    except Exception as e:
+        logger.debug("Experience-driven value update skipped: %s", e)
+
     # Phase 26b: value_orientation_validation — 価値方向性の実運用検証
     try:
         vo_inputs = orch._build_vo_validation_inputs(user_id)
@@ -1153,3 +1230,223 @@ def _run_5t_value_responsibility(orch: PsycheOrchestrator, user_id: str) -> None
         )
     except Exception as e:
         logger.debug("Goal hierarchy propagation skipped: %s", e)
+
+
+# ── Experience-driven value update bandwidth expansion ───────────────────────
+
+# 帯域拡大係数の絶対上限（基本学習率の倍数）
+_EXP_BANDWIDTH_MAX_MULTIPLIER: float = 4.0
+
+# 1回の帯域拡大更新で次元が変動できる絶対上限
+_EXP_BANDWIDTH_MAX_DELTA_PER_DIM: float = 0.08
+
+# 冷却期間（ティック数）
+_EXP_BANDWIDTH_COOLDOWN_TICKS: int = 3
+
+
+def _compute_experience_intensity(
+    episodic_emotion_intensity: float,
+    emotion_vector_amplitude: float,
+    mood_arousal: float,
+) -> float:
+    """
+    経験強度係数を算出する（設計書 段階1）。
+
+    3つの断面値を乗算的に結合し、連続的な経験強度係数を得る。
+    いずれの断面も低い場合、係数は極めて小さくなる。
+
+    各断面は 0.0-1.0 にクランプされる。
+    """
+    ei = max(0.0, min(1.0, episodic_emotion_intensity))
+    ea = max(0.0, min(1.0, emotion_vector_amplitude))
+    ma = max(0.0, min(1.0, mood_arousal))
+    return ei * ea * ma
+
+
+def _compute_bandwidth_expansion_coefficient(
+    experience_intensity: float,
+    base_learning_rate: float,
+) -> float:
+    """
+    帯域拡大係数を算出する（設計書 段階2）。
+
+    - 経験強度が低い場合: 拡大係数は事実上ゼロに近い（通常の基本学習率のまま）
+    - 経験強度が高い場合でも: 拡大量には絶対上限が存在する
+    - 帯域拡大係数は内部状態依存であり、固定定数ではない
+
+    Returns:
+        拡大後の実効学習率に適用する乗数 (1.0 = 拡大なし)
+    """
+    if experience_intensity < 0.01:
+        return 1.0  # 実質拡大なし
+
+    # 非線形マッピング: 低強度では効果が小さく、高強度で増加するが上限がある
+    # sqrt を使って中間領域で緩やかに増加させる
+    expansion = 1.0 + ((_EXP_BANDWIDTH_MAX_MULTIPLIER - 1.0) * (experience_intensity ** 0.5))
+
+    # 絶対上限クランプ
+    expansion = min(expansion, _EXP_BANDWIDTH_MAX_MULTIPLIER)
+
+    return expansion
+
+
+def _apply_experience_driven_value_update(orch: "PsycheOrchestrator") -> None:
+    """
+    経験強度による価値指向更新の帯域拡大を適用する。
+
+    設計書 design_experience_driven_value_update.md に基づく。
+
+    配置位置: Phase 26 (既存の感情/責任/ARシグナル更新) の後、
+             Phase 26b (value_orientation_validation) の前。
+
+    構造的制約:
+    - 帯域拡大は既存の update_from_decision 経路を経由する
+    - 新たな感情→価値次元の固定対応関係は導入しない
+    - confidence damping は帯域拡大後にも適用される
+    - 同一ティック内での二重更新を回避する
+    - エピソード記憶への書き込みは行わない
+    - 帯域拡大の事実は enrichment に直接露出しない
+    - 帯域拡大係数・適用履歴は永続化しない
+    """
+    # ── 冷却期間チェック ──
+    # _exp_bandwidth_last_tick は非永続属性（ティック間のみ、セッション間で引き継がない）
+    if not hasattr(orch, '_exp_bandwidth_last_tick'):
+        orch._exp_bandwidth_last_tick = -_EXP_BANDWIDTH_COOLDOWN_TICKS - 1
+
+    ticks_since_last = orch._tick_count - orch._exp_bandwidth_last_tick
+    if ticks_since_last < _EXP_BANDWIDTH_COOLDOWN_TICKS:
+        return  # 冷却期間中
+
+    # ── 入力の取得と検証 ──
+    # ポリシー選択結果: 直近の選択ラベル
+    policy_label = getattr(orch, '_last_selected_policy_label', '')
+    if not policy_label:
+        return  # ポリシー未選択
+
+    # エピソード記憶の直近エントリ: 前回以前のティックで記録されたものを参照
+    # （同一ティック内での即時フィードバック防止 — 設計書セクション4項目2）
+    episodes_store = getattr(orch, '_last_episodes', None)
+    if episodes_store is None:
+        return
+
+    episodes = getattr(episodes_store, 'episodes', ())
+    if not episodes:
+        return
+
+    # 直近エントリの感情随伴情報を READ-ONLY で読み取る
+    latest_episode = episodes[-1]
+    emotional_companion = getattr(latest_episode, 'emotional_companion', None)
+    if emotional_companion is None:
+        return
+
+    episodic_intensity = getattr(emotional_companion, 'intensity_level', 0.0)
+
+    # ── 段階1: 経験強度の導出 ──
+    # 断面1: エピソード感情随伴情報の強度段階値
+    # 断面2: 現在の感情ベクトルの振幅（7軸の最大値）
+    emo_dict = orch._psyche.emotions.as_dict()
+    emotion_amplitude = max(emo_dict.values()) if emo_dict else 0.0
+
+    # 断面3: ムード覚醒度
+    mood_arousal = orch._psyche.mood.arousal
+
+    experience_intensity = _compute_experience_intensity(
+        episodic_emotion_intensity=episodic_intensity,
+        emotion_vector_amplitude=emotion_amplitude,
+        mood_arousal=mood_arousal,
+    )
+
+    # 経験強度が極めて低い場合は帯域拡大不要
+    if experience_intensity < 0.01:
+        return
+
+    # ── 段階2: 帯域拡大係数の算出 ──
+    vo_config = getattr(orch, '_vo_config', None) or ValueOrientationConfig()
+    base_lr = vo_config.base_learning_rate
+
+    expansion_coeff = _compute_bandwidth_expansion_coefficient(
+        experience_intensity=experience_intensity,
+        base_learning_rate=base_lr,
+    )
+
+    # 実質的な拡大がない場合はスキップ
+    if expansion_coeff <= 1.05:
+        return
+
+    # ── 段階3: 既存経路への投入 ──
+    # 帯域拡大された学習率を持つ一時的な設定を作成
+    expanded_lr = base_lr * expansion_coeff
+
+    # 絶対上限の適用: 帯域拡大後の実効学習率は base_learning_rate * MAX_MULTIPLIER 以下
+    expanded_lr = min(expanded_lr, base_lr * _EXP_BANDWIDTH_MAX_MULTIPLIER)
+
+    # ポリシーラベルから dimension signal を取得（既存の対応構造を経由）
+    decision_signal = generate_decision_signal(policy_label, vo_config)
+    if not decision_signal:
+        return
+
+    # 一時的にbase_learning_rateを拡大した設定を作成
+    # confidence_damping はそのまま維持（設計書安全弁4: dampingを迂回しない）
+    expanded_config = ValueOrientationConfig(
+        base_learning_rate=expanded_lr,
+        confidence_damping=vo_config.confidence_damping,
+        confidence_growth_rate=vo_config.confidence_growth_rate,
+        confidence_decay_rate=vo_config.confidence_decay_rate,
+        max_bias_strength=vo_config.max_bias_strength,
+        min_dimension_threshold=vo_config.min_dimension_threshold,
+        confidence_bias_amplifier=vo_config.confidence_bias_amplifier,
+        neutral_decay_rate=vo_config.neutral_decay_rate,
+        policy_dimension_map=vo_config.policy_dimension_map,
+        default_policy_influence=vo_config.default_policy_influence,
+    )
+
+    # update_orientation に decision_signal として投入
+    # 帯域拡大された学習率が confidence_damping を経由して各次元に適用される
+    new_orientation = update_orientation(
+        orientation=orch._value_orientation,
+        decision_signal=decision_signal,
+        config=expanded_config,
+    )
+
+    # 1回あたり更新量の絶対上限チェック（安全弁2）
+    old_dims = orch._value_orientation.get_all_dimensions()
+    new_dims = new_orientation.get_all_dimensions()
+    clamped = False
+    for dim_key in old_dims:
+        delta = abs(new_dims.get(dim_key, 0.0) - old_dims.get(dim_key, 0.0))
+        if delta > _EXP_BANDWIDTH_MAX_DELTA_PER_DIM:
+            clamped = True
+            break
+
+    if clamped:
+        # 上限超過の場合、スケールダウンして再適用
+        max_delta = max(
+            abs(new_dims.get(k, 0.0) - old_dims.get(k, 0.0))
+            for k in old_dims
+        )
+        if max_delta > 0:
+            scale_factor = _EXP_BANDWIDTH_MAX_DELTA_PER_DIM / max_delta
+            # スケールダウンした学習率で再計算
+            scaled_lr = expanded_lr * scale_factor
+            scaled_config = ValueOrientationConfig(
+                base_learning_rate=scaled_lr,
+                confidence_damping=vo_config.confidence_damping,
+                confidence_growth_rate=vo_config.confidence_growth_rate,
+                confidence_decay_rate=vo_config.confidence_decay_rate,
+                max_bias_strength=vo_config.max_bias_strength,
+                min_dimension_threshold=vo_config.min_dimension_threshold,
+                confidence_bias_amplifier=vo_config.confidence_bias_amplifier,
+                neutral_decay_rate=vo_config.neutral_decay_rate,
+                policy_dimension_map=vo_config.policy_dimension_map,
+                default_policy_influence=vo_config.default_policy_influence,
+            )
+            new_orientation = update_orientation(
+                orientation=orch._value_orientation,
+                decision_signal=decision_signal,
+                config=scaled_config,
+            )
+
+    orch._value_orientation = new_orientation
+
+    # 冷却期間の記録（非永続）
+    orch._exp_bandwidth_last_tick = orch._tick_count

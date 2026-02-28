@@ -408,6 +408,16 @@ from .memory_emotion_return import (
     create_memory_emotion_return,
 )
 
+# Other hypothesis emotion return (他者仮説由来の感情帰還経路)
+from .other_hypothesis_emotion_return import (
+    OtherHypothesisEmotionReturnProcessor,
+    OtherHypothesisEmotionReturnState,
+    OtherHypothesisEmotionReturnConfig,
+    HypothesisReturnRecord,
+    HypothesisReturnResult,
+    create_other_hypothesis_emotion_return,
+)
+
 # Data structures, Functions
 from .forgetting_recall_balance import (
     ForgettingRecallBalanceConfig,
@@ -2032,6 +2042,10 @@ __all__ = [
     "MemoryEmotionReturnProcessor", "MemoryEmotionReturnState",
     "MemoryEmotionReturnConfig", "ReturnRecord", "ReturnResult",
     "create_memory_emotion_return",
+    # Other Hypothesis Emotion Return
+    "OtherHypothesisEmotionReturnProcessor", "OtherHypothesisEmotionReturnState",
+    "OtherHypothesisEmotionReturnConfig", "HypothesisReturnRecord",
+    "HypothesisReturnResult", "create_other_hypothesis_emotion_return",
     # Forgetting-Recall Balance
     "ForgettingRecallBalanceConfig", "ForgettingRecallBalanceState",
     "ForgettingSectionSnapshot", "ExternalRecallSectionSnapshot",

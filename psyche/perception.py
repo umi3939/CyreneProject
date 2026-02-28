@@ -157,8 +157,8 @@ async def parse_percept(
     Returns:
         Percept with structured interpretation.
     """
-    # 1. Local heuristic baseline
-    percept = _heuristic_parse(user_text)
+    # 1. Local heuristic baseline (state passed for mood-valence bias)
+    percept = _heuristic_parse(user_text, state)
 
     # 2. LLM enrichment (optional, auxiliary)
     if llm_call_fn:
@@ -169,12 +169,38 @@ async def parse_percept(
 
 # ── Local heuristic ────────────────────────────────────────────
 
-def _heuristic_parse(text: str) -> Percept:
+_BIAS_BANDWIDTH = 0.04  # Absolute upper bound for perceptual bias (base_delta 0.2 / 5)
+_BIAS_COEFFICIENT = 0.1  # Fixed coefficient: valence * coefficient = raw bias
+
+
+def _compute_valence_bias(state: Optional[PsycheState]) -> float:
+    """Compute mood-valence-based bias for emotion_valence scoring.
+
+    Pure function. No state mutation. No accumulation.
+
+    Args:
+        state: Current PsycheState. If None, returns 0.0 (safety valve 4).
+
+    Returns:
+        Bias amount clamped to [-_BIAS_BANDWIDTH, +_BIAS_BANDWIDTH].
+    """
+    if state is None:
+        return 0.0
+    raw_bias = state.mood.valence * _BIAS_COEFFICIENT
+    return max(-_BIAS_BANDWIDTH, min(_BIAS_BANDWIDTH, raw_bias))
+
+
+def _heuristic_parse(text: str, state: Optional[PsycheState] = None) -> Percept:
     """Fast local keyword-based parse.  No LLM.
 
     Scans all emotion keywords and selects the match with the
     highest absolute valence.  All matched keywords are collected
     as candidate topics.
+
+    When *state* is provided, a small mood-valence-based bias is added
+    to the emotion_valence score after keyword matching.  The bias is
+    clamped to ``_BIAS_BANDWIDTH`` (safety valve 1) and computed as a
+    pure function with no accumulation (safety valve 3).
     """
     emotion = "neutral"
     valence = 0.0
@@ -199,7 +225,11 @@ def _heuristic_parse(text: str) -> Percept:
     # Cap topics
     topics = topics[:_MAX_TOPICS]
 
-    sentiment = valence  # simple mapping
+    # Apply mood-valence bias to emotion_valence (after keyword matching)
+    bias = _compute_valence_bias(state)
+    biased_valence = valence + bias
+
+    sentiment = biased_valence  # simple mapping
 
     return Percept(
         text=text,
@@ -208,7 +238,7 @@ def _heuristic_parse(text: str) -> Percept:
         intent=intent,
         topics=topics,
         sentiment=sentiment,
-        emotion_valence=max(-1.0, min(1.0, valence)),
+        emotion_valence=max(-1.0, min(1.0, biased_valence)),
     )
 
 

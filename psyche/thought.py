@@ -5,8 +5,8 @@ Generates and scores response policy candidates using **only local logic**.
 No LLM calls.  Drives, fear_index, mood, percept, and **responsibility** determine the policy.
 
 責任（Responsibility）の影響:
-- caution_bias: 判断時の慎重さ → からかう等のリスキーな選択を抑制
-- empathy_bias: 共感へのバイアス → 寄り添う選択を促進
+- caution_bias: 判断時の慎重さ → 特定ポリシーへのスコアペナルティ
+- empathy_bias: 共感へのバイアス → 特定ポリシーへのスコアボーナス
 
 短期記憶・ダイナミクス由来のバイアス:
 - DecisionBias: 短期記憶の余韻とピーク/反動状態が判断スコアに影響
@@ -264,17 +264,6 @@ def select_policy(
     # Already sorted by generate_thought_candidates
     best = candidates[0]
 
-    # 責任による最終チェック: 非常に慎重な状態ではリスキーな選択を再考
-    if responsibility_influence and responsibility_influence.caution_bias > 0.3:
-        if best["policy_label"] == "からかう" and len(candidates) > 1:
-            # からかうは避けて次善策を選ぶ
-            logger.debug(
-                "Responsibility caution override: %s → %s (caution=%.2f)",
-                best["policy_label"], candidates[1]["policy_label"],
-                responsibility_influence.caution_bias
-            )
-            best = candidates[1]
-
     logger.debug("Policy selected (LOCAL): %s (score=%.2f)", best["policy_label"], best.get("_score", 0))
     return best
 
@@ -294,8 +283,8 @@ def _score_candidate(
     """Score a candidate policy against current state.  Pure function.
 
     責任の影響がある場合:
-    - caution_bias: リスキーな選択（からかう）にペナルティ
-    - empathy_bias: 共感・励ましにボーナス
+    - caution_bias: 特定ポリシーにスコアペナルティ
+    - empathy_bias: 特定ポリシーにスコアボーナス
 
     短期記憶/ダイナミクス由来のバイアスがある場合:
     - 直近の感情の余韻がスコアに影響
@@ -442,7 +431,7 @@ def _score_candidate(
         caution = responsibility_influence.caution_bias
         if caution > 0.1:
             if label == "からかう":
-                resp_contrib -= caution * 4.0  # からかうは傷つけるリスクがある
+                resp_contrib -= caution * 4.0  # caution_biasが高い状態でのペナルティ
             elif label == "話題を変える":
                 resp_contrib -= caution * 1.5  # 逃げと見なされるリスク
 
@@ -450,7 +439,7 @@ def _score_candidate(
         empathy = responsibility_influence.empathy_bias
         if empathy > 0.1:
             if label in ("共感する", "励ます"):
-                resp_contrib += empathy * 3.0  # 傷つけないよう寄り添う
+                resp_contrib += empathy * 3.0  # empathy_biasが高い状態でのボーナス
             elif label == "質問で会話を広げる":
                 resp_contrib += empathy * 1.5  # 相手に寄り添う姿勢
 

@@ -481,8 +481,7 @@ class TestDownstreamCompatibility:
         assert "text" in selected
 
     def test_select_policy_with_responsibility_caution(self):
-        """select_policy respects caution override for 'からかう'."""
-        # Force からかう to top via high expression drive + positive mood + joke
+        """select_policy with high caution still returns top-scoring candidate (no forced override)."""
         state = _make_state(
             drives=DriveVector(social=0.1, curiosity=0.1, expression=0.95),
             mood=Mood(valence=0.8, arousal=0.8),
@@ -490,12 +489,46 @@ class TestDownstreamCompatibility:
         percept = _make_percept(intent="joke", emotion_valence=0.8)
         candidates = generate_thought_candidates(state, percept, [])
 
-        # With high caution, select_policy should prefer non-risky
+        # With high caution, select_policy should still return the top-scored candidate
+        # (no forced replacement logic exists; scoring penalties handle caution)
         resp = ResponsibilityInfluence(caution_bias=0.4, empathy_bias=0.0, anxiety_baseline=0.0)
         selected = select_policy(candidates, state, resp)
-        # The test passes if select_policy doesn't crash; caution override may or may not
-        # actually replace からかう depending on whether it's #1
         assert selected is not None
+        # select_policy always returns candidates[0] (no forced override)
+        assert selected["policy_label"] == candidates[0]["policy_label"]
+
+    def test_no_forced_replacement_for_karakau(self):
+        """Verify forced replacement logic for 'からかう' has been removed.
+
+        When 'からかう' is the top-scoring candidate, select_policy should
+        return it regardless of caution_bias level. Score penalties in
+        _score_candidate handle the bandwidth limiting instead.
+        """
+        # Create a candidate list where からかう is explicitly at the top
+        fake_candidates = [
+            {
+                "policy_label": "からかう",
+                "rationale": "test",
+                "expected_drive_change": {"social": -0.05, "curiosity": -0.01, "expression": -0.08},
+                "text": "test",
+                "_score": 10.0,
+            },
+            {
+                "policy_label": "共感する",
+                "rationale": "test",
+                "expected_drive_change": {"social": -0.08, "curiosity": -0.02, "expression": -0.02},
+                "text": "test",
+                "_score": 5.0,
+            },
+        ]
+        state = _make_state()
+        # Even with high caution_bias, select_policy should NOT replace からかう
+        resp = ResponsibilityInfluence(caution_bias=0.5, empathy_bias=0.0, anxiety_baseline=0.0)
+        selected = select_policy(fake_candidates, state, resp)
+        assert selected["policy_label"] == "からかう", (
+            "select_policy should not forcefully replace 'からかう' -- "
+            "bandwidth limiting is done via scoring penalties only"
+        )
 
     def test_empty_candidates_fallback(self):
         """select_policy with empty list returns default."""

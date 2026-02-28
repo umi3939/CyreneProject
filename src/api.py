@@ -202,7 +202,11 @@ async def respond(req: RespondRequest):
     )
 
     # Side effects: attachment update
-    attachment_mgr.update_bond(user_id, "partner", positive=True, importance=3)
+    # NOTE: src層の管理データ(data/example_attachments.json)であり、
+    # psyche内部のattachment(psyche/pillars.py AttachmentState)とは独立。
+    # psyche内部のattachmentはorchestrator Phase 3で感情バレンスに基づき
+    # 動的に更新される。この呼び出しはpsycheの内部状態に影響しない。
+    attachment_mgr.update_bond(user_id, "partner", positive=(percept.emotion_valence >= 0.0), importance=3)
 
     # Build response state from orchestrator
     psyche_state = _orchestrator.psyche

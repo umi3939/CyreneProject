@@ -572,3 +572,120 @@ class TestDownstreamCompatibility:
         )
         assert len(candidates) >= 3
         assert len(candidates) <= 5
+
+
+# ── 9. Curiosity recovery & policy concentration fixes ────────
+
+
+class TestCuriosityRecoveryFix:
+    """Tests for curiosity drive recovery path fixes (design_curiosity_recovery_fix)."""
+
+    def test_all_policies_have_negative_curiosity(self):
+        """All policies must have negative curiosity values (never zero or positive)."""
+        for p in POLICIES:
+            cur = p["expected_drive_change"]["curiosity"]
+            assert cur < 0, (
+                f"Policy '{p['policy_label']}' has non-negative curiosity: {cur}"
+            )
+
+    def test_curiosity_target_policies_have_larger_consumption(self):
+        """Curiosity-targeted policies should have relatively larger consumption."""
+        curiosity_policies = [p for p in POLICIES if p["drive_target"] == "curiosity"]
+        non_curiosity_policies = [p for p in POLICIES if p["drive_target"] != "curiosity"]
+        assert len(curiosity_policies) > 0
+        assert len(non_curiosity_policies) > 0
+
+        max_non_curiosity = max(
+            abs(p["expected_drive_change"]["curiosity"]) for p in non_curiosity_policies
+        )
+        min_curiosity_target = min(
+            abs(p["expected_drive_change"]["curiosity"]) for p in curiosity_policies
+        )
+        # Curiosity-targeted policies should consume more than non-curiosity ones
+        assert min_curiosity_target >= max_non_curiosity
+
+    def test_non_curiosity_policies_have_small_consumption(self):
+        """Non-curiosity-targeted policies should have small curiosity consumption."""
+        non_curiosity = [p for p in POLICIES if p["drive_target"] != "curiosity"]
+        for p in non_curiosity:
+            cur = abs(p["expected_drive_change"]["curiosity"])
+            assert cur <= 0.03, (
+                f"Non-curiosity policy '{p['policy_label']}' has large curiosity "
+                f"consumption: {cur}"
+            )
+
+
+class TestPolicyConcentrationFix:
+    """Tests for policy scoring band limits and safety valve fixes."""
+
+    def test_section_band_clamps_fear_bias(self):
+        """Fear bias section should be clamped to +-1.5."""
+        from psyche.thought import _SCORE_SECTION_BAND
+        # High fear should trigger fear_bias, but it should be clamped
+        state = _make_state(
+            emotions=EmotionVector(fear=0.95),
+            drives=DriveVector(social=0.5, curiosity=0.5, expression=0.5),
+            mood=Mood(valence=0.0, arousal=0.3),
+        )
+        percept = _make_percept()
+        empathy_policy = [p for p in POLICIES if p["policy_label"] == "共感する"][0]
+        _, bd = _score_candidate(
+            empathy_policy, state, percept, [], collect_breakdown=True,
+        )
+        # fear=0.95 > 0.3, so fear_contrib = 0.95 * 3.0 = 2.85, but clamped to 1.5
+        assert bd["fear_bias"] <= _SCORE_SECTION_BAND + 0.001
+
+    def test_section_band_clamps_attachment(self):
+        """Attachment risk section should be clamped to +-1.5."""
+        from psyche.thought import _SCORE_SECTION_BAND
+        state = _make_state(
+            fear_index=FearIndex(attachment_risk=0.95),
+        )
+        percept = _make_percept()
+        empathy_policy = [p for p in POLICIES if p["policy_label"] == "共感する"][0]
+        _, bd = _score_candidate(
+            empathy_policy, state, percept, [], collect_breakdown=True,
+        )
+        # attachment_risk=0.95 > 0.4, so contrib = 0.95 * 2.0 = 1.9, clamped to 1.5
+        assert bd["attachment_risk_reaction"] <= _SCORE_SECTION_BAND + 0.001
+
+    def test_intent_expression_gives_contribution(self):
+        """Intent='expression' should give non-zero contribution to multiple policies."""
+        state = _make_state()
+        percept = _make_percept(intent="expression")
+        policies_with_contrib = []
+        for p in POLICIES:
+            _, bd = _score_candidate(
+                p, state, percept, [], collect_breakdown=True,
+            )
+            if bd.get("percept_intent_match", 0.0) > 0:
+                policies_with_contrib.append(p["policy_label"])
+        # At least 2 policies should get contribution from expression intent
+        assert len(policies_with_contrib) >= 2, (
+            f"Only {len(policies_with_contrib)} policies got expression intent "
+            f"contribution: {policies_with_contrib}"
+        )
+
+    def test_nonlinear_compression_reduces_gap(self):
+        """Non-linear compression should reduce score gap more than old 0.9x."""
+        # Create extreme conditions
+        state = _make_state(
+            emotions=EmotionVector(fear=0.95),
+            drives=DriveVector(social=0.95, curiosity=0.05, expression=0.05),
+            mood=Mood(valence=-0.9, arousal=0.9),
+            fear_index=FearIndex(attachment_risk=0.95),
+        )
+        percept = _make_percept(intent="complaint", emotion_valence=-0.9)
+        resp = ResponsibilityInfluence(
+            caution_bias=0.5, empathy_bias=0.5, anxiety_baseline=0.3,
+        )
+        candidates = generate_thought_candidates(
+            state, percept, [{"m": 1}], resp,
+        )
+        if len(candidates) >= 2:
+            gap = candidates[0]["_score"] - candidates[1]["_score"]
+            # The gap should be more compressed than just 10% reduction
+            # With section band limits + non-linear compression, the gap should be modest
+            assert gap < 5.0, (
+                f"Score gap {gap:.2f} is still too large after compression"
+            )

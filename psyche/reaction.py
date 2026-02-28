@@ -150,7 +150,9 @@ def _compute_emotion_drive_coupling(
     result["social"] = max(-band["social"], min(band["social"], social_raw))
 
     # curiosity: 驚きと好奇心の連動。悲しみは好奇心を抑制
+    # A-1: joyからも微弱な正の寄与を追加（回復帯域拡大）
     curiosity_raw = (surprise_val * 0.15 + emo.get("fun", 0.0) * 0.08
+                     + emo.get("joy", 0.0) * 0.04
                      - emo.get("sorrow", 0.0) * 0.06)
     # 覚醒度が高いと好奇心への影響が増幅
     curiosity_raw *= (0.7 + arousal * 0.6)
@@ -284,7 +286,9 @@ def _compute_time_passage(
 
     # 知覚入力の意図による修正
     if ctx.percept_intent in ("sharing", "question"):
-        curiosity_raw -= 0.08  # 情報入力で好奇心充足
+        curiosity_raw -= 0.04  # A-2: 好奇心充足量を緩和（-0.08→-0.04）
+    elif ctx.percept_intent == "expression":
+        curiosity_raw += 0.01  # A-3: 他者の表現入力が好奇心を微小に刺激
 
     # 感情の最大値による表出ドライブへの寄与
     if ctx.emotions:

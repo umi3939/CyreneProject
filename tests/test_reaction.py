@@ -27,11 +27,14 @@ import pytest
 from psyche.pillars import FearIndex
 from psyche.reaction import (
     DECAY_RATE,
+    DriveContextInputs,
     _EMOTION_MAP,
     _VALENCE_NEGATIVE,
     _VALENCE_POSITIVE,
     _apply_responsibility_emotion_influence,
     _clamp,
+    _compute_emotion_drive_coupling,
+    _compute_time_passage,
     react,
 )
 from psyche.responsibility import ResponsibilityInfluence
@@ -814,3 +817,48 @@ class TestCombinedBehavior:
             assert 0.0 <= val <= 1.0, f"drive {field} = {val}"
         assert -1.0 <= result.mood.valence <= 1.0
         assert 0.0 <= result.mood.arousal <= 1.0
+
+
+# ── Curiosity recovery fixes ──────────────────────────────────
+
+
+class TestCuriosityRecoveryInReaction:
+    """Tests for curiosity recovery path fixes in reaction.py."""
+
+    def test_joy_contributes_to_curiosity(self):
+        """Joy should provide a small positive contribution to curiosity drive."""
+        ctx = DriveContextInputs(
+            emotions={"joy": 0.8, "sorrow": 0.0, "surprise": 0.0,
+                       "fun": 0.0, "anger": 0.0, "fear": 0.0, "love": 0.0},
+            mood_arousal=0.5,
+        )
+        result = _compute_emotion_drive_coupling(ctx)
+        # joy * 0.04 = 0.032, multiplied by arousal factor (0.7 + 0.5*0.6 = 1.0)
+        assert result["curiosity"] > 0, (
+            f"Joy should provide positive curiosity, got {result['curiosity']}"
+        )
+
+    def test_question_intent_curiosity_relaxed(self):
+        """Question intent should consume less curiosity than before (-0.04 vs -0.08)."""
+        ctx = DriveContextInputs(
+            percept_intent="question",
+            delta_time=2.0,
+        )
+        result = _compute_time_passage(ctx)
+        # curiosity_raw = 0.01 * 2.0 - 0.04 = -0.02 (was -0.06 before)
+        # Should be less negative than old value of -0.06
+        assert result["curiosity"] >= -0.04, (
+            f"Question intent curiosity consumption too large: {result['curiosity']}"
+        )
+
+    def test_expression_intent_gives_curiosity_boost(self):
+        """Expression intent should provide small positive curiosity contribution."""
+        ctx = DriveContextInputs(
+            percept_intent="expression",
+            delta_time=2.0,
+        )
+        result = _compute_time_passage(ctx)
+        # curiosity_raw = 0.01 * 2.0 + 0.01 = 0.03
+        assert result["curiosity"] > 0, (
+            f"Expression intent should give positive curiosity, got {result['curiosity']}"
+        )

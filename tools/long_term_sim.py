@@ -367,6 +367,7 @@ def run_simulation(
 
     started_at = datetime.now().isoformat(timespec="seconds")
     records: list[dict[str, Any]] = []
+    sim_memory_count = 0  # シミュレーション中の記憶保存カウンタ
 
     for turn_idx, pattern_key in enumerate(sequence):
         turn_num = turn_idx + 1
@@ -380,7 +381,18 @@ def run_simulation(
         percept = Percept(**INPUT_PATTERNS[pattern_key])
 
         # Step 2: post_response_update (Phase 1-29)
+        # Phase 3 (attachment bond update) と Phase 7 (_recompute_fear) が内部で実行される
         orch.post_response_update(percept, delta_time, turn_user_id)
+
+        # Step 2a: 記憶保存の模擬 — 感情的に顕著な入力で on_memory_saved() を呼ぶ
+        # 中立入力では記憶保存を発火しない（ティック数の単純反映ではない）
+        if abs(percept.emotion_valence) > 0.3:
+            sim_memory_count += 1
+            orch.on_memory_saved(
+                summary=percept.text,
+                keywords=[percept.emotion or "unknown"],
+                memory_count=sim_memory_count,
+            )
 
         # Step 3: select_policy_dict (Phase 30-35)
         policy = orch.select_policy_dict(percept, [], turn_user_id)

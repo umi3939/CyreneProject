@@ -34,6 +34,10 @@ from .decision_bias import DecisionBias, apply_bias_to_score
 
 logger = logging.getLogger(__name__)
 
+# ── スコアリング断面別帯域上限 ──
+# 全断面で同一の上限値を使用（断面間の均衡化）
+_SCORE_SECTION_BAND: float = 1.5
+
 # ── Policy definitions ─────────────────────────────────────────
 
 POLICIES: list[dict[str, Any]] = [
@@ -41,13 +45,13 @@ POLICIES: list[dict[str, Any]] = [
         "policy_label": "共感する",
         "rationale_template": "相手の気持ちに寄り添う",
         "drive_target": "social",
-        "expected_drive_change": {"social": -0.08, "curiosity": -0.02, "expression": -0.02},
+        "expected_drive_change": {"social": -0.08, "curiosity": -0.01, "expression": -0.02},
     },
     {
         "policy_label": "質問で会話を広げる",
         "rationale_template": "好奇心を満たし、会話を続ける",
         "drive_target": "curiosity",
-        "expected_drive_change": {"social": -0.03, "curiosity": -0.10, "expression": -0.01},
+        "expected_drive_change": {"social": -0.03, "curiosity": -0.06, "expression": -0.01},
     },
     {
         "policy_label": "からかう",
@@ -59,13 +63,13 @@ POLICIES: list[dict[str, Any]] = [
         "policy_label": "話題を変える",
         "rationale_template": "新しい方向に会話を導く",
         "drive_target": "curiosity",
-        "expected_drive_change": {"social": -0.02, "curiosity": -0.08, "expression": -0.03},
+        "expected_drive_change": {"social": -0.02, "curiosity": -0.05, "expression": -0.03},
     },
     {
         "policy_label": "感想を述べる",
         "rationale_template": "自分の考えや感情を表現する",
         "drive_target": "expression",
-        "expected_drive_change": {"social": -0.03, "curiosity": -0.02, "expression": -0.10},
+        "expected_drive_change": {"social": -0.03, "curiosity": -0.01, "expression": -0.10},
     },
     {
         "policy_label": "励ます",
@@ -78,25 +82,25 @@ POLICIES: list[dict[str, Any]] = [
         "policy_label": "黙って聞く",
         "rationale_template": "相手の発話を受け止める",
         "drive_target": "safety",
-        "expected_drive_change": {"social": -0.04, "curiosity": -0.02, "expression": -0.01},
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.01, "expression": -0.01},
     },
     {
         "policy_label": "自分の経験を話す",
         "rationale_template": "自身の記憶を参照して提示する",
         "drive_target": "expression",
-        "expected_drive_change": {"social": -0.04, "curiosity": -0.03, "expression": -0.09},
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.01, "expression": -0.09},
     },
     {
         "policy_label": "確認する",
         "rationale_template": "相手の意図の理解を照合する",
         "drive_target": "safety",
-        "expected_drive_change": {"social": -0.05, "curiosity": -0.06, "expression": -0.02},
+        "expected_drive_change": {"social": -0.05, "curiosity": -0.03, "expression": -0.02},
     },
     {
         "policy_label": "冗談を言う",
         "rationale_template": "場の空気を変える発話を試みる",
         "drive_target": "expression",
-        "expected_drive_change": {"social": -0.04, "curiosity": -0.02, "expression": -0.09},
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.01, "expression": -0.09},
     },
     {
         "policy_label": "謝る",
@@ -108,25 +112,25 @@ POLICIES: list[dict[str, Any]] = [
         "policy_label": "提案する",
         "rationale_template": "相手の状況に対して選択肢を提示する",
         "drive_target": "curiosity",
-        "expected_drive_change": {"social": -0.04, "curiosity": -0.08, "expression": -0.03},
+        "expected_drive_change": {"social": -0.04, "curiosity": -0.05, "expression": -0.03},
     },
     {
         "policy_label": "見守る",
         "rationale_template": "状況の推移を能動的に観察しつつ介入しない",
         "drive_target": "autonomy",
-        "expected_drive_change": {"social": -0.03, "curiosity": -0.03, "expression": -0.01},
+        "expected_drive_change": {"social": -0.03, "curiosity": -0.01, "expression": -0.01},
     },
     {
         "policy_label": "同意する",
         "rationale_template": "相手の見解に同調を示す",
         "drive_target": "social",
-        "expected_drive_change": {"social": -0.07, "curiosity": -0.02, "expression": -0.03},
+        "expected_drive_change": {"social": -0.07, "curiosity": -0.01, "expression": -0.03},
     },
     {
         "policy_label": "反論する",
         "rationale_template": "相手の見解に対して異なる視点を提示する",
         "drive_target": "autonomy",
-        "expected_drive_change": {"social": -0.03, "curiosity": -0.04, "expression": -0.07},
+        "expected_drive_change": {"social": -0.03, "curiosity": -0.01, "expression": -0.07},
     },
 ]
 
@@ -215,11 +219,14 @@ def generate_thought_candidates(
     # Sort by score descending
     candidates.sort(key=lambda c: c["_score"], reverse=True)
 
-    # ── 安全弁: スコア差過大時の減衰 ──
+    # ── 安全弁: スコア差過大時の非線形圧縮 ──
     if len(candidates) >= 2:
         gap = candidates[0]["_score"] - candidates[1]["_score"]
-        if gap > 5.0:
-            candidates[0]["_score"] *= 0.9
+        if gap > 1.0:
+            # compression_factor: gapが大きいほど圧縮が強い (1/(1+gap*0.3))
+            compression_factor = 1.0 / (1.0 + gap * 0.3)
+            compressed_score = candidates[1]["_score"] + gap * compression_factor
+            candidates[0]["_score"] = compressed_score
             # 再ソート
             candidates.sort(key=lambda c: c["_score"], reverse=True)
 
@@ -304,6 +311,10 @@ def _score_candidate(
     mood_val = state.mood.valence
     label = policy_def["policy_label"]
 
+    # 帯域制限ヘルパー: 各断面の寄与を均一上限でクランプ
+    def _clamp_section(v: float) -> float:
+        return max(-_SCORE_SECTION_BAND, min(_SCORE_SECTION_BAND, v))
+
     # 1. Drive satisfaction: high drive + policy satisfies it → bonus
     target_drive = policy_def["drive_target"]
     if target_drive in ("social", "curiosity", "expression"):
@@ -336,6 +347,7 @@ def _score_candidate(
         drive_contrib = drive_val * 2.0
     elif drive_val > 0.4:
         drive_contrib = drive_val * 1.0
+    drive_contrib = _clamp_section(drive_contrib)
     score += drive_contrib
     if collect_breakdown:
         bd["drive_goal_match"] = drive_contrib
@@ -347,6 +359,7 @@ def _score_candidate(
             fear_contrib = fear * 3.0
         elif label == "からかう":
             fear_contrib = -(fear * 2.0)
+    fear_contrib = _clamp_section(fear_contrib)
     score += fear_contrib
     if collect_breakdown:
         bd["fear_bias"] = fear_contrib
@@ -363,6 +376,7 @@ def _score_candidate(
         # Positive mood → teasing/sharing is fine
         if label in ("からかう", "感想を述べる"):
             mood_contrib = mood_val * 1.5
+    mood_contrib = _clamp_section(mood_contrib)
     score += mood_contrib
     if collect_breakdown:
         bd["mood_alignment"] = mood_contrib
@@ -382,6 +396,11 @@ def _score_candidate(
     elif intent == "joke":
         if label == "からかう":
             intent_contrib = 2.0
+    elif intent == "expression":
+        # 表現入力: 複数ポリシーに等価な微小寄与
+        if label in ("感想を述べる", "共感する", "自分の経験を話す"):
+            intent_contrib = 0.3
+    intent_contrib = _clamp_section(intent_contrib)
     score += intent_contrib
     if collect_breakdown:
         bd["percept_intent_match"] = intent_contrib
@@ -393,6 +412,7 @@ def _score_candidate(
         valence_contrib = abs(v) * 1.5
     elif v > 0.3 and label in ("からかう", "感想を述べる"):
         valence_contrib = v * 1.0
+    valence_contrib = _clamp_section(valence_contrib)
     score += valence_contrib
     if collect_breakdown:
         bd["percept_emotion_valence"] = valence_contrib
@@ -402,6 +422,7 @@ def _score_candidate(
     if state.fear_index and state.fear_index.attachment_risk > 0.4:
         if label in ("共感する", "質問で会話を広げる"):
             attach_contrib = state.fear_index.attachment_risk * 2.0
+    attach_contrib = _clamp_section(attach_contrib)
     score += attach_contrib
     if collect_breakdown:
         bd["attachment_risk_reaction"] = attach_contrib
@@ -411,6 +432,7 @@ def _score_candidate(
     if state.fear_index and state.fear_index.identity_risk > 0.4:
         if label == "感想を述べる":
             identity_contrib = state.fear_index.identity_risk * 1.5
+    identity_contrib = _clamp_section(identity_contrib)
     score += identity_contrib
     if collect_breakdown:
         bd["identity_risk_reaction"] = identity_contrib
@@ -448,6 +470,7 @@ def _score_candidate(
         if anxiety > 0.1:
             if label in ("共感する", "励ます", "質問で会話を広げる"):
                 resp_contrib += anxiety * 2.0
+    resp_contrib = _clamp_section(resp_contrib)
     score += resp_contrib
     if collect_breakdown:
         bd["responsibility_influence"] = resp_contrib
@@ -522,6 +545,7 @@ def _score_candidate(
             if label in ("自分の経験を話す", "冗談を言う"):
                 extended_contrib += me_supply * 1.5
 
+    extended_contrib = _clamp_section(extended_contrib)
     score += extended_contrib
     if collect_breakdown:
         bd["extended_input_reaction"] = extended_contrib

@@ -114,7 +114,7 @@ class TestAllSetInvariance:
     """Verify __all__ set is preserved exactly."""
 
     # The expected set size (unique names) from before the cleanup
-    EXPECTED_UNIQUE_COUNT = 1311
+    EXPECTED_UNIQUE_COUNT = 1323
 
     def test_unique_count(self):
         """__all__ unique name count must match the pre-cleanup count."""

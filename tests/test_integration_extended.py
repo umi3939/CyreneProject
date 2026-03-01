@@ -42,7 +42,7 @@ EMOTIONS = ["happy", "sad", "angry", "neutral", "surprised",
 VALENCES = [0.7, -0.6, -0.5, 0.0, 0.3,
             0.8, 0.4, -0.5, 0.6, 0.0]
 
-# save/load v42 で保存される全66キー
+# save/load v44 で保存される全68キー
 SAVE_V42_KEYS = [
     # Core (v1)
     "version", "tick_count", "psyche", "loop_state", "dynamics",
@@ -111,6 +111,8 @@ SAVE_V42_KEYS = [
     "hypothesis_observation_pairing_state",
     # v43
     "memory_emotion_return_state",
+    # v44
+    "other_hypothesis_emotion_return_state",
 ]
 
 # enrichment の5セクションヘッダ（圧縮済み形式）
@@ -144,7 +146,7 @@ class TestSaveLoadResumeV42:
     """save/load v42 後の resume 動作テスト。"""
 
     def test_save_contains_all_67_keys(self, tmp_path):
-        """save() が全67フィールドを含む JSON を出力する。"""
+        """save() が全68フィールドを含む JSON を出力する。"""
         orch = PsycheOrchestrator(data_dir=tmp_path, memory_count=5)
         _run_ticks(orch, 10)
         orch.save()
@@ -154,10 +156,10 @@ class TestSaveLoadResumeV42:
         )
         for key in SAVE_V42_KEYS:
             assert key in data, f"Missing save field: {key}"
-        assert data["version"] == 43
+        assert data["version"] == 44
 
     def test_load_restores_all_fields_not_none(self, tmp_path):
-        """load 後の全66フィールドが正しく復元されている（None でない、型が正しい）。"""
+        """load 後の全68フィールドが正しく復元されている（None でない、型が正しい）。"""
         orch1 = PsycheOrchestrator(data_dir=tmp_path, memory_count=5)
         _run_ticks(orch1, 10)
         orch1.select_policy_dict(_make_percept(), [])
@@ -267,7 +269,7 @@ class TestSaveLoadResumeV42:
             (dir1 / "psyche_snapshot.json").read_text(encoding="utf-8")
         )
         assert data["tick_count"] == 30
-        assert data["version"] == 43
+        assert data["version"] == 44
 
     def test_load_resume_varied_emotions(self, tmp_path):
         """load 後に多様な感情入力で 10 ティック実行してもエラーなし。"""

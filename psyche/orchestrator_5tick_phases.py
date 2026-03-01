@@ -116,6 +116,11 @@ from .memory_emotion_return import (
     MemoryEmotionReturnProcessor,
 )
 
+from tools.return_pathway_monitor import (
+    PATHWAY_A as _RPM_PATHWAY_A,
+    PATHWAY_C as _RPM_PATHWAY_C,
+)
+
 from .responsibility_dispersion import (
     get_active_units as get_dispersion_active_units,
     get_total_active_weight as get_dispersion_active_weight,
@@ -546,6 +551,19 @@ def _run_5t_narrative_memory(orch: PsycheOrchestrator, user_id: str) -> None:
                 orch._psyche = orch._psyche.model_copy(
                     update={"emotions": EmotionVector(**emo_dict)}
                 )
+
+            # ── 帰還経路A: 発火通知 ──
+            # 処理完了後に通知する(処理前や処理中ではない)。
+            # 通知失敗時は例外を捕捉してスキップする(安全弁パターン踏襲)。
+            try:
+                if mer_result.emotion_deltas:
+                    orch._return_pathway_monitor.record_firing(
+                        pathway_id=_RPM_PATHWAY_A,
+                        tick_number=orch._tick_count,
+                        emotion_deltas=dict(mer_result.emotion_deltas),
+                    )
+            except Exception:
+                pass
     except Exception as e:
         logger.debug("Memory emotion return skipped: %s", e)
 
@@ -609,6 +627,19 @@ def _run_5t_narrative_memory(orch: PsycheOrchestrator, user_id: str) -> None:
                 orch._psyche = orch._psyche.model_copy(
                     update={"emotions": EmotionVector(**emo_dict)}
                 )
+
+            # ── 帰還経路C: 発火通知 ──
+            # 処理完了後に通知する(処理前や処理中ではない)。
+            # 通知失敗時は例外を捕捉してスキップする(安全弁パターン踏襲)。
+            try:
+                if oher_result.emotion_deltas:
+                    orch._return_pathway_monitor.record_firing(
+                        pathway_id=_RPM_PATHWAY_C,
+                        tick_number=orch._tick_count,
+                        emotion_deltas=dict(oher_result.emotion_deltas),
+                    )
+            except Exception:
+                pass
     except Exception as e:
         logger.debug("Other hypothesis emotion return skipped: %s", e)
 

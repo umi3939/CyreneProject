@@ -294,10 +294,18 @@ MIGRATION_CHAIN: tuple[MigrationEntry, ...] = (
         version=42,
         added_fields=("hypothesis_observation_pairing_state",),
     ),
+    MigrationEntry(
+        version=43,
+        added_fields=("memory_emotion_return_state",),
+    ),
+    MigrationEntry(
+        version=44,
+        added_fields=("other_hypothesis_emotion_return_state",),
+    ),
 )
 
 # 現在のバージョン番号
-CURRENT_VERSION: int = 43
+CURRENT_VERSION: int = 44
 
 
 # ── 段階A: マイグレーション処理 ────────────────────────────────────

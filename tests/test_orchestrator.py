@@ -514,10 +514,12 @@ class TestPersistence:
             "hypothesis_observation_pairing_state",
             # v43
             "memory_emotion_return_state",
+            # v44
+            "other_hypothesis_emotion_return_state",
         ]
         for key in expected_keys:
             assert key in data, f"Missing save field: {key}"
-        assert data["version"] == 43
+        assert data["version"] == 44
 
     def test_roundtrip_json_match(self, tmp_path):
         """save → load → save で JSON が一致する（全フィールド復元確認）。

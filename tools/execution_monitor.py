@@ -133,6 +133,11 @@ class ExecutionMonitor:
             EnrichmentDistributionMonitor()
         )
 
+        # ── enrichment有効性分析(セッション境界で消失) ──
+        self._enrichment_effectiveness: EnrichmentEffectivenessAnalyzer = (
+            EnrichmentEffectivenessAnalyzer()
+        )
+
     @property
     def enabled(self) -> bool:
         """モニタリングが有効かどうか。"""
@@ -178,6 +183,11 @@ class ExecutionMonitor:
         """enrichment分布モニター(読み取り専用アクセサ)。"""
         return self._enrichment_dist
 
+    @property
+    def enrichment_effectiveness(self) -> "EnrichmentEffectivenessAnalyzer":
+        """enrichment有効性分析(読み取り専用アクセサ)。"""
+        return self._enrichment_effectiveness
+
     # ── enrichment分布の記録 ────────────────────────────────────────
 
     def record_enrichment_distribution(
@@ -203,6 +213,16 @@ class ExecutionMonitor:
                 sections_data=sections_data,
                 compressed_text=compressed_text,
                 monitor=self,
+            )
+        except Exception:
+            # 安全弁1
+            pass
+
+        # ── enrichment有効性分析: 同一タイミングで記録 ──
+        try:
+            self._enrichment_effectiveness.record_tick(
+                tick_count=tick_count,
+                sections_data=sections_data,
             )
         except Exception:
             # 安全弁1
@@ -411,6 +431,13 @@ class ExecutionMonitor:
                 "band_cumulative_times": dict(self._band_cumulative_time),
             }
             self._emit_json(record)
+        except Exception:
+            # 安全弁1
+            pass
+
+        # ── enrichment有効性分析: セッション終了時サマリ出力 ──
+        try:
+            self._enrichment_effectiveness.emit_session_summary(self)
         except Exception:
             # 安全弁1
             pass
@@ -1350,6 +1377,278 @@ class EnrichmentDistributionMonitor:
             return 0.0
 
         return intersection / union
+
+
+# ── EnrichmentEffectivenessAnalyzer ────────────────────────────────
+#
+# enrichment項目の有効性検証(分析ツール)。
+# 設計書: design_enrichment_effectiveness.md
+#
+# 本機能の構造的分離:
+# - enrichment項目の出力を読み取り専用で観測する(一方向のデータフロー)
+# - enrichmentテキスト、圧縮パイプライン、psycheモジュール、
+#   判断・行動の選択に出力を供給する経路が存在しない
+# - 出力先はログストリームへのJSON書き込みのみ
+# - psycheモジュールの内部状態を一切変更しない
+# - save/loadの対象フィールドに一切追加しない
+# - orchestratorのPhase処理に組み込まれない
+# - enrichment項目(#1〜#48)として追加されない
+#
+# 安全弁:
+# 1. 計測失敗時の安全な無視(例外を捕捉しスキップ)
+# 2. 環境変数による完全無効化(既存CYRENE_MONITOR制御に従う)
+# 3. 項目の直接削除禁止(処方的出力を含めない、事実記述のみ)
+# 4. セッション境界での完全消失(永続化対象外)
+# 5. 評価的語彙の除去(数値と事実ラベルのみで記述)
+
+
+class EnrichmentEffectivenessAnalyzer:
+    """enrichment項目の有効性検証(分析ツール)。
+
+    ExecutionMonitorと統合して動作し、enrichment項目の空状態出現率・
+    変動率・テキスト長・セクション別占有比率を事実として記述する。
+    psyche内部には一切の変更を加えない外部分析ツール。
+
+    全内部状態はインスタンス破棄時に消失する(永続化対象外)。
+    """
+
+    def __init__(self) -> None:
+        """初期化。"""
+        # 1. 項目別累積カウンタ: ラベル→{observed, empty_count, changed_count, text_length_sum}
+        self._item_counters: dict[str, dict[str, int]] = {}
+
+        # 2. セクション別文字数累積: セクションヘッダ→文字数累積
+        self._section_char_totals: dict[str, int] = {}
+
+        # 3. 直近のセッション内サマリ(1件のみ保持、次回上書き)
+        self._latest_summary: Optional[dict[str, Any]] = None
+
+        # 4. 項目→セクション対応(最新観測時点で確定)
+        self._item_section_map: dict[str, str] = {}
+
+    @property
+    def item_counters(self) -> dict[str, dict[str, int]]:
+        """項目別累積カウンタ(読み取り専用コピー)。"""
+        return {k: dict(v) for k, v in self._item_counters.items()}
+
+    @property
+    def section_char_totals(self) -> dict[str, int]:
+        """セクション別文字数累積(読み取り専用コピー)。"""
+        return dict(self._section_char_totals)
+
+    @property
+    def latest_summary(self) -> Optional[dict[str, Any]]:
+        """直近のサマリ(読み取り専用コピー)。"""
+        if self._latest_summary is None:
+            return None
+        return dict(self._latest_summary)
+
+    def record_tick(
+        self,
+        tick_count: int,
+        sections_data: list[dict],
+    ) -> None:
+        """1ティック分のenrichmentデータを記録する。
+
+        enrichment圧縮パイプライン実行後、既存のrecord_enrichment_distribution()
+        と同じタイミングで呼び出される。
+
+        Args:
+            tick_count: 現在のティックカウント
+            sections_data: セクション定義のリスト。各要素は:
+                {"header": str, "items": list[tuple[str, str]]}
+        """
+        try:
+            for section in sections_data:
+                header = section.get("header", "")
+                items = section.get("items", [])
+
+                section_chars_this_tick = 0
+
+                for label, text in items:
+                    # 項目→セクション対応を記録
+                    self._item_section_map[label] = header
+
+                    # カウンタ初期化
+                    if label not in self._item_counters:
+                        self._item_counters[label] = {
+                            "observed": 0,
+                            "empty_count": 0,
+                            "changed_count": 0,
+                            "text_length_sum": 0,
+                        }
+
+                    counters = self._item_counters[label]
+                    counters["observed"] += 1
+
+                    # 空状態判定(EnrichmentDistributionMonitorと同一ロジック)
+                    is_empty = _is_empty_text(text)
+                    if is_empty:
+                        counters["empty_count"] += 1
+                    else:
+                        # 非空状態時のテキスト長を累積
+                        counters["text_length_sum"] += len(text)
+
+                    # セクション文字数累積
+                    section_chars_this_tick += len(text)
+
+                # セクション別累積
+                self._section_char_totals[header] = (
+                    self._section_char_totals.get(header, 0) + section_chars_this_tick
+                )
+
+        except Exception:
+            # 安全弁1: 計測失敗時の安全な無視
+            pass
+
+    def compute_summary(self) -> dict[str, Any]:
+        """第1段(項目別特性記述)と第2段(セクション別集計)の計算結果を返す。
+
+        Returns:
+            サマリ辞書。enrichmentテキストやpsycheモジュールには供給されない。
+        """
+        try:
+            # ── 第1段: 項目別特性の記述 ──
+            item_characteristics: list[dict[str, Any]] = []
+
+            for label, counters in self._item_counters.items():
+                observed = counters["observed"]
+                empty_count = counters["empty_count"]
+                text_length_sum = counters["text_length_sum"]
+
+                # 空状態出現率
+                empty_rate = (
+                    round(empty_count / observed, 4) if observed > 0 else 0.0
+                )
+
+                # 非空回数
+                non_empty_count = observed - empty_count
+
+                # 平均テキスト長(非空状態時)
+                avg_text_length = (
+                    round(text_length_sum / non_empty_count, 2)
+                    if non_empty_count > 0
+                    else 0.0
+                )
+
+                # セクション所属
+                section = self._item_section_map.get(label, "")
+
+                item_characteristics.append({
+                    "label": label,
+                    "section": section,
+                    "observed": observed,
+                    "empty_count": empty_count,
+                    "empty_rate": empty_rate,
+                    "non_empty_count": non_empty_count,
+                    "avg_text_length": avg_text_length,
+                    "text_length_sum": text_length_sum,
+                })
+
+            # ── 第2段: セクション別集計 ──
+            # セクションごとの項目グループ
+            section_groups: dict[str, list[dict[str, Any]]] = {}
+            for item in item_characteristics:
+                sec = item["section"]
+                if sec not in section_groups:
+                    section_groups[sec] = []
+                section_groups[sec].append(item)
+
+            # 全体文字数
+            total_chars = sum(self._section_char_totals.values())
+
+            section_summaries: list[dict[str, Any]] = []
+            for header, items_in_section in section_groups.items():
+                item_count = len(items_in_section)
+
+                # セクション内空状態出現率の等価列挙
+                empty_rates = [it["empty_rate"] for it in items_in_section]
+
+                # セクション文字数占有比率
+                section_total_chars = self._section_char_totals.get(header, 0)
+                char_share = (
+                    round(section_total_chars / total_chars, 4)
+                    if total_chars > 0
+                    else 0.0
+                )
+
+                section_summaries.append({
+                    "header": header,
+                    "item_count": item_count,
+                    "empty_rates": empty_rates,
+                    "section_total_chars": section_total_chars,
+                    "char_share": char_share,
+                })
+
+            summary: dict[str, Any] = {
+                "item_characteristics": item_characteristics,
+                "section_summaries": section_summaries,
+                "total_items": len(item_characteristics),
+                "total_chars_cumulative": total_chars,
+            }
+
+            # 直近サマリを上書き保持
+            self._latest_summary = summary
+
+            return summary
+
+        except Exception:
+            # 安全弁1
+            return {}
+
+    def emit_session_summary(
+        self, monitor: Optional["ExecutionMonitor"] = None
+    ) -> None:
+        """セッション終了時にサマリをJSON形式でログストリームに出力する。
+
+        第3段: 第1段・第2段の記述結果をJSON形式でログストリームに出力する。
+
+        Args:
+            monitor: 親のExecutionMonitorインスタンス(ログ出力用)。
+        """
+        try:
+            summary = self.compute_summary()
+            if not summary:
+                return
+
+            record = {
+                "type": "enrichment_effectiveness_session_summary",
+                "timestamp": time.time(),
+                "item_characteristics": summary.get("item_characteristics", []),
+                "section_summaries": summary.get("section_summaries", []),
+                "total_items": summary.get("total_items", 0),
+                "total_chars_cumulative": summary.get("total_chars_cumulative", 0),
+            }
+
+            if monitor:
+                monitor._emit_json(record)
+            else:
+                # monitorなしの場合は直接ログ出力
+                text = json.dumps(record, ensure_ascii=False, default=str)
+                monitor_logger.debug(text)
+
+        except Exception:
+            # 安全弁1: 計測失敗時の安全な無視
+            pass
+
+
+def _is_empty_text(text: str) -> bool:
+    """テキストが空状態を示すかを判定する。
+
+    EnrichmentDistributionMonitorの_is_emptyと同一ロジック。
+    独立関数として配置し、クラス間の結合を避ける。
+    """
+    stripped = text.strip()
+    if not stripped:
+        return True
+    # ラベル付き形式 "ラベル: (未蓄積)" からマーカー部分を抽出
+    if ": " in stripped:
+        after_colon = stripped.split(": ", 1)[1].strip()
+        if after_colon in _KNOWN_EMPTY_PATTERNS:
+            return True
+    if stripped in _KNOWN_EMPTY_PATTERNS:
+        return True
+    return False
 
 
 def get_dispersion_active_units_safe(dispersion_state: Any) -> list:

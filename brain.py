@@ -39,6 +39,16 @@ from src.llm_wrapper import (
     reset_fallback_state,
 )
 
+from tools.pipeline_measurement import (
+    PipelineMeasurement,
+    PhaseTimer,
+    PHASE_PERCEPTION_API,
+    PHASE_PERCEPTION_PARSE,
+    PHASE_PSYCHE_UPDATE,
+    PHASE_MEMORY_RECALL,
+    PHASE_POLICY_SELECT,
+    PHASE_EXPRESSION_API,
+)
 from src.logging_config import configure_logging
 
 configure_logging()
@@ -290,6 +300,9 @@ class CyreneBrain:
         # Restore psyche state from previous session
         self._orchestrator.load()
 
+        # Pipeline measurement (tools layer, psyche non-invasive)
+        self._pipeline_measurement = PipelineMeasurement()
+
         # 2-call structure support
         self._persona_dict = self._build_persona_dict()
         self._last_emotion: str = "neutral"
@@ -442,8 +455,14 @@ class CyreneBrain:
         except Exception:
             pass
 
+    @property
+    def pipeline_measurement(self) -> PipelineMeasurement:
+        """Read-only access to pipeline measurement data."""
+        return self._pipeline_measurement
+
     def save_state(self) -> None:
         """Save orchestrator psyche state for next session."""
+        self._pipeline_measurement.emit_pipeline_summary()
         self._orchestrator.save()
 
     def _build_persona_dict(self) -> dict:
@@ -518,6 +537,8 @@ class CyreneBrain:
             # Check if safe shutdown is needed due to prolonged API unavailability
             self._check_safe_shutdown()
 
+            self._pipeline_measurement.begin_pipeline("vision")
+
             if image is None:
                 image_file = Path(image_path)
                 if not image_file.exists():
@@ -529,71 +550,80 @@ class CyreneBrain:
             if vision_summary:
                 perception_prompt += f"\n\n参考センサー情報:\n{vision_summary}"
 
-            screen_description = await llm_call_with_image(
-                VISION_SYSTEM_PROMPT,
-                perception_prompt,
-                image,
-                self._perception_config,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_PERCEPTION_API):
+                screen_description = await llm_call_with_image(
+                    VISION_SYSTEM_PROMPT,
+                    perception_prompt,
+                    image,
+                    self._perception_config,
+                )
 
             # Vision pathway: if perception call failed (API unreachable),
             # skip this frame entirely. Psyche processing is not executed
             # with invalid perception data.
             if _is_perception_fallback(screen_description):
                 logger.warning("Perception call returned fallback, skipping frame")
+                self._pipeline_measurement.end_pipeline()
                 return None
 
             # Phase 2: Parse (with LLM enrichment)
-            percept = await parse_percept(
-                screen_description,
-                llm_call_fn=llm_call,
-                state=self._orchestrator.psyche,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_PERCEPTION_PARSE):
+                percept = await parse_percept(
+                    screen_description,
+                    llm_call_fn=llm_call,
+                    state=self._orchestrator.psyche,
+                )
 
             # Phase 3: Psyche update
-            now = time.monotonic()
-            delta = now - self._last_psyche_update
-            self._last_psyche_update = now
-            self._orchestrator.post_response_update(percept, delta, "viewer")
+            with PhaseTimer(self._pipeline_measurement, PHASE_PSYCHE_UPDATE):
+                now = time.monotonic()
+                delta = now - self._last_psyche_update
+                self._last_psyche_update = now
+                self._orchestrator.post_response_update(percept, delta, "viewer")
 
             # Phase 4: Recall
-            recall_query = screen_description
-            if self._last_response:
-                recall_query += " " + self._last_response
-            recall_percept = Percept(text=recall_query)
-            memories = await recall_with_mood(
-                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
-            )
-            self._orchestrator.set_recalled_memories(memories)
+            with PhaseTimer(self._pipeline_measurement, PHASE_MEMORY_RECALL):
+                recall_query = screen_description
+                if self._last_response:
+                    recall_query += " " + self._last_response
+                recall_percept = Percept(text=recall_query)
+                memories = await recall_with_mood(
+                    recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+                )
+                self._orchestrator.set_recalled_memories(memories)
 
             # Phase 5: Policy
-            policy = self._orchestrator.select_policy_dict(
-                percept, memories or [], "viewer"
-            )
-            self._log_policy_suggestions(percept, memories, "viewer")
+            with PhaseTimer(self._pipeline_measurement, PHASE_POLICY_SELECT):
+                policy = self._orchestrator.select_policy_dict(
+                    percept, memories or [], "viewer"
+                )
+                self._log_policy_suggestions(percept, memories, "viewer")
 
             # Phase 6: Silence check
             if is_silence_policy(policy):
                 logger.debug("Psyche chose silence")
+                self._pipeline_measurement.end_pipeline()
                 return None
 
             # Phase 7: Expression (with psyche enrichment)
             self._last_emotion = percept.emotion or "neutral"
             enrichment = self._orchestrator.get_prompt_enrichment("viewer")
-            expr_result = await render_expression(
-                state=self._orchestrator.psyche,
-                policy=policy,
-                memory_snippet=memories or [],
-                persona=self._persona_dict,
-                llm_call_fn=llm_call,
-                screen_context=screen_description,
-                recent_history=self._context.get_window_entries(),
-                psyche_enrichment=enrichment,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_EXPRESSION_API):
+                expr_result = await render_expression(
+                    state=self._orchestrator.psyche,
+                    policy=policy,
+                    memory_snippet=memories or [],
+                    persona=self._persona_dict,
+                    llm_call_fn=llm_call,
+                    screen_context=screen_description,
+                    recent_history=self._context.get_window_entries(),
+                    psyche_enrichment=enrichment,
+                )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})
 
             if not full_text:
+                self._pipeline_measurement.end_pipeline()
                 return None
 
             if meta.get("emotion"):
@@ -608,6 +638,7 @@ class CyreneBrain:
                     policy_label=policy.get("policy_label", ""),
                 )
 
+            self._pipeline_measurement.end_pipeline()
             return full_text
 
         except SafeShutdownRequested:
@@ -644,6 +675,8 @@ class CyreneBrain:
             # Check if safe shutdown is needed due to prolonged API unavailability
             self._check_safe_shutdown()
 
+            self._pipeline_measurement.begin_pipeline("vision")
+
             # Load image (direct PIL Image preferred over file path)
             if image is None:
                 image_file = Path(image_path)
@@ -656,52 +689,58 @@ class CyreneBrain:
             if vision_summary:
                 perception_prompt += f"\n\n参考センサー情報:\n{vision_summary}"
 
-            screen_description = await llm_call_with_image(
-                VISION_SYSTEM_PROMPT,
-                perception_prompt,
-                image,
-                self._perception_config,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_PERCEPTION_API):
+                screen_description = await llm_call_with_image(
+                    VISION_SYSTEM_PROMPT,
+                    perception_prompt,
+                    image,
+                    self._perception_config,
+                )
             logger.debug(f"Perception: {screen_description}")
 
             # Vision pathway: if perception call failed, skip this frame
             if _is_perception_fallback(screen_description):
                 logger.warning("Perception call returned fallback, skipping frame")
+                self._pipeline_measurement.end_pipeline()
                 return
 
             # === Phase 2: parse_percept (with LLM enrichment) ===
-            percept = await parse_percept(
-                screen_description,
-                llm_call_fn=llm_call,
-                state=self._orchestrator.psyche,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_PERCEPTION_PARSE):
+                percept = await parse_percept(
+                    screen_description,
+                    llm_call_fn=llm_call,
+                    state=self._orchestrator.psyche,
+                )
             logger.debug(
                 f"Percept: emotion={percept.emotion}, intent={percept.intent}, "
                 f"topics={percept.topics}"
             )
 
             # === Phase 3: psyche update ===
-            now = time.monotonic()
-            delta = now - self._last_psyche_update
-            self._last_psyche_update = now
-            self._orchestrator.post_response_update(percept, delta, "viewer")
+            with PhaseTimer(self._pipeline_measurement, PHASE_PSYCHE_UPDATE):
+                now = time.monotonic()
+                delta = now - self._last_psyche_update
+                self._last_psyche_update = now
+                self._orchestrator.post_response_update(percept, delta, "viewer")
             logger.debug("Psyche tick %d complete", self._orchestrator.tick_count)
 
             # === Phase 4: recall memories ===
-            recall_query = screen_description
-            if self._last_response:
-                recall_query += " " + self._last_response
-            recall_percept = Percept(text=recall_query)
-            memories = await recall_with_mood(
-                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
-            )
-            self._orchestrator.set_recalled_memories(memories)
+            with PhaseTimer(self._pipeline_measurement, PHASE_MEMORY_RECALL):
+                recall_query = screen_description
+                if self._last_response:
+                    recall_query += " " + self._last_response
+                recall_percept = Percept(text=recall_query)
+                memories = await recall_with_mood(
+                    recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+                )
+                self._orchestrator.set_recalled_memories(memories)
 
             # === Phase 5: select policy ===
-            policy = self._orchestrator.select_policy_dict(
-                percept, memories or [], "viewer"
-            )
-            self._log_policy_suggestions(percept, memories, "viewer")
+            with PhaseTimer(self._pipeline_measurement, PHASE_POLICY_SELECT):
+                policy = self._orchestrator.select_policy_dict(
+                    percept, memories or [], "viewer"
+                )
+                self._log_policy_suggestions(percept, memories, "viewer")
             logger.debug(
                 f"Policy: {policy.get('policy_label', '?')} "
                 f"(score={policy.get('_score', 0):.2f})"
@@ -710,26 +749,29 @@ class CyreneBrain:
             # === Phase 6: silence check ===
             if is_silence_policy(policy):
                 logger.debug("Psyche chose silence: %s", policy.get("rationale", ""))
+                self._pipeline_measurement.end_pipeline()
                 return
 
             # === Phase 7: render expression (with psyche enrichment) ===
             self._last_emotion = percept.emotion or "neutral"
             enrichment = self._orchestrator.get_prompt_enrichment("viewer")
-            expr_result = await render_expression(
-                state=self._orchestrator.psyche,
-                policy=policy,
-                memory_snippet=memories or [],
-                persona=self._persona_dict,
-                llm_call_fn=llm_call,
-                screen_context=screen_description,
-                recent_history=self._context.get_window_entries(),
-                psyche_enrichment=enrichment,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_EXPRESSION_API):
+                expr_result = await render_expression(
+                    state=self._orchestrator.psyche,
+                    policy=policy,
+                    memory_snippet=memories or [],
+                    persona=self._persona_dict,
+                    llm_call_fn=llm_call,
+                    screen_context=screen_description,
+                    recent_history=self._context.get_window_entries(),
+                    psyche_enrichment=enrichment,
+                )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})
 
             if not full_text:
                 logger.warning("Empty expression result")
+                self._pipeline_measurement.end_pipeline()
                 return
 
             logger.debug(f"Expression: {full_text}")
@@ -760,6 +802,8 @@ class CyreneBrain:
                     response_text=full_text,
                     policy_label=policy.get("policy_label", ""),
                 )
+
+            self._pipeline_measurement.end_pipeline()
 
             # === Phase 8: Split into sentences + yield ===
             sentences = []
@@ -823,15 +867,18 @@ class CyreneBrain:
             # Check if safe shutdown is needed
             self._check_safe_shutdown()
 
+            self._pipeline_measurement.begin_pipeline("text")
+
             # Phase 1: parse_percept (with LLM enrichment)
             # Text pathway: parse_percept has its own LLM-less fallback
             # (heuristic analysis). If LLM enrichment fails, it continues
             # with heuristic results. No frame skip needed.
-            percept = await parse_percept(
-                user_text,
-                llm_call_fn=llm_call,
-                state=self._orchestrator.psyche,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_PERCEPTION_PARSE):
+                percept = await parse_percept(
+                    user_text,
+                    llm_call_fn=llm_call,
+                    state=self._orchestrator.psyche,
+                )
 
             # Phase 2: text dialogue input processing
             handoff = self._orchestrator.process_text_input(
@@ -841,30 +888,34 @@ class CyreneBrain:
             )
 
             # Phase 3: psyche update
-            now = time.monotonic()
-            delta = now - self._last_psyche_update
-            self._last_psyche_update = now
-            self._orchestrator.post_response_update(percept, delta, "text")
+            with PhaseTimer(self._pipeline_measurement, PHASE_PSYCHE_UPDATE):
+                now = time.monotonic()
+                delta = now - self._last_psyche_update
+                self._last_psyche_update = now
+                self._orchestrator.post_response_update(percept, delta, "text")
 
             # Phase 4: recall
-            recall_query = user_text
-            if self._last_response:
-                recall_query += " " + self._last_response
-            recall_percept = Percept(text=recall_query)
-            memories = await recall_with_mood(
-                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
-            )
-            self._orchestrator.set_recalled_memories(memories)
+            with PhaseTimer(self._pipeline_measurement, PHASE_MEMORY_RECALL):
+                recall_query = user_text
+                if self._last_response:
+                    recall_query += " " + self._last_response
+                recall_percept = Percept(text=recall_query)
+                memories = await recall_with_mood(
+                    recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+                )
+                self._orchestrator.set_recalled_memories(memories)
 
             # Phase 5: policy
-            policy = self._orchestrator.select_policy_dict(
-                percept, memories or [], "text"
-            )
-            self._log_policy_suggestions(percept, memories, "text")
+            with PhaseTimer(self._pipeline_measurement, PHASE_POLICY_SELECT):
+                policy = self._orchestrator.select_policy_dict(
+                    percept, memories or [], "text"
+                )
+                self._log_policy_suggestions(percept, memories, "text")
 
             # Phase 6: silence check
             if is_silence_policy(policy):
                 logger.debug("Psyche chose silence (text input)")
+                self._pipeline_measurement.end_pipeline()
                 return None
 
             # Phase 7: expression
@@ -879,20 +930,22 @@ class CyreneBrain:
                 partner_id=sender_id or "text",
             )
 
-            expr_result = await render_expression(
-                state=self._orchestrator.psyche,
-                policy=policy,
-                memory_snippet=memories or [],
-                persona=self._persona_dict,
-                llm_call_fn=llm_call,
-                screen_context=user_text,
-                recent_history=self._context.get_window_entries(),
-                psyche_enrichment=enrichment,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_EXPRESSION_API):
+                expr_result = await render_expression(
+                    state=self._orchestrator.psyche,
+                    policy=policy,
+                    memory_snippet=memories or [],
+                    persona=self._persona_dict,
+                    llm_call_fn=llm_call,
+                    screen_context=user_text,
+                    recent_history=self._context.get_window_entries(),
+                    psyche_enrichment=enrichment,
+                )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})
 
             if not full_text:
+                self._pipeline_measurement.end_pipeline()
                 return None
 
             if meta.get("emotion"):
@@ -913,6 +966,7 @@ class CyreneBrain:
                     policy_label=policy.get("policy_label", ""),
                 )
 
+            self._pipeline_measurement.end_pipeline()
             return full_text
 
         except SafeShutdownRequested:
@@ -941,12 +995,15 @@ class CyreneBrain:
             # Check if safe shutdown is needed
             self._check_safe_shutdown()
 
+            self._pipeline_measurement.begin_pipeline("text")
+
             # Phase 1: parse_percept
-            percept = await parse_percept(
-                user_text,
-                llm_call_fn=llm_call,
-                state=self._orchestrator.psyche,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_PERCEPTION_PARSE):
+                percept = await parse_percept(
+                    user_text,
+                    llm_call_fn=llm_call,
+                    state=self._orchestrator.psyche,
+                )
 
             # Phase 2: text dialogue input processing
             handoff = self._orchestrator.process_text_input(
@@ -956,30 +1013,34 @@ class CyreneBrain:
             )
 
             # Phase 3: psyche update
-            now = time.monotonic()
-            delta = now - self._last_psyche_update
-            self._last_psyche_update = now
-            self._orchestrator.post_response_update(percept, delta, "text")
+            with PhaseTimer(self._pipeline_measurement, PHASE_PSYCHE_UPDATE):
+                now = time.monotonic()
+                delta = now - self._last_psyche_update
+                self._last_psyche_update = now
+                self._orchestrator.post_response_update(percept, delta, "text")
 
             # Phase 4: recall
-            recall_query = user_text
-            if self._last_response:
-                recall_query += " " + self._last_response
-            recall_percept = Percept(text=recall_query)
-            memories = await recall_with_mood(
-                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
-            )
-            self._orchestrator.set_recalled_memories(memories)
+            with PhaseTimer(self._pipeline_measurement, PHASE_MEMORY_RECALL):
+                recall_query = user_text
+                if self._last_response:
+                    recall_query += " " + self._last_response
+                recall_percept = Percept(text=recall_query)
+                memories = await recall_with_mood(
+                    recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+                )
+                self._orchestrator.set_recalled_memories(memories)
 
             # Phase 5: policy
-            policy = self._orchestrator.select_policy_dict(
-                percept, memories or [], "text"
-            )
-            self._log_policy_suggestions(percept, memories, "text")
+            with PhaseTimer(self._pipeline_measurement, PHASE_POLICY_SELECT):
+                policy = self._orchestrator.select_policy_dict(
+                    percept, memories or [], "text"
+                )
+                self._log_policy_suggestions(percept, memories, "text")
 
             # Phase 6: silence check
             if is_silence_policy(policy):
                 logger.debug("Psyche chose silence (text input)")
+                self._pipeline_measurement.end_pipeline()
                 return
 
             # Phase 7: expression
@@ -994,20 +1055,22 @@ class CyreneBrain:
                 partner_id=sender_id or "text",
             )
 
-            expr_result = await render_expression(
-                state=self._orchestrator.psyche,
-                policy=policy,
-                memory_snippet=memories or [],
-                persona=self._persona_dict,
-                llm_call_fn=llm_call,
-                screen_context=user_text,
-                recent_history=self._context.get_window_entries(),
-                psyche_enrichment=enrichment,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_EXPRESSION_API):
+                expr_result = await render_expression(
+                    state=self._orchestrator.psyche,
+                    policy=policy,
+                    memory_snippet=memories or [],
+                    persona=self._persona_dict,
+                    llm_call_fn=llm_call,
+                    screen_context=user_text,
+                    recent_history=self._context.get_window_entries(),
+                    psyche_enrichment=enrichment,
+                )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})
 
             if not full_text:
+                self._pipeline_measurement.end_pipeline()
                 return
 
             if meta.get("emotion"):
@@ -1028,6 +1091,8 @@ class CyreneBrain:
                     response_text=full_text,
                     policy_label=policy.get("policy_label", ""),
                 )
+
+            self._pipeline_measurement.end_pipeline()
 
             # Phase 8: sentence split + yield
             sentences = []
@@ -1095,6 +1160,8 @@ class CyreneBrain:
             if not best:
                 return None
 
+            self._pipeline_measurement.begin_pipeline("internal")
+
             # Build Percept from internal activation
             percept = Percept(
                 text=f"[内部起動] {best.description}",
@@ -1103,46 +1170,52 @@ class CyreneBrain:
             )
 
             # Psyche update
-            now = time.monotonic()
-            delta = now - self._last_psyche_update
-            self._last_psyche_update = now
-            self._orchestrator.post_response_update(percept, delta, "internal")
+            with PhaseTimer(self._pipeline_measurement, PHASE_PSYCHE_UPDATE):
+                now = time.monotonic()
+                delta = now - self._last_psyche_update
+                self._last_psyche_update = now
+                self._orchestrator.post_response_update(percept, delta, "internal")
 
             # Recall
-            recall_percept = Percept(text=percept.text)
-            memories = await recall_with_mood(
-                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
-            )
-            self._orchestrator.set_recalled_memories(memories)
+            with PhaseTimer(self._pipeline_measurement, PHASE_MEMORY_RECALL):
+                recall_percept = Percept(text=percept.text)
+                memories = await recall_with_mood(
+                    recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+                )
+                self._orchestrator.set_recalled_memories(memories)
 
             # Policy
-            policy = self._orchestrator.select_policy_dict(
-                percept, memories or [], "internal"
-            )
-            self._log_policy_suggestions(percept, memories, "internal")
+            with PhaseTimer(self._pipeline_measurement, PHASE_POLICY_SELECT):
+                policy = self._orchestrator.select_policy_dict(
+                    percept, memories or [], "internal"
+                )
+                self._log_policy_suggestions(percept, memories, "internal")
 
             # Silence check
             if is_silence_policy(policy):
                 logger.debug("Psyche chose silence (spontaneous)")
+                self._pipeline_measurement.end_pipeline()
                 return None
 
             # Expression
             self._last_emotion = "neutral"
             enrichment = self._orchestrator.get_prompt_enrichment("internal")
-            expr_result = await render_expression(
-                state=self._orchestrator.psyche,
-                policy=policy,
-                memory_snippet=memories or [],
-                persona=self._persona_dict,
-                llm_call_fn=llm_call,
-                screen_context="（自発的思考 — 外部入力なし）",
-                recent_history=self._context.get_window_entries(),
-                psyche_enrichment=enrichment,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_EXPRESSION_API):
+                expr_result = await render_expression(
+                    state=self._orchestrator.psyche,
+                    policy=policy,
+                    memory_snippet=memories or [],
+                    persona=self._persona_dict,
+                    llm_call_fn=llm_call,
+                    screen_context="（自発的思考 — 外部入力なし）",
+                    recent_history=self._context.get_window_entries(),
+                    psyche_enrichment=enrichment,
+                )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})
 
             if not full_text:
+                self._pipeline_measurement.end_pipeline()
                 return None
 
             if meta.get("emotion"):
@@ -1163,6 +1236,7 @@ class CyreneBrain:
                     policy_label=policy.get("policy_label", ""),
                 )
 
+            self._pipeline_measurement.end_pipeline()
             return full_text
 
         except SafeShutdownRequested:
@@ -1199,6 +1273,7 @@ class CyreneBrain:
                 return
 
             self._turn_count += 1
+            self._pipeline_measurement.begin_pipeline("internal")
 
             # Build Percept from internal activation
             percept = Percept(
@@ -1208,46 +1283,52 @@ class CyreneBrain:
             )
 
             # Psyche update
-            now = time.monotonic()
-            delta = now - self._last_psyche_update
-            self._last_psyche_update = now
-            self._orchestrator.post_response_update(percept, delta, "internal")
+            with PhaseTimer(self._pipeline_measurement, PHASE_PSYCHE_UPDATE):
+                now = time.monotonic()
+                delta = now - self._last_psyche_update
+                self._last_psyche_update = now
+                self._orchestrator.post_response_update(percept, delta, "internal")
 
             # Recall
-            recall_percept = Percept(text=percept.text)
-            memories = await recall_with_mood(
-                recall_percept, self._orchestrator.psyche, self._memory, top_k=3
-            )
-            self._orchestrator.set_recalled_memories(memories)
+            with PhaseTimer(self._pipeline_measurement, PHASE_MEMORY_RECALL):
+                recall_percept = Percept(text=percept.text)
+                memories = await recall_with_mood(
+                    recall_percept, self._orchestrator.psyche, self._memory, top_k=3
+                )
+                self._orchestrator.set_recalled_memories(memories)
 
             # Policy
-            policy = self._orchestrator.select_policy_dict(
-                percept, memories or [], "internal"
-            )
-            self._log_policy_suggestions(percept, memories, "internal")
+            with PhaseTimer(self._pipeline_measurement, PHASE_POLICY_SELECT):
+                policy = self._orchestrator.select_policy_dict(
+                    percept, memories or [], "internal"
+                )
+                self._log_policy_suggestions(percept, memories, "internal")
 
             # Silence check
             if is_silence_policy(policy):
                 logger.debug("Psyche chose silence (spontaneous)")
+                self._pipeline_measurement.end_pipeline()
                 return
 
             # Expression
             self._last_emotion = "neutral"
             enrichment = self._orchestrator.get_prompt_enrichment("internal")
-            expr_result = await render_expression(
-                state=self._orchestrator.psyche,
-                policy=policy,
-                memory_snippet=memories or [],
-                persona=self._persona_dict,
-                llm_call_fn=llm_call,
-                screen_context="（自発的思考 — 外部入力なし）",
-                recent_history=self._context.get_window_entries(),
-                psyche_enrichment=enrichment,
-            )
+            with PhaseTimer(self._pipeline_measurement, PHASE_EXPRESSION_API):
+                expr_result = await render_expression(
+                    state=self._orchestrator.psyche,
+                    policy=policy,
+                    memory_snippet=memories or [],
+                    persona=self._persona_dict,
+                    llm_call_fn=llm_call,
+                    screen_context="（自発的思考 — 外部入力なし）",
+                    recent_history=self._context.get_window_entries(),
+                    psyche_enrichment=enrichment,
+                )
             full_text = expr_result.get("text", "")
             meta = expr_result.get("meta", {})
 
             if not full_text:
+                self._pipeline_measurement.end_pipeline()
                 return
 
             if meta.get("emotion"):
@@ -1267,6 +1348,8 @@ class CyreneBrain:
                     response_text=full_text,
                     policy_label=policy.get("policy_label", ""),
                 )
+
+            self._pipeline_measurement.end_pipeline()
 
             # Sentence split + yield
             sentences = []

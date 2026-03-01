@@ -463,10 +463,11 @@ class TestSessionSummary:
         found = False
         for record in caplog.records:
             msg = record.getMessage()
-            if "session_summary" in msg:
+            if not msg.startswith("{"):
+                continue
+            data = json.loads(msg)
+            if data.get("type") == "session_summary":
                 found = True
-                data = json.loads(msg)
-                assert data["type"] == "session_summary"
                 assert data["total_cycles"] == 1
                 assert data["api_call_counts"]["perception"] == 1
                 assert data["api_token_totals"]["perception"]["input"] == 100
@@ -480,7 +481,10 @@ class TestSessionSummary:
         with caplog.at_level(logging.DEBUG, logger="cyrene.monitor"):
             m.emit_session_summary()
         for record in caplog.records:
-            assert "session_summary" not in record.getMessage()
+            msg = record.getMessage()
+            if msg.startswith("{"):
+                data = json.loads(msg)
+                assert data.get("type") != "session_summary"
 
 
 # ── BandTimerテスト ───────────────────────────────────────────────
@@ -996,8 +1000,10 @@ class TestSessionBoundary:
             m.emit_session_summary()
         for record in caplog.records:
             msg = record.getMessage()
-            if "session_summary" in msg:
-                data = json.loads(msg)
+            if not msg.startswith("{"):
+                continue
+            data = json.loads(msg)
+            if data.get("type") == "session_summary":
                 assert data["session_duration_seconds"] >= 0.0
 
 

@@ -149,14 +149,14 @@ class TestBandEnabledIndependence:
     def test_unsupported_band_returns_false(self):
         """未サポート帯域は常にFalseを返すこと。"""
         engine = PhaseExecutionEngine()
-        assert engine.is_band_enabled(Band.EVERY_TICK) is False
         assert engine.is_band_enabled(Band.EVERY_5_TICKS) is False
+        assert engine.is_band_enabled(Band.CANDIDATE_GENERATION) is False
 
     def test_unsupported_band_set_raises(self):
         """未サポート帯域の有効フラグ設定がValueErrorを出すこと。"""
         engine = PhaseExecutionEngine()
         with pytest.raises(ValueError):
-            engine.set_band_enabled(Band.EVERY_TICK, True)
+            engine.set_band_enabled(Band.EVERY_5_TICKS, True)
 
 
 # ── 3ティック帯域ハンドラ登録テスト ──────────────────────────────
@@ -205,11 +205,11 @@ class TestThreeTickHandlerRegistration:
         """サポート帯域外のPhase登録がValueErrorを出すこと。"""
         engine = PhaseExecutionEngine()
         with pytest.raises(ValueError):
-            engine.register_handler("1", MagicMock())  # EVERY_TICK
-        with pytest.raises(ValueError):
             engine.register_handler("15", MagicMock())  # EVERY_5_TICKS
         with pytest.raises(ValueError):
             engine.register_handler("30", MagicMock())  # CANDIDATE_GENERATION
+        with pytest.raises(ValueError):
+            engine.register_handler("ps-1", MagicMock())  # POST_SELECTION
 
     def test_backward_compat_is_fully_registered(self):
         """後方互換性: is_fully_registered は10ティック帯域の状態を返すこと。"""
@@ -290,7 +290,7 @@ class TestThreeTickBandExecution:
         """未サポート帯域の実行がValueErrorを出すこと。"""
         engine = PhaseExecutionEngine()
         with pytest.raises(ValueError):
-            engine.execute_band(MagicMock(), "viewer", band=Band.EVERY_TICK)
+            engine.execute_band(MagicMock(), "viewer", band=Band.EVERY_5_TICKS)
 
 
 # ── 3ティック帯域エラー吸収テスト ──────────────────────────────────
@@ -909,7 +909,7 @@ class TestThreeTickAccessors:
     def test_get_band_phase_definitions_unsupported(self):
         """未サポート帯域で空タプルが返されること。"""
         engine = PhaseExecutionEngine()
-        defs = engine.get_band_phase_definitions(band=Band.EVERY_TICK)
+        defs = engine.get_band_phase_definitions(band=Band.EVERY_5_TICKS)
         assert defs == ()
 
 

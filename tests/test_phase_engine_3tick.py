@@ -112,14 +112,14 @@ class TestMultiBandEngineStructure:
     def test_unsupported_band_not_enabled(self):
         """未対応帯域のis_band_enabledがFalseを返すこと。"""
         engine = PhaseExecutionEngine()
-        assert engine.is_band_enabled(Band.EVERY_TICK) is False
         assert engine.is_band_enabled(Band.EVERY_5_TICKS) is False
+        assert engine.is_band_enabled(Band.CANDIDATE_GENERATION) is False
 
     def test_set_unsupported_band_raises(self):
         """未対応帯域のset_band_enabledがValueErrorを出すこと。"""
         engine = PhaseExecutionEngine()
         with pytest.raises(ValueError):
-            engine.set_band_enabled(Band.EVERY_TICK, True)
+            engine.set_band_enabled(Band.EVERY_5_TICKS, True)
 
 
 # ── 3ティック帯域ハンドラ登録テスト ────────────────────────────
@@ -256,7 +256,7 @@ class TestThreeTickBandExecution:
         """未対応帯域のexecute_bandがValueErrorを出すこと。"""
         engine = PhaseExecutionEngine()
         with pytest.raises(ValueError):
-            engine.execute_band(MagicMock(), "viewer", band=Band.EVERY_TICK)
+            engine.execute_band(MagicMock(), "viewer", band=Band.CANDIDATE_GENERATION)
 
 
 # ── 3ティック帯域エラー吸収テスト ────────────────────────────

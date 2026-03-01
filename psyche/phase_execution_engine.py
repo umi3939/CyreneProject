@@ -1,13 +1,15 @@
 """
-psyche/phase_execution_engine.py - 宣言的Phase実行エンジン（段階3: 帯域横断対応）
+psyche/phase_execution_engine.py - 宣言的Phase実行エンジン（段階4: 毎ティック帯域拡大）
 
 宣言的定義（phase_declaration.py）に基づいてPhase実行を駆動する実行エンジン。
 段階2では10ティック帯域（Phase 27/28/29）のみを対象としていたが、
-段階3では帯域識別子を受け取って当該帯域のPhaseを駆動する帯域横断構造に拡張する。
+段階3では3ティック帯域（Phase 8-14j）を追加し、
+段階4では毎ティック帯域（Phase 1-7f, 16 Phase）に拡大する。
 
 対象帯域:
-- 10ティック帯域（Phase 27/28/29）: 段階2から継続
+- 毎ティック帯域（Phase 1-7f, 16 Phase）: 段階4で追加
 - 3ティック帯域（Phase 8-14j, 17 Phase）: 段階3で追加
+- 10ティック帯域（Phase 27/28/29）: 段階2から継続
 
 設計原則:
 - Phase処理ロジック自体は変更しない。「呼び出し方」のみを標準化する
@@ -26,6 +28,7 @@ from typing import Any, Callable, Optional, TYPE_CHECKING
 from .phase_declaration import (
     Band,
     BandDefinition,
+    BAND_EVERY_TICK,
     BAND_EVERY_3_TICKS,
     BAND_EVERY_10_TICKS,
     PHASE_BY_ID,
@@ -69,9 +72,10 @@ PhaseHandler = Callable[[Any, str], None]
 
 # ── 登録可能な帯域の集合 ──────────────────────────────────────────
 
-# 段階3では3ティック帯域と10ティック帯域のみが対象。
-# 将来の帯域追加時にはこの集合に追加するだけで既存帯域の動作に影響しない。
+# 段階4では毎ティック帯域・3ティック帯域・10ティック帯域が対象。
+# 帯域追加時にはこの集合に追加するだけで既存帯域の動作に影響しない。
 _SUPPORTED_BANDS: dict[Band, BandDefinition] = {
+    Band.EVERY_TICK: BAND_EVERY_TICK,
     Band.EVERY_10_TICKS: BAND_EVERY_10_TICKS,
     Band.EVERY_3_TICKS: BAND_EVERY_3_TICKS,
 }
@@ -84,7 +88,8 @@ class PhaseExecutionEngine:
     """宣言的定義に基づく帯域横断Phase実行エンジン。
 
     帯域識別子を受け取って当該帯域のPhaseを駆動する。
-    段階3では10ティック帯域（3 Phase）と3ティック帯域（17 Phase）を対象とする。
+    段階4では毎ティック帯域（16 Phase）・3ティック帯域（17 Phase）・
+    10ティック帯域（3 Phase）を対象とする。
 
     帯域間の構造的独立性:
     - 帯域別Phase登録テーブルは帯域ごとに分離して管理する
@@ -193,10 +198,12 @@ class PhaseExecutionEngine:
         # Phase識別子から帯域を特定
         target_band = self._find_band_for_phase(phase_id)
         if target_band is None:
-            # 後方互換性: 段階2のエラーメッセージ形式を維持
+            all_supported_ids = []
+            for band_ids in self._band_phase_order.values():
+                all_supported_ids.extend(band_ids)
             raise ValueError(
-                f"Phase '{phase_id}' is not in the 10-tick band. "
-                f"Valid phase IDs: {tuple(self._band_phase_order[Band.EVERY_10_TICKS])}"
+                f"Phase '{phase_id}' is not in any supported band. "
+                f"Supported bands: {list(_SUPPORTED_BANDS.keys())}"
             )
         self._band_handlers[target_band][phase_id] = handler
 

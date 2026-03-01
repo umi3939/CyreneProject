@@ -194,9 +194,9 @@ class TestExtendedTurnRecord:
             missing = required - set(rec.keys())
             assert not missing, f"Turn {rec.get('turn')}: missing {missing}"
 
-    def test_version_is_2(self, smoke_result):
-        """バージョンが2に更新されている。"""
-        assert smoke_result["metadata"]["version"] == 2
+    def test_version_is_3(self, smoke_result):
+        """バージョンが3に更新されている。"""
+        assert smoke_result["metadata"]["version"] == 3
 
 
 # ══════════════════════════════════════════════════════════════

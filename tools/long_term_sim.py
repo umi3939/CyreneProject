@@ -28,6 +28,7 @@ from typing import Any
 
 from psyche.orchestrator import PsycheOrchestrator
 from psyche.state import Percept
+from tools.return_pathway_monitor import PATHWAY_A, PATHWAY_B, PATHWAY_C
 
 
 # ── Input Patterns ────────────────────────────────────────────
@@ -137,6 +138,11 @@ SCENARIO_USER_IDS: dict[str, list[str]] = {
 }
 
 
+# ── Return Pathway Identifiers ───────────────────────────────
+
+RETURN_PATHWAY_IDS: list[str] = [PATHWAY_A, PATHWAY_B, PATHWAY_C]
+
+
 # ── Enrichment Section Headers ───────────────────────────────
 
 ENRICHMENT_SECTION_HEADERS: list[str] = [
@@ -240,6 +246,93 @@ def _measure_enrichment_sections(enrichment_text: str) -> dict[str, int]:
     return result
 
 
+# ── Return Pathway Reading ──────────────────────────────────
+
+def _read_return_pathway_tick(orch: PsycheOrchestrator) -> dict[str, Any]:
+    """帰還経路モニターから現在ティックの発火情報を読み取る。
+
+    処理結果の読み取りのみであり、帰還経路の処理には影響しない。
+    読み取り失敗時は空のレコードを返す（安全弁1: 安全な無視）。
+
+    Returns:
+        帰還経路の発火情報辞書。発火がない場合は空の構造を返す。
+    """
+    try:
+        monitor = orch._return_pathway_monitor
+        last = monitor.last_tick_record
+        if last is not None:
+            return {
+                "fired_pathways": last.get("fired_pathways", []),
+                "fire_count": last.get("fire_count", 0),
+                "combined_deltas": {
+                    k: round(v, 6)
+                    for k, v in last.get("combined_deltas", {}).items()
+                    if isinstance(v, (int, float))
+                },
+            }
+    except Exception:
+        pass
+    # 発火なしまたは読み取り失敗
+    return {
+        "fired_pathways": [],
+        "fire_count": 0,
+        "combined_deltas": {},
+    }
+
+
+# ── Intermediate Snapshot ──────────────────────────────────
+
+def _compute_snapshot_positions(total_turns: int) -> list[int]:
+    """中間スナップショットの記録位置を機械的に等間隔で決定する。
+
+    全ターン数に対する一定割合の地点を返す。
+    短いシナリオ（10ターン以下）ではスナップショットを省略する。
+
+    Args:
+        total_turns: シナリオの全ターン数
+
+    Returns:
+        スナップショットを記録するターン番号のリスト（1-indexed）
+    """
+    if total_turns <= 10:
+        return []
+    # 25%, 50%, 75% の3地点
+    positions = []
+    for frac in [0.25, 0.50, 0.75]:
+        pos = int(total_turns * frac)
+        if pos >= 1 and pos <= total_turns:
+            positions.append(pos)
+    return sorted(set(positions))
+
+
+def _extract_snapshot(orch: PsycheOrchestrator, user_id: str) -> dict[str, Any]:
+    """中間スナップショットとして全内部状態のサマリーを読み取る。
+
+    読み取りのみであり、内部状態の変更を伴わない。
+
+    Returns:
+        スナップショット辞書
+    """
+    p = orch.psyche
+    snapshot: dict[str, Any] = {
+        "emotions": {k: round(v, 4) for k, v in p.emotions.as_dict().items()},
+        "drives": {k: round(v, 4) for k, v in p.drives.as_dict().items()},
+        "mood": {
+            "valence": round(p.mood.valence, 4),
+            "arousal": round(p.mood.arousal, 4),
+        },
+        "fear_level": round(p.fear_level, 4),
+        "dominant_emotion": p.dominant_emotion,
+    }
+    # 帰還経路の累積情報をスナップショットに含める
+    try:
+        monitor = orch._return_pathway_monitor
+        snapshot["return_pathway_cumulative"] = dict(monitor.pathway_fire_counts)
+    except Exception:
+        snapshot["return_pathway_cumulative"] = {}
+    return snapshot
+
+
 # ── State Extraction ─────────────────────────────────────────
 
 def _extract_turn_record(
@@ -252,6 +345,7 @@ def _extract_turn_record(
     outcome: dict[str, Any],
     user_id: str,
     enrichment_chars: dict[str, int] | None = None,
+    return_pathway: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """1ターン分の観測レコードを生成する。"""
     p = orch.psyche
@@ -307,6 +401,10 @@ def _extract_turn_record(
     # 拡張フィールド: enrichment文字数（既存フィールドの末尾に追加）
     if enrichment_chars is not None:
         record["enrichment_chars"] = enrichment_chars
+
+    # 拡張フィールド: 帰還経路発火情報（処理Aに対応）
+    if return_pathway is not None:
+        record["return_pathway"] = return_pathway
 
     return record
 
@@ -369,6 +467,11 @@ def run_simulation(
     records: list[dict[str, Any]] = []
     sim_memory_count = 0  # シミュレーション中の記憶保存カウンタ
 
+    # 中間スナップショット位置の決定（処理B: 機械的に等間隔で決定）
+    total_turns = len(sequence)
+    snapshot_positions = _compute_snapshot_positions(total_turns)
+    snapshots: list[dict[str, Any]] = []
+
     for turn_idx, pattern_key in enumerate(sequence):
         turn_num = turn_idx + 1
 
@@ -411,6 +514,10 @@ def run_simulation(
         enrichment_text = orch.get_prompt_enrichment(turn_user_id)
         enrichment_chars = _measure_enrichment_sections(enrichment_text)
 
+        # Step 5a: 帰還経路発火情報の読み取り（処理A）
+        # 帰還経路の処理が完了した後に読み取る。処理自体には影響しない。
+        return_pathway = _read_return_pathway_tick(orch)
+
         # Step 6: extract record
         record = _extract_turn_record(
             turn=turn_num,
@@ -422,23 +529,50 @@ def run_simulation(
             outcome=outcome,
             user_id=turn_user_id,
             enrichment_chars=enrichment_chars,
+            return_pathway=return_pathway,
         )
         records.append(record)
 
+        # Step 7: 中間スナップショット記録（処理B）
+        # ターン処理の後に行う読み取りのみであり、内部状態の変更を伴わない。
+        if turn_num in snapshot_positions:
+            snap = _extract_snapshot(orch, turn_user_id)
+            snap["turn"] = turn_num
+            snap["tick"] = orch.tick_count
+            snapshots.append(snap)
+
     finished_at = datetime.now().isoformat(timespec="seconds")
 
-    return {
+    # 帰還経路の累積サマリー（リアルタイム観測構造がある場合、任意で含める）
+    return_pathway_summary: dict[str, Any] = {}
+    try:
+        monitor = orch._return_pathway_monitor
+        return_pathway_summary = monitor.get_summary()
+    except Exception:
+        pass
+
+    result: dict[str, Any] = {
         "metadata": {
             "scenario": scenario_label,
-            "total_turns": len(sequence),
+            "total_turns": total_turns,
             "delta_time_per_turn": delta_time,
             "user_id": user_id,
             "started_at": started_at,
             "finished_at": finished_at,
-            "version": 2,
+            "version": 3,
         },
         "turns": records,
     }
+
+    # 中間スナップショットの追加（存在する場合のみ）
+    if snapshots:
+        result["snapshots"] = snapshots
+
+    # 帰還経路セッションサマリーの追加
+    if return_pathway_summary:
+        result["return_pathway_summary"] = return_pathway_summary
+
+    return result
 
 
 # ── Statistics Summary ───────────────────────────────────────
@@ -567,6 +701,51 @@ def compute_statistics(result: dict[str, Any]) -> dict[str, Any]:
                 }
         stats["enrichment_sections"] = section_stats
 
+    # ── 帰還経路統計（処理C） ──
+    # 各帰還経路の発火回数、発火ターン比率、同時発火回数、累積帯域変動量。
+    # 統計量は事実記述のみであり、「期待値」「正常範囲」の概念を含まない。
+    turns_with_rp = [t for t in turns if "return_pathway" in t]
+    if turns_with_rp:
+        rp_stats: dict[str, Any] = {}
+
+        # 各帰還経路の発火回数と発火ターン比率
+        pathway_fire_counts: dict[str, int] = {pid: 0 for pid in RETURN_PATHWAY_IDS}
+        concurrent_2plus = 0
+        cumulative_deltas: dict[str, float] = {}
+
+        for t in turns_with_rp:
+            rp = t["return_pathway"]
+            fired = rp.get("fired_pathways", [])
+            fire_count = rp.get("fire_count", 0)
+
+            for pid in fired:
+                if pid in pathway_fire_counts:
+                    pathway_fire_counts[pid] += 1
+
+            if fire_count >= 2:
+                concurrent_2plus += 1
+
+            for dim, delta in rp.get("combined_deltas", {}).items():
+                if isinstance(delta, (int, float)):
+                    cumulative_deltas[dim] = cumulative_deltas.get(dim, 0.0) + delta
+
+        total_rp_turns = len(turns_with_rp)
+        rp_stats["pathway_fire_counts"] = pathway_fire_counts
+        rp_stats["pathway_fire_ratios"] = {
+            pid: round(count / total_rp_turns, 4)
+            for pid, count in pathway_fire_counts.items()
+        }
+        rp_stats["concurrent_2plus_count"] = concurrent_2plus
+        rp_stats["cumulative_deltas"] = {
+            dim: round(v, 6) for dim, v in cumulative_deltas.items()
+        }
+
+        stats["return_pathway"] = rp_stats
+
+    # 帰還経路セッションサマリー（結果全体に含まれている場合）
+    if "return_pathway_summary" in result:
+        stats["return_pathway_session"] = result["return_pathway_summary"]
+
     return stats
 
 
@@ -644,6 +823,21 @@ def generate_diff_report(
             fl = st["fear_level"]
             fear_ranges[name] = {"min": fl["min"], "max": fl["max"]}
     report["fear_level_ranges"] = fear_ranges
+
+    # ── 帰還経路の動作状況比較（処理D） ──
+    # シナリオ間で帰還経路の発火回数がどう異なるかの並列記述。
+    # 「どちらが良い」「どちらが望ましい」の判定を含まない。
+    rp_fire_counts: dict[str, dict[str, int]] = {}
+    rp_cumulative_deltas: dict[str, dict[str, float]] = {}
+    for name, st in stats_map.items():
+        if "return_pathway" in st:
+            rp = st["return_pathway"]
+            rp_fire_counts[name] = rp.get("pathway_fire_counts", {})
+            rp_cumulative_deltas[name] = rp.get("cumulative_deltas", {})
+    if rp_fire_counts:
+        report["return_pathway_fire_counts"] = rp_fire_counts
+    if rp_cumulative_deltas:
+        report["return_pathway_cumulative_deltas"] = rp_cumulative_deltas
 
     return report
 

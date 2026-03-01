@@ -105,15 +105,16 @@ class TestHandlerRegistration:
         assert engine.is_fully_registered()
 
     def test_register_invalid_phase_raises(self):
-        """10ティック帯域外のPhase登録がValueErrorを出すこと。"""
+        """未サポート帯域のPhase登録がValueErrorを出すこと。"""
         engine = PhaseExecutionEngine()
-        with pytest.raises(ValueError, match="not in the 10-tick band"):
-            engine.register_handler("1", MagicMock())
+        with pytest.raises(ValueError, match="not in any supported band"):
+            # Phase 15 はEVERY_5_TICKS帯域で未サポート
+            engine.register_handler("15", MagicMock())
 
     def test_register_nonexistent_phase_raises(self):
         """存在しないPhase ID登録がValueErrorを出すこと。"""
         engine = PhaseExecutionEngine()
-        with pytest.raises(ValueError, match="not in the 10-tick band"):
+        with pytest.raises(ValueError, match="not in any supported band"):
             engine.register_handler("999", MagicMock())
 
 
@@ -340,11 +341,11 @@ class TestPhaseDefinitions:
 class TestBandIsolation:
     """実行エンジンが10ティック帯域に限定されていることの検証。"""
 
-    def test_cannot_register_every_tick_phase(self):
-        """EVERY_TICK帯域のPhaseを登録できないこと。"""
+    def test_can_register_every_tick_phase(self):
+        """段階4: EVERY_TICK帯域のPhaseを登録できること。"""
         engine = PhaseExecutionEngine()
-        with pytest.raises(ValueError):
-            engine.register_handler("1", MagicMock())
+        engine.register_handler("1", MagicMock())
+        assert "1" in engine.get_band_registered_phase_ids(Band.EVERY_TICK)
 
     def test_can_register_3tick_phase(self):
         """段階3: EVERY_3_TICKS帯域のPhaseを登録できること。"""

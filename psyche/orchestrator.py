@@ -1284,6 +1284,10 @@ class PsycheOrchestrator:
         # ── Other model input supply ──
         self._input_supply = create_input_supply()
         self._last_percept: Optional[Percept] = None
+        # 毎ティック帯域の経過時間一時保存（同一ティック内での引数受渡し用、永続化対象外）
+        self._last_delta_time: float = 0.0
+        # Phase 1 → Phase 2/2a 間の loop_result 受渡し用一時属性（永続化対象外）
+        self._last_loop_result: Any = None
 
         # ── Recalled memories (brain.py から供給) ──
         self._last_recalled_memories: Optional[list[dict]] = None
@@ -1479,9 +1483,9 @@ class PsycheOrchestrator:
         self._last_sensitivity_bias: Optional[SensitivityBias] = None
         self._last_has_silence: bool = False
 
-        # ── Phase execution engine (段階3: 帯域横断の宣言的実行) ──
+        # ── Phase execution engine (段階4: 毎ティック帯域拡大) ──
         # save/load非影響・enrichment非接続。永続化しない。
-        # 対象帯域: 10ティック帯域（段階2から継続）+ 3ティック帯域（段階3で追加）
+        # 対象帯域: 毎ティック帯域（段階4で追加）+ 3ティック帯域（段階3）+ 10ティック帯域（段階2）
         self._phase_engine = PhaseExecutionEngine()
         # 10ティック帯域ハンドラ（段階2から継続）
         self._phase_engine.register_handler("27", self._phase27_handler)
@@ -1505,6 +1509,23 @@ class PsycheOrchestrator:
         self._phase_engine.register_handler("14h", self._phase14h_handler)
         self._phase_engine.register_handler("14i", self._phase14i_handler)
         self._phase_engine.register_handler("14j", self._phase14j_handler)
+        # 毎ティック帯域ハンドラ（段階4で追加: 16 Phase）
+        self._phase_engine.register_handler("1", self._phase1_handler)
+        self._phase_engine.register_handler("2", self._phase2_handler)
+        self._phase_engine.register_handler("2a", self._phase2a_handler)
+        self._phase_engine.register_handler("2b", self._phase2b_handler)
+        self._phase_engine.register_handler("2c", self._phase2c_handler)
+        self._phase_engine.register_handler("3", self._phase3_handler)
+        self._phase_engine.register_handler("4", self._phase4_handler)
+        self._phase_engine.register_handler("5", self._phase5_handler)
+        self._phase_engine.register_handler("6", self._phase6_handler)
+        self._phase_engine.register_handler("7", self._phase7_handler)
+        self._phase_engine.register_handler("7a", self._phase7a_handler)
+        self._phase_engine.register_handler("7b", self._phase7b_handler)
+        self._phase_engine.register_handler("7c", self._phase7c_handler)
+        self._phase_engine.register_handler("7d", self._phase7d_handler)
+        self._phase_engine.register_handler("7e", self._phase7e_handler)
+        self._phase_engine.register_handler("7f", self._phase7f_handler)
 
         # ── Execution monitor (実運用向けログ・モニタリング基盤) ──
         # 永続化対象外。save/loadフィールド追加なし。
@@ -1620,7 +1641,8 @@ class PsycheOrchestrator:
 
     # ── Phase 1-7: Every-tick update ──────────────────────────────
     # 処理実行コードは psyche/orchestrator_1tick_phases.py に物理的に分離済み。
-    # 本メソッドは分離先の統括関数への委譲のみを行う。
+    # 実行エンジンが有効な場合は宣言的定義に基づいて駆動し、
+    # 無効な場合は既存の手続き的コード（分離先の統括関数）にフォールバックする。
     # ムード自律更新用コンテキスト構築関数も分離先に移動済み。
 
     def _run_every_tick(
@@ -1629,8 +1651,331 @@ class PsycheOrchestrator:
         delta_time: float,
         user_id: str,
     ) -> None:
-        """毎ティック実行するフェーズ (Phase 1-7)."""
-        _run_1tick_phases(self, percept, delta_time, user_id)
+        """毎ティック実行するフェーズ (Phase 1-7f).
+
+        実行エンジンが有効な場合は宣言的定義に基づいて駆動し、
+        無効な場合は既存の手続き的コードにフォールバックする。
+        外部から見た呼び出しインターフェースは不変。
+        """
+        # 知覚入力と経過時間を一時属性に保存（ハンドラから標準シグネチャ経由で取得）
+        self._last_percept = percept
+        self._last_delta_time = delta_time
+
+        if self._phase_engine.is_band_enabled(Band.EVERY_TICK):
+            # 宣言的実行エンジンによる駆動
+            self._phase_engine.execute_band(self, user_id, band=Band.EVERY_TICK)
+        else:
+            # フォールバック: 既存の手続き的コード
+            _run_1tick_phases(self, percept, delta_time, user_id)
+
+        # 帯域末尾のデバッグログ出力（エンジン/フォールバック共通）
+        logger.debug(
+            "Tick %d every-tick: emotion=%s, mood=%.2f, fear=%.2f, "
+            "dynamics=%s (accumulated=%.2f)",
+            self._tick_count,
+            percept.emotion or "neutral",
+            self._psyche.mood.valence,
+            self._psyche.fear_level,
+            get_dynamics_summary(self._dynamics),
+            self._amplitude_state.current_amplitude,
+        )
+
+    # ── 毎ティック帯域ハンドラ（Phase 1-7f: 16 Phase） ────────────
+    # 各ハンドラは標準シグネチャ（self + _orchestrator + user_id）で呼ばれる。
+    # 知覚入力と経過時間は一時属性（_last_percept, _last_delta_time）から取得する。
+    # 処理内容は orchestrator_1tick_phases.py の既存コードと等価。
+
+    def _phase1_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 1: react_with_stm — 感情更新 + STM残留 + ムード自律更新。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        from .orchestrator_1tick_phases import build_mood_context
+        percept = self._last_percept
+        delta_time = self._last_delta_time
+        resp_influence = self._responsibility_mgr.get_influence(user_id)
+        mood_ctx = build_mood_context(self, resp_influence)
+        new_psyche, new_loop, self._last_loop_result = react_with_stm(
+            percept=percept,
+            psyche_state=self._psyche,
+            loop_state=self._loop_state,
+            delta_time=delta_time,
+            responsibility_influence=resp_influence,
+            mood_context=mood_ctx,
+        )
+        self._psyche = new_psyche
+        self._loop_state = new_loop
+
+    def _phase2_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 2: dynamics — ピーク/リバウンド判定。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        emo_dict = self._psyche.emotions.as_dict()
+        residue_total = self._last_loop_result.residue_influence.total_intensity
+        self._dynamics = update_dynamics(
+            state=self._dynamics,
+            current_emotions=emo_dict,
+            residue_intensity=residue_total,
+        )
+
+    def _phase2a_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 2a: emotion_amplitude — dynamics相による振幅計算。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        delta_time = self._last_delta_time
+        emo_dict = self._psyche.emotions.as_dict()
+        residue_total = self._last_loop_result.residue_influence.total_intensity
+        max_emo = max(emo_dict.values()) if emo_dict else 0.0
+        self._amplitude_state = update_amplitude(
+            self._amplitude_state,
+            intensity_factor=residue_total,
+            emotion_intensity=max_emo,
+        )
+        self._amplitude_state = decay_amplitude(self._amplitude_state, delta_time)
+
+    def _phase2b_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 2b: multi_emotion — 感情別独立減衰。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        delta_time = self._last_delta_time
+        decayed = apply_independent_decay(
+            self._psyche.emotions,
+            delta_time=delta_time,
+            config=self._multi_emotion_config,
+        )
+        self._psyche = self._psyche.model_copy(update={"emotions": decayed})
+
+    def _phase2c_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 2c: stm_emotion_coupling — STM残留→再活性化・蓄積。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        delta_time = self._last_delta_time
+        if self._loop_state and self._loop_state.memory:
+            coupled, self._last_coupling = apply_stm_coupling(
+                emotions=self._psyche.emotions,
+                stm=self._loop_state.memory,
+                delta_time=delta_time,
+                config=self._stm_coupling_config,
+                apply_persistence=False,
+            )
+            self._psyche = self._psyche.model_copy(update={"emotions": coupled})
+
+    def _phase3_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 3: attachment — 対話相手ボンド更新。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        percept = self._last_percept
+        if self._psyche.attachment is not None:
+            valence = abs(percept.emotion_valence)
+            event_type = "positive" if percept.emotion_valence >= 0 else "negative"
+            self._psyche = self._psyche.model_copy(update={
+                "attachment": attachment_manager.update_bond(
+                    self._psyche.attachment, user_id, event_type, valence,
+                ),
+            })
+
+    def _phase4_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 4: responsibility — 判断記録。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        percept = self._last_percept
+        if percept.intent and percept.intent != "expression":
+            policy_label = percept.intent
+        else:
+            policy_label = percept.emotion or "neutral"
+        self._responsibility_mgr.record_decision(
+            user_id=user_id,
+            policy={"policy_label": policy_label},
+            context={"emotion": percept.emotion, "text": percept.text[:100]},
+        )
+
+    def _phase5_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 5: self_reference — 自己参照サマリ。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        self._self_ref_state = execute_self_reference(
+            psyche_state=self._psyche,
+            responsibility_state=self._responsibility_mgr.get_state(user_id),
+            short_term_memory=self._loop_state.memory if self._loop_state else None,
+            dynamics_state=self._dynamics,
+            dispersion_state=self._dispersion_state,
+        )
+
+    def _phase6_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 6: repeated_tendency — 傾向観測。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        scoped = (
+            self._scoped_goal_sys._current_scope
+            if self._scoped_goal_sys.has_active_scope
+            else None
+        )
+        self._tendency_sys.observe_turn(scoped_goal_used=scoped)
+
+    def _phase7_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 7: fear recompute — 4柱リスク再計算。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        self._recompute_fear()
+
+    def _phase7a_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 7a: action_result_observation — 行動記録→構成バッファ。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        percept = self._last_percept
+        if self._last_selected_policy_label:
+            current_pathway_label = ""
+            if percept.text:
+                current_pathway_label = "text"
+            elif bool(percept.intent and percept.intent != "expression"):
+                current_pathway_label = "screen"
+            record_inputs = ActionResultInputs(
+                selected_policy_label=self._last_selected_policy_label,
+                selected_policy_axis=self._last_selected_policy_axis,
+                current_tick=self._tick_count,
+                input_pathway_label=current_pathway_label,
+            )
+            self._action_result_observer.record_action(record_inputs)
+
+    def _phase7b_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 7b: temporal_cognition — 経過記録の蓄積（毎ティック）。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        percept = self._last_percept
+        delta_time = self._last_delta_time
+        current_pathway_for_tc = ""
+        if percept.text:
+            current_pathway_for_tc = "text"
+        elif percept.intent and percept.intent != "expression":
+            current_pathway_for_tc = "screen"
+        self._temporal_cognition.accumulate_elapsed(
+            tick=self._tick_count,
+            delta_time=delta_time,
+            timestamp=time.time(),
+            current_pathway=current_pathway_for_tc,
+        )
+
+    def _phase7c_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 7c: perceptual_context — 知覚サマリの蓄積（毎ティック）。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        percept = self._last_percept
+        self._perceptual_context.accumulate_summary(
+            emotion=percept.emotion or "neutral",
+            intent=percept.intent or "unknown",
+            topics=list(getattr(percept, 'topics', ()) or ()),
+            emotion_valence=percept.emotion_valence,
+            tick=self._tick_count,
+        )
+
+    def _phase7d_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 7d: situational_self_presentation — 相手別自己出力記録蓄積。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        latest_record = self._self_action_recorder.get_latest_record()
+        if latest_record is not None and user_id:
+            self._situational_self_presentation.receive_and_accumulate(
+                user_id=user_id,
+                response_text=latest_record.response_text,
+                policy_label=latest_record.policy_label,
+                tick=self._tick_count,
+            )
+            self._situational_self_presentation.generate_compositions(
+                current_tick=self._tick_count,
+            )
+
+    def _phase7e_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 7e: input_pathway_balance — 入力経路間均衡記述。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        percept = self._last_percept
+        current_pathway = ""
+        if percept.text:
+            current_pathway = PATHWAY_TEXT
+        has_screen = bool(percept.intent and percept.intent != "expression")
+        self._input_pathway_balance_state = process_input_pathway_balance(
+            self._input_pathway_balance_state,
+            current_pathway=current_pathway,
+            text_dialogue_state=(
+                self._text_dialogue_processor.state
+                if self._text_dialogue_processor else None
+            ),
+            spontaneous_state=(
+                self._spontaneous_processor.state
+                if self._spontaneous_processor else None
+            ),
+            has_screen_input=has_screen,
+            config=self._input_pathway_balance_config,
+        )
+
+    def _phase7f_handler(self, _orchestrator: Any, user_id: str) -> None:
+        """Phase 7f: attention_distribution_description — 注意配分の構造的記述。
+
+        実行エンジンから呼び出される処理関数。
+        処理内容は既存の手続き的コードと等価。
+        """
+        percept = self._last_percept
+        _has_perception = bool(percept.text and percept.intent != "expression")
+        _has_text = bool(percept.text)
+        _has_spontaneous = (
+            self._last_activation_result is not None
+            and bool(getattr(self._last_activation_result, "candidates", None))
+        )
+        _perception_count = 0
+        if _has_perception and percept.text:
+            _perception_count = max(1, len(percept.text.split()) // 5)
+
+        self._att_dist_state = process_attention_distribution(
+            self._att_dist_state,
+            emotion_state=self._psyche.emotions,
+            memory_state=self._last_bindings,
+            motivation_state=self._last_motives,
+            transient_goal_state=self._transient_goal_mgr._state if self._transient_goal_mgr else None,
+            scoped_goal_state=self._scoped_goal_sys,
+            responsibility_state=self._dispersion_state,
+            text_dialogue_state=(
+                self._text_dialogue_processor.state
+                if self._text_dialogue_processor else None
+            ),
+            spontaneous_state=(
+                self._spontaneous_processor.state
+                if self._spontaneous_processor else None
+            ),
+            has_perception_input=_has_perception,
+            has_text_input=_has_text,
+            has_spontaneous_activation=_has_spontaneous,
+            perception_element_count=_perception_count,
+            config=self._att_dist_config,
+        )
 
     # ── Phase 8-14: Every 3 ticks ────────────────────────────────
 

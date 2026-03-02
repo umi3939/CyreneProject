@@ -338,6 +338,263 @@ class PipelineMeasurement:
 # ── PhaseTimer: フェーズ区間計測コンテキストマネージャ ──────────
 
 
+# ── 知覚辞書カバレッジ計測 ──────────────────────────────────────
+
+# 設計書: design_perception_coverage.md
+#
+# 知覚構造化の辞書照合における分類結果を事実記録する。
+# 本機能はパイプライン計測基盤の拡張であり、以下の構造的分離を継承する:
+# - psycheの内部状態・enrichment・判断・行動に一切参照されない
+# - orchestratorのPhase処理に組み込まれない
+# - enrichmentの項目として追加されない
+# - save/loadの対象フィールドに一切追加しない
+# - 辞書の追加・削除・変更を行わない(読み取り専用参照のみ)
+# - 計測結果に基づいて知覚の振る舞いを動的に変更しない
+
+
+_DEFAULT_COVERAGE_BUFFER_MAX = 200
+
+
+class PerceptionCoverageRecord:
+    """1回の知覚結果の分類記録。
+
+    入力テキストは保持しない(安全弁7)。
+    分類ラベルのみを記録する。
+    """
+
+    __slots__ = (
+        "emotion_is_neutral",
+        "intent_is_unknown",
+        "keyword_hit",
+        "llm_used",
+        "timestamp",
+    )
+
+    def __init__(
+        self,
+        emotion_is_neutral: bool,
+        intent_is_unknown: bool,
+        keyword_hit: bool,
+        llm_used: bool,
+    ) -> None:
+        self.emotion_is_neutral: bool = emotion_is_neutral
+        self.intent_is_unknown: bool = intent_is_unknown
+        self.keyword_hit: bool = keyword_hit
+        self.llm_used: bool = llm_used
+        self.timestamp: float = time.time()
+
+    def to_dict(self) -> dict[str, Any]:
+        """ログ出力用の辞書表現を返す。"""
+        return {
+            "emotion_is_neutral": self.emotion_is_neutral,
+            "intent_is_unknown": self.intent_is_unknown,
+            "keyword_hit": self.keyword_hit,
+            "llm_used": self.llm_used,
+            "timestamp": self.timestamp,
+        }
+
+
+class PerceptionCoverageMeasurement:
+    """知覚ヒューリスティック辞書の網羅性検証。
+
+    知覚構造化の結果を分類し、辞書照合のカバレッジを事実として記録する。
+    セッション開始時にインスタンスを生成し、セッション終了時に
+    emit_coverage_summary()を呼んで累積を出力する。
+    全内部状態はインスタンス破棄時に消失する(永続化対象外)。
+
+    本クラスの全メソッドは:
+    - psycheの内部状態を一切変更しない
+    - 計測値に基づく条件分岐を一切持たない
+    - 辞書の追加・削除・変更を行わない
+    - 出力はログストリームへのJSON書き込みと読み取り専用サマリのみ
+    """
+
+    def __init__(
+        self,
+        buffer_max: int = _DEFAULT_COVERAGE_BUFFER_MAX,
+        enabled: Optional[bool] = None,
+    ) -> None:
+        """初期化。
+
+        Args:
+            buffer_max: FIFOバッファの上限サイズ(安全弁2)。
+            enabled: 明示的な有効/無効指定。Noneの場合は
+                     既存のCYRENE_MONITOR環境変数で判定(安全弁6)。
+        """
+        import os
+        self._enabled = (
+            enabled if enabled is not None
+            else os.environ.get("CYRENE_MONITOR", "0") == "1"
+        )
+
+        # (A) FIFOバッファ(分類ラベルのみ、入力テキスト非保持: 安全弁7)
+        self._buffer: deque[PerceptionCoverageRecord] = deque(
+            maxlen=max(1, buffer_max)
+        )
+
+        # (B) セッション累積カウンタ(第2段)
+        self._total_count: int = 0
+        self._neutral_count: int = 0
+        self._unknown_count: int = 0
+        self._keyword_hit_count: int = 0
+        self._llm_used_count: int = 0
+
+    @property
+    def enabled(self) -> bool:
+        """計測が有効かどうか。"""
+        return self._enabled
+
+    @property
+    def total_count(self) -> int:
+        """総知覚回数。"""
+        return self._total_count
+
+    @property
+    def neutral_count(self) -> int:
+        """感情ラベルがneutralであった回数。"""
+        return self._neutral_count
+
+    @property
+    def unknown_count(self) -> int:
+        """意図ラベルがunknownであった回数。"""
+        return self._unknown_count
+
+    @property
+    def keyword_hit_count(self) -> int:
+        """キーワード照合で1つ以上の一致があった回数。"""
+        return self._keyword_hit_count
+
+    @property
+    def llm_used_count(self) -> int:
+        """LLM補助が利用された回数。"""
+        return self._llm_used_count
+
+    @property
+    def buffer_size(self) -> int:
+        """FIFOバッファ内の記録数。"""
+        return len(self._buffer)
+
+    # ── 第1段: 知覚結果の分類記録 ────────────────────────────────
+
+    def record_perception(
+        self,
+        emotion: str,
+        intent: str,
+        topics: list[str],
+        llm_used: bool,
+    ) -> None:
+        """知覚構造化の結果を分類し記録する。
+
+        知覚構造化が完了するたびに呼ばれる。
+        テキスト内容の意味解析・評価は行わない。
+        入力テキストは受け取らない(安全弁7)。
+
+        Args:
+            emotion: 知覚構造化が出力した感情ラベル。
+            intent: 知覚構造化が出力した意図ラベル。
+            topics: 知覚構造化が出力した話題リスト。
+            llm_used: LLM補助が利用されたか否か。
+        """
+        if not self._enabled:
+            return
+        try:
+            emotion_is_neutral = (emotion == "neutral")
+            intent_is_unknown = (intent == "unknown")
+            keyword_hit = (len(topics) > 0)
+
+            record = PerceptionCoverageRecord(
+                emotion_is_neutral=emotion_is_neutral,
+                intent_is_unknown=intent_is_unknown,
+                keyword_hit=keyword_hit,
+                llm_used=llm_used,
+            )
+
+            # FIFOバッファに追加
+            self._buffer.append(record)
+
+            # 第2段: 累積カウンタ更新
+            self._total_count += 1
+            if emotion_is_neutral:
+                self._neutral_count += 1
+            if intent_is_unknown:
+                self._unknown_count += 1
+            if keyword_hit:
+                self._keyword_hit_count += 1
+            if llm_used:
+                self._llm_used_count += 1
+
+            # ログ出力
+            log_record = {
+                "type": "perception_coverage",
+                "timestamp": time.time(),
+                "emotion_is_neutral": emotion_is_neutral,
+                "intent_is_unknown": intent_is_unknown,
+                "keyword_hit": keyword_hit,
+                "llm_used": llm_used,
+            }
+            self._emit_json(log_record)
+
+        except Exception:
+            # 安全弁3: 計測失敗時の安全な無視
+            pass
+
+    # ── セッションサマリ出力 ──────────────────────────────────
+
+    def emit_coverage_summary(self) -> None:
+        """セッション終了時のカバレッジ計測累積情報を出力する。"""
+        if not self._enabled:
+            return
+        try:
+            record = {
+                "type": "perception_coverage_session_summary",
+                "timestamp": time.time(),
+                "total_count": self._total_count,
+                "neutral_count": self._neutral_count,
+                "unknown_count": self._unknown_count,
+                "keyword_hit_count": self._keyword_hit_count,
+                "llm_used_count": self._llm_used_count,
+                "buffer_size": len(self._buffer),
+            }
+            self._emit_json(record)
+        except Exception:
+            # 安全弁3
+            pass
+
+    # ── 第3段: 読み取り専用サマリ提供 ──────────────────────────
+
+    def get_summary(self) -> dict[str, Any]:
+        """現在のカバレッジ計測サマリを読み取り専用で返す。
+
+        Returns:
+            計測サマリの辞書。
+        """
+        return {
+            "total_count": self._total_count,
+            "neutral_count": self._neutral_count,
+            "unknown_count": self._unknown_count,
+            "keyword_hit_count": self._keyword_hit_count,
+            "llm_used_count": self._llm_used_count,
+            "buffer_size": len(self._buffer),
+            "latest_record": (
+                self._buffer[-1].to_dict() if self._buffer else None
+            ),
+        }
+
+    # ── 内部: JSON構造化ログ出力 ─────────────────────────────
+
+    def _emit_json(self, record: dict[str, Any]) -> None:
+        """JSON構造化ログをログストリームに出力する。"""
+        try:
+            text = json.dumps(record, ensure_ascii=False, default=str)
+            monitor_logger.debug(text)
+        except Exception:
+            # 安全弁3
+            pass
+
+
+# ── PhaseTimer: フェーズ区間計測コンテキストマネージャ ──────────
+
+
 class PhaseTimer:
     """パイプラインフェーズ区間の経過時間を計測するコンテキストマネージャ。
 

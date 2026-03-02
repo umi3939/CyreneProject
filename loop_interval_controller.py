@@ -20,6 +20,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+# Counter overflow prevention: halve all counters when any exceeds this
+_TELEMETRY_COUNTER_MAX: int = 2_000_000_000
+
 
 # --- Interval Stage Definitions ---
 
@@ -90,6 +93,62 @@ class TextCaptureCoordState:
         self.consecutive_text_count = 0
 
 
+@dataclass
+class TelemetryCounters:
+    """
+    Read-only event counters for pathway utilization recording.
+    These counters are NEVER referenced by control logic.
+    They exist solely for diagnostic snapshot exposure.
+    """
+    text_processed_count: int = 0
+    capture_attempt_count: int = 0
+    capture_change_detected_count: int = 0
+    spontaneous_check_count: int = 0
+    spontaneous_activated_count: int = 0
+    all_pathway_reset_count: int = 0
+
+    def reset(self) -> None:
+        """Reset all counters to zero."""
+        self.text_processed_count = 0
+        self.capture_attempt_count = 0
+        self.capture_change_detected_count = 0
+        self.spontaneous_check_count = 0
+        self.spontaneous_activated_count = 0
+        self.all_pathway_reset_count = 0
+
+    def _halve_all(self) -> None:
+        """Halve all counters to prevent integer overflow while preserving ratios."""
+        self.text_processed_count //= 2
+        self.capture_attempt_count //= 2
+        self.capture_change_detected_count //= 2
+        self.spontaneous_check_count //= 2
+        self.spontaneous_activated_count //= 2
+        self.all_pathway_reset_count //= 2
+
+    def _check_overflow(self) -> None:
+        """If any counter exceeds the max, halve all counters."""
+        if (
+            self.text_processed_count > _TELEMETRY_COUNTER_MAX
+            or self.capture_attempt_count > _TELEMETRY_COUNTER_MAX
+            or self.capture_change_detected_count > _TELEMETRY_COUNTER_MAX
+            or self.spontaneous_check_count > _TELEMETRY_COUNTER_MAX
+            or self.spontaneous_activated_count > _TELEMETRY_COUNTER_MAX
+            or self.all_pathway_reset_count > _TELEMETRY_COUNTER_MAX
+        ):
+            self._halve_all()
+
+    def to_dict(self) -> dict:
+        """Return counter values as a dictionary."""
+        return {
+            "text_processed_count": self.text_processed_count,
+            "capture_attempt_count": self.capture_attempt_count,
+            "capture_change_detected_count": self.capture_change_detected_count,
+            "spontaneous_check_count": self.spontaneous_check_count,
+            "spontaneous_activated_count": self.spontaneous_activated_count,
+            "all_pathway_reset_count": self.all_pathway_reset_count,
+        }
+
+
 class LoopIntervalController:
     """
     Controls timing intervals for the main loop's three input pathways.
@@ -150,6 +209,9 @@ class LoopIntervalController:
         self._spontaneous_state = SpontaneousIntervalState()
         self._text_capture_coord = TextCaptureCoordState()
 
+        # Telemetry counters (diagnostic-only, never referenced by control logic)
+        self._telemetry = TelemetryCounters()
+
         # Initialize times
         now = time.monotonic()
         self._capture_state.last_capture_time = now
@@ -191,6 +253,11 @@ class LoopIntervalController:
     def base_idle_threshold(self) -> float:
         """Base idle seconds threshold for spontaneous activation."""
         return self._base_idle_threshold
+
+    @property
+    def telemetry(self) -> TelemetryCounters:
+        """Read-only access to telemetry counters."""
+        return self._telemetry
 
     # --- A. Screen Capture Interval Control ---
 
@@ -234,6 +301,12 @@ class LoopIntervalController:
             now = time.monotonic()
 
         self._capture_state.last_capture_time = now
+
+        # Telemetry: record capture attempt
+        self._telemetry.capture_attempt_count += 1
+        if frame_present:
+            self._telemetry.capture_change_detected_count += 1
+        self._telemetry._check_overflow()
 
         if frame_present:
             # Change detected: reset to base stage
@@ -307,6 +380,12 @@ class LoopIntervalController:
         self._spontaneous_state.last_check_time = now
         self._spontaneous_state.last_check_result_activated = activated
 
+        # Telemetry: record spontaneous check
+        self._telemetry.spontaneous_check_count += 1
+        if activated:
+            self._telemetry.spontaneous_activated_count += 1
+        self._telemetry._check_overflow()
+
         if activated:
             # Activation occurred: reset additional wait
             self._spontaneous_state.additional_wait_stage = 0
@@ -334,6 +413,10 @@ class LoopIntervalController:
         """
         self._text_capture_coord.text_just_processed = True
         self._text_capture_coord.consecutive_text_count += 1
+
+        # Telemetry: record text processing
+        self._telemetry.text_processed_count += 1
+        self._telemetry._check_overflow()
 
     def should_force_capture_after_text(self) -> bool:
         """
@@ -395,6 +478,10 @@ class LoopIntervalController:
         self._spontaneous_state.reset(now=now)
         self._text_capture_coord.reset()
 
+        # Telemetry: record all-pathway reset
+        self._telemetry.all_pathway_reset_count += 1
+        self._telemetry._check_overflow()
+
     # --- Snapshot for diagnostics ---
 
     def get_diagnostics(self) -> dict:
@@ -418,4 +505,5 @@ class LoopIntervalController:
                 "consecutive_text_count": self._text_capture_coord.consecutive_text_count,
                 "force_capture_needed": self.should_force_capture_after_text(),
             },
+            "telemetry": self._telemetry.to_dict(),
         }

@@ -714,7 +714,7 @@ from tools.return_pathway_monitor import (
 
 # Save/load warmup (復帰時キャッシュ再導出)
 # 独自の内部状態を保持しない。永続化フィールド追加なし。
-from .save_load_warmup import execute_warmup
+from .save_load_warmup import execute_warmup, execute_session_recovery_check
 
 logger = logging.getLogger(__name__)
 
@@ -4377,7 +4377,12 @@ class PsycheOrchestrator:
             # Cache warmup: 復元済みモジュール蓄積状態から中間キャッシュを再導出
             # セッション境界鮮度注釈の計算後、最初のティック実行前に実行する。
             # 独自の内部状態を保持しない(1回実行のみ)。
-            execute_warmup(self)
+            warmup_results = execute_warmup(self)
+
+            # Session recovery check: 復元フィールド間の数値的整合性を検証
+            # ウォームアップ完了後、最初のティック実行前に1回のみ実行する。
+            # 警告のみ（修復・進行阻止なし）。内部状態への書き込みなし。
+            execute_session_recovery_check(self, warmup_results)
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

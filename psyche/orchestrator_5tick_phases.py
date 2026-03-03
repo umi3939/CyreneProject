@@ -1271,8 +1271,51 @@ _EXP_BANDWIDTH_MAX_MULTIPLIER: float = 4.0
 # 1回の帯域拡大更新で次元が変動できる絶対上限
 _EXP_BANDWIDTH_MAX_DELTA_PER_DIM: float = 0.08
 
-# 冷却期間（ティック数）
+# 冷却期間（ティック数）— フォールバック用の固定値
 _EXP_BANDWIDTH_COOLDOWN_TICKS: int = 3
+
+# 動的冷却期間の下限（最短値保証: 設計書安全弁1）
+_EXP_COOLDOWN_MIN_TICKS: int = 2
+
+
+def _derive_dynamic_cooldown(
+    arousal: float,
+    drive_variation: float,
+) -> int:
+    """
+    冷却期間を覚醒度と駆動変動幅から純粋関数として導出する。
+
+    設計書 design_exp_cooldown_dynamic.md に基づく。
+
+    - 覚醒度と駆動変動幅をそれぞれ 0.0-1.0 にクランプする（安全弁2: 入力クランプ）
+    - 2値の max を代表値として採用する（入力等価性を保つため平均ではなく最大値）
+    - 代表値が高いほど冷却期間は短くなり、低いほど長くなる
+    - 冷却期間は _EXP_COOLDOWN_MIN_TICKS 以上を保証する（安全弁1: 最短値保証）
+
+    Args:
+        arousal: 覚醒度 (0.0-1.0)
+        drive_variation: 駆動変動幅 (0.0-1.0)
+
+    Returns:
+        冷却ティック数（整数、最小 _EXP_COOLDOWN_MIN_TICKS）
+    """
+    # 入力クランプ（安全弁2）
+    clamped_arousal = max(0.0, min(1.0, arousal))
+    clamped_variation = max(0.0, min(1.0, drive_variation))
+
+    # 代表値: 2入力のうち大きい方
+    representative = max(clamped_arousal, clamped_variation)
+
+    # 代表値が高いほど冷却が短い: 線形補間
+    # representative=0.0 → _EXP_BANDWIDTH_COOLDOWN_TICKS (固定値と同等)
+    # representative=1.0 → _EXP_COOLDOWN_MIN_TICKS (最短)
+    cooldown_range = _EXP_BANDWIDTH_COOLDOWN_TICKS - _EXP_COOLDOWN_MIN_TICKS
+    cooldown_float = _EXP_BANDWIDTH_COOLDOWN_TICKS - (representative * cooldown_range)
+
+    # 整数化して最短値保証
+    cooldown = max(_EXP_COOLDOWN_MIN_TICKS, round(cooldown_float))
+
+    return cooldown
 
 
 def _compute_experience_intensity(
@@ -1344,8 +1387,42 @@ def _apply_experience_driven_value_update(orch: "PsycheOrchestrator") -> None:
     if not hasattr(orch, '_exp_bandwidth_last_tick'):
         orch._exp_bandwidth_last_tick = -_EXP_BANDWIDTH_COOLDOWN_TICKS - 1
 
+    # ── 動的冷却期間の導出 ──
+    # 入力1: 覚醒度（既にPhase 26-EXPで参照している断面）
+    # 入力2: 駆動変動幅（前回駆動ベクトルとの差分）
+    # 入力不在時はフォールバック（安全弁3: 既存の固定冷却期間をそのまま使用）
+    dynamic_cooldown = _EXP_BANDWIDTH_COOLDOWN_TICKS  # フォールバック値
+
+    try:
+        arousal = orch._psyche.mood.arousal
+
+        # 駆動変動幅の算出: 前回駆動ベクトルとの差分
+        # _exp_prev_drives は非永続属性（save/load対象外）
+        if not hasattr(orch, '_exp_prev_drives'):
+            orch._exp_prev_drives = None
+
+        current_drives = orch._psyche.drives.as_dict()
+        drive_variation = 0.0
+
+        if orch._exp_prev_drives is not None:
+            # 3軸の差分の絶対値の最大値を変動幅とする
+            diffs = []
+            for axis in current_drives:
+                prev_val = orch._exp_prev_drives.get(axis, 0.5)
+                diffs.append(abs(current_drives[axis] - prev_val))
+            if diffs:
+                drive_variation = max(diffs)
+
+        # 前回駆動ベクトルを更新（次回の変動幅算出用）
+        orch._exp_prev_drives = dict(current_drives)
+
+        dynamic_cooldown = _derive_dynamic_cooldown(arousal, drive_variation)
+    except Exception:
+        # 入力取得失敗時はフォールバック値を使用（安全弁3）
+        pass
+
     ticks_since_last = orch._tick_count - orch._exp_bandwidth_last_tick
-    if ticks_since_last < _EXP_BANDWIDTH_COOLDOWN_TICKS:
+    if ticks_since_last < dynamic_cooldown:
         return  # 冷却期間中
 
     # ── 入力の取得と検証 ──

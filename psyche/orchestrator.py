@@ -1694,11 +1694,12 @@ class PsycheOrchestrator:
         実行エンジンから呼び出される処理関数。
         処理内容は既存の手続き的コードと等価。
         """
-        from .orchestrator_1tick_phases import build_mood_context
+        from .orchestrator_1tick_phases import build_mood_context, build_drive_context
         percept = self._last_percept
         delta_time = self._last_delta_time
         resp_influence = self._responsibility_mgr.get_influence(user_id)
         mood_ctx = build_mood_context(self, resp_influence)
+        drive_ctx = build_drive_context(self)
         new_psyche, new_loop, self._last_loop_result = react_with_stm(
             percept=percept,
             psyche_state=self._psyche,
@@ -1706,6 +1707,7 @@ class PsycheOrchestrator:
             delta_time=delta_time,
             responsibility_influence=resp_influence,
             mood_context=mood_ctx,
+            drive_context=drive_ctx,
         )
         self._psyche = new_psyche
         self._loop_state = new_loop

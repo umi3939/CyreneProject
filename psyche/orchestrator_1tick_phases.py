@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 from .state import Percept
 
-from .reaction import MoodContextInputs
+from .reaction import MoodContextInputs, DriveContextInputs
 from .reaction_with_stm import react_with_stm
 
 from .dynamics import (
@@ -162,6 +162,68 @@ def build_mood_context(
     return ctx
 
 
+def build_drive_context(
+    orch: PsycheOrchestrator,
+) -> DriveContextInputs:
+    """ドライブ変動係数導出のための入力コンテキストを構築する。
+
+    行動多様性記述構造と内部矛盾並置記述構造の最新状態をREAD-ONLYで参照し、
+    コンテキストフィールドに注入する。
+    各入力源は利用可能な場合のみ設定され、
+    利用不能な場合はNone（安全弁5: 寄与ゼロ）のまま残される。
+    """
+    ctx = DriveContextInputs()
+
+    # 目的階層の存在情報
+    try:
+        tg_state = orch._transient_goal_mgr.state
+        ctx.has_transient_goal = tg_state.active_goal is not None
+    except Exception:
+        pass
+
+    try:
+        active_items = [
+            it for it in orch._persistent_commitment._state.items
+            if not it.released
+        ]
+        ctx.persistent_commitment_count = len(active_items)
+    except Exception:
+        pass
+
+    try:
+        ctx.has_scoped_goal = orch._scoped_goal_sys.has_active_scope
+    except Exception:
+        pass
+
+    # 時間認知の段階値
+    try:
+        snapshot = orch._temporal_cognition.get_snapshot()
+        activity = snapshot.get("activity_density")
+        if activity:
+            ctx.time_density_label = activity
+    except Exception:
+        pass
+
+    # 断面6: 行動多様性記述の結果断面キー種類数の段階値（READ-ONLY参照）
+    try:
+        latest_record = orch._behavioral_diversity_state.latest_record
+        if latest_record is not None:
+            ctx.behavioral_diversity_stage_value = (
+                latest_record.section_key_type_count_level
+            )
+    except Exception:
+        pass
+
+    # 断面7: 内部矛盾並置記述の直前サイクル矛盾対件数（READ-ONLY参照）
+    try:
+        prev = orch._contradiction_processor.state.previous_contradictions
+        ctx.contradiction_count = len(prev)
+    except Exception:
+        pass
+
+    return ctx
+
+
 # ── 1-tick group 1: Emotion core (Phase 1-2c) ───────────────────
 
 def _run_1t_emotion_core(
@@ -178,6 +240,9 @@ def _run_1t_emotion_core(
     # Construct mood context for autonomous mood update
     mood_ctx = build_mood_context(orch, resp_influence)
 
+    # Construct drive context for state-dependent drive dynamics
+    drive_ctx = build_drive_context(orch)
+
     new_psyche, new_loop, loop_result = react_with_stm(
         percept=percept,
         psyche_state=orch._psyche,
@@ -185,6 +250,7 @@ def _run_1t_emotion_core(
         delta_time=delta_time,
         responsibility_influence=resp_influence,
         mood_context=mood_ctx,
+        drive_context=drive_ctx,
     )
     orch._psyche = new_psyche
     orch._loop_state = new_loop

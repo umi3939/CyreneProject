@@ -15,7 +15,8 @@ Handles emotion updates, decay, drive changes, mood update, and **responsibility
 
 ドライブ動態の状態依存化（Drive Dynamics State-Dependent）:
 - ドライブの変化量を「固定定数」から「現在の内部状態に依存する導出値」に変更
-- 5断面（感情-ドライブ連動/ドライブ間相互作用/目的階層存在/時間経過/覚醒-ドライブ）
+- 7断面（感情-ドライブ連動/ドライブ間相互作用/目的階層存在/時間経過/覚醒-ドライブ
+         /行動結果偏り/内部矛盾有無）
 - 安全弁6種: 断面別上限/合成後上限/有効範囲クランプ/相互作用帯域制限/入力不在中立化/非蓄積
 
 ムードの自律化（Mood Autonomy）:
@@ -75,6 +76,8 @@ _SECTION_BAND: dict[str, dict[str, float]] = {
     "goal_hierarchy":         {"social": 0.05, "curiosity": 0.05, "expression": 0.05},
     "time_passage":           {"social": 0.06, "curiosity": 0.06, "expression": 0.06},
     "arousal_drive":          {"social": 0.04, "curiosity": 0.04, "expression": 0.04},
+    "behavioral_diversity":   {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
+    "internal_contradiction": {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
 }
 
 # 合成後の1ティックあたり総変動量の上限 (既存固定加減算の最大値 ~0.15 と同水準)
@@ -115,6 +118,10 @@ class DriveContextInputs:
     percept_valence: Optional[float] = None
     # 恐怖指数
     fear_level: float = 0.0
+    # 行動多様性記述: 結果断面キー種類数の段階値 (READ-ONLY参照)
+    behavioral_diversity_stage_value: Optional[str] = None
+    # 内部矛盾並置記述: 直前サイクルの矛盾対検出件数 (READ-ONLY参照)
+    contradiction_count: Optional[int] = None
 
 
 def _compute_emotion_drive_coupling(
@@ -348,10 +355,98 @@ def _compute_arousal_drive(
     return result
 
 
+def _compute_behavioral_diversity(
+    ctx: DriveContextInputs,
+) -> dict[str, float]:
+    """断面6: 行動結果の偏り度合い。
+
+    行動多様性記述構造の結果断面キー種類数の段階値から、
+    ドライブの変動帯域への微弱な寄与を導出する。
+    種類数が少ない段階ほど微弱な正の寄与、多い段階ほど中立（ゼロ寄与）に近づく。
+    寄与は全ドライブ軸に等しい帯域で配分され、特定軸への選択的影響を持たない。
+    入力不在時はゼロ寄与（安全弁5）。
+    純粋関数。状態なし（安全弁6）。
+    """
+    band = _SECTION_BAND["behavioral_diversity"]
+    result = {"social": 0.0, "curiosity": 0.0, "expression": 0.0}
+
+    if ctx.behavioral_diversity_stage_value is None:
+        return result
+
+    # 段階値から数値スケールへの変換
+    # 種類数が少ない段階ほど大きな正の寄与、多い段階ほど中立に近づく
+    stage = ctx.behavioral_diversity_stage_value
+    stage_scale_map = {
+        "level_0": 1.0,         # 0種類: 最大寄与
+        "level_1_5": 0.6,       # 1-5種類
+        "level_6_10": 0.3,      # 6-10種類
+        "level_11_15": 0.1,     # 11-15種類
+        "level_16_plus": 0.0,   # 16種類以上: 中立
+    }
+    base_scale = stage_scale_map.get(stage, 0.0)
+
+    if base_scale == 0.0:
+        return result
+
+    # ムードの正負で寄与の方向が変動する（固定マッピング防止）
+    valence = ctx.mood_valence if ctx.mood_valence is not None else 0.0
+    # valence > 0: 正の寄与が強まる
+    # valence < 0: 寄与が抑制される
+    direction = 0.7 + valence * 0.3  # 0.4 ~ 1.0 range
+
+    raw = base_scale * 0.025 * direction
+
+    for axis in result:
+        result[axis] = max(-band[axis], min(band[axis], raw))
+
+    return result
+
+
+def _compute_internal_contradiction(
+    ctx: DriveContextInputs,
+) -> dict[str, float]:
+    """断面7: 内部矛盾の検出有無。
+
+    内部矛盾並置記述構造の直前サイクルの矛盾対検出件数から、
+    ドライブの変動帯域への微弱な寄与を導出する。
+    件数がゼロの場合は中立（ゼロ寄与）。
+    件数が存在する場合、寄与の方向は覚醒度やムードの正負によって都度異なる
+    （「矛盾がある→特定の方向」という固定マッピングを持たない）。
+    矛盾の「質」ではなく「検出件数」のみに依存する。
+    入力不在時はゼロ寄与（安全弁5）。
+    純粋関数。状態なし（安全弁6）。
+    """
+    band = _SECTION_BAND["internal_contradiction"]
+    result = {"social": 0.0, "curiosity": 0.0, "expression": 0.0}
+
+    if ctx.contradiction_count is None or ctx.contradiction_count == 0:
+        return result
+
+    # 件数のスケール変換（上限あり）
+    count = min(ctx.contradiction_count, 6)
+    magnitude = count / 6.0  # 0.17 ~ 1.0
+
+    # 寄与の方向は覚醒度とムードの正負で都度異なる
+    arousal = ctx.mood_arousal if ctx.mood_arousal is not None else 0.3
+    valence = ctx.mood_valence if ctx.mood_valence is not None else 0.0
+
+    # 覚醒度が高く valence が正: 正方向の微弱寄与
+    # 覚醒度が低く valence が負: 負方向の微弱寄与
+    # 中間: 小さい寄与
+    direction = (arousal - 0.5) * 0.4 + valence * 0.3  # -0.5 ~ +0.5 range
+
+    raw = magnitude * 0.03 * direction
+
+    for axis in result:
+        result[axis] = max(-band[axis], min(band[axis], raw))
+
+    return result
+
+
 def compute_state_dependent_drive_changes(
     ctx: DriveContextInputs,
 ) -> dict[str, float]:
-    """5断面の変動係数を合成し、各ドライブ軸の最終変動量を算出する。
+    """7断面の変動係数を合成し、各ドライブ軸の最終変動量を算出する。
 
     純粋関数。蓄積なし（安全弁6）。
 
@@ -367,6 +462,8 @@ def compute_state_dependent_drive_changes(
         _compute_goal_hierarchy(ctx),
         _compute_time_passage(ctx),
         _compute_arousal_drive(ctx),
+        _compute_behavioral_diversity(ctx),
+        _compute_internal_contradiction(ctx),
     ]
 
     # 加算合成

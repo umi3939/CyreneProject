@@ -12,12 +12,24 @@ psyche/coefficient_registry.py - 散在する定数の外部ファイル集約�
 - 導出ロジックの外部化禁止（定数値のみ）
 - enrichmentに非露出
 
+セッション間変動履歴 (design_coefficient_history.md 準拠):
+- load()完了後に全係数値のスナップショットを取得
+- 前回記録との差分を算出し履歴ファイルに追記
+- FIFO制限で古いエントリを自動削除
+- 履歴データはpsycheに帰還しない（開発者向け記録のみ）
+- enrichmentに非露出
+- save/loadフィールドに非追加
+
 安全弁:
   1. 読み取り専用の強制（書き込みメソッドなし）
   2. フォールバックの保証（デフォルト値 = ハードコード値と同一）
   3. ティック中の再読み込み禁止（起動時のみ）
   4. enrichmentへの非露出
   5. 導出ロジックの非外部化
+  6. FIFO上限（履歴エントリ数制限）
+  7. 読み書き失敗の安全な無視
+  8. psycheへの非帰還
+  9. 永続化機構との非接続
 """
 
 from __future__ import annotations
@@ -25,6 +37,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -315,3 +328,169 @@ def reset() -> None:
     global _registry, _loaded
     _registry = None
     _loaded = False
+
+
+# =============================================================================
+# Session history recording (design_coefficient_history.md)
+# =============================================================================
+
+_HISTORY_FIFO_LIMIT: int = 100
+
+
+def _resolve_history_file_path() -> str:
+    """Resolve the path to the coefficient_history.json file.
+
+    Located at data/coefficient_history.json, separate from coefficients.json.
+    """
+    psyche_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(psyche_dir)
+    return os.path.join(project_root, "data", "coefficient_history.json")
+
+
+def _flatten_dict(d: dict, prefix: str = "") -> dict[str, Any]:
+    """Flatten a nested dict into dot-separated keys.
+
+    Example: {"a": {"b": 1}} -> {"a.b": 1}
+    """
+    result: dict[str, Any] = {}
+    for k, v in d.items():
+        full_key = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            result.update(_flatten_dict(v, full_key))
+        else:
+            result[full_key] = v
+    return result
+
+
+def _compute_changes(
+    previous_snapshot: dict[str, Any],
+    current_snapshot: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Compute the list of changed coefficients between two snapshots.
+
+    Both snapshots are flat dicts (dot-separated keys).
+    Returns a list of dicts with keys: "key", "old_value", "new_value".
+    """
+    changes: list[dict[str, Any]] = []
+    all_keys = sorted(set(previous_snapshot.keys()) | set(current_snapshot.keys()))
+    for key in all_keys:
+        old_val = previous_snapshot.get(key)
+        new_val = current_snapshot.get(key)
+        if old_val != new_val:
+            change: dict[str, Any] = {"key": key}
+            if old_val is not None:
+                change["old_value"] = old_val
+            if new_val is not None:
+                change["new_value"] = new_val
+            changes.append(change)
+    return changes
+
+
+def _load_history(history_path: str) -> list[dict[str, Any]]:
+    """Load existing history from file. Returns empty list on any failure."""
+    if not os.path.isfile(history_path):
+        return []
+    try:
+        with open(history_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data
+        logger.warning("History file content is not a list; starting fresh.")
+        return []
+    except (json.JSONDecodeError, OSError, ValueError) as e:
+        logger.warning("Failed to read history file %s: %s; starting fresh.", history_path, e)
+        return []
+
+
+def _save_history(history_path: str, entries: list[dict[str, Any]]) -> None:
+    """Save history entries to file. Logs warning on failure."""
+    try:
+        os.makedirs(os.path.dirname(history_path), exist_ok=True)
+        with open(history_path, "w", encoding="utf-8") as f:
+            json.dump(entries, f, indent=2, ensure_ascii=False)
+    except OSError as e:
+        logger.warning("Failed to write history file %s: %s", history_path, e)
+
+
+def record_history(history_path: str | None = None) -> dict[str, Any] | None:
+    """Record a history entry comparing current coefficients with the previous session.
+
+    This function should be called once after load() completes.
+    It takes a snapshot of the current registry values, compares with the most
+    recent history entry (if any), and appends a new entry to the history file.
+
+    The history file is separate from coefficients.json and has no effect on
+    psyche processing. It is a developer-facing record only.
+
+    Args:
+        history_path: Optional path to the history file. If None,
+                      the default path (data/coefficient_history.json) is used.
+
+    Returns:
+        The newly created history entry dict, or None if the registry
+        has not been loaded yet or if recording failed.
+    """
+    if not _loaded or _registry is None:
+        logger.warning("Cannot record history: registry not loaded.")
+        return None
+
+    path = history_path or _resolve_history_file_path()
+
+    # Take snapshot of current values (flattened)
+    current_flat = _flatten_dict(_registry)
+
+    # Load existing history
+    history = _load_history(path)
+
+    # Compare with most recent entry's snapshot
+    changes: list[dict[str, Any]] = []
+    if history:
+        last_entry = history[-1]
+        previous_flat = last_entry.get("snapshot", {})
+        changes = _compute_changes(previous_flat, current_flat)
+
+    # Build new entry
+    entry: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "changes": changes,
+        "change_count": len(changes),
+        "snapshot": current_flat,
+    }
+
+    # Append and apply FIFO
+    history.append(entry)
+    if len(history) > _HISTORY_FIFO_LIMIT:
+        history = history[-_HISTORY_FIFO_LIMIT:]
+
+    # Save
+    _save_history(path, history)
+
+    if changes:
+        logger.info(
+            "Coefficient history recorded: %d change(s) detected.",
+            len(changes),
+        )
+    else:
+        if len(history) == 1:
+            logger.info("Coefficient history recorded: first session (no previous data).")
+        else:
+            logger.info("Coefficient history recorded: no changes from previous session.")
+
+    return entry
+
+
+def get_history(history_path: str | None = None) -> list[dict[str, Any]]:
+    """Read and return the current history entries.
+
+    This is intended for developer inspection and testing only.
+    The returned data must never be used as input to psyche processing.
+
+    Args:
+        history_path: Optional path to the history file. If None,
+                      the default path is used.
+
+    Returns:
+        A list of history entry dicts. Empty list if no history exists.
+    """
+    path = history_path or _resolve_history_file_path()
+    return _load_history(path)

@@ -1481,6 +1481,10 @@ class PsycheOrchestrator:
         # ── Enrichment compression (前回テキストキャッシュ、save/load対象外) ──
         self._enrichment_prev_cache: dict[str, str] = {}
 
+        # ── Enrichment empty skip tracker (セッション境界で消失、save/load対象外) ──
+        from .enrichment_compression import EmptySkipTracker
+        self._enrichment_empty_skip_tracker = EmptySkipTracker()
+
         # ── Session boundary freshness (save/load対象外、毎セッション再算出) ──
         self._session_gap_seconds: Optional[float] = None
         self._session_resume_tick: Optional[int] = None

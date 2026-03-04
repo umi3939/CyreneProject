@@ -156,7 +156,9 @@ from .enrichment_compression import (
     build_compressed_enrichment,
     normalize_section_items,
     prepend_freshness_annotation,
+    EmptySkipTracker,
     ORIGINAL_FOOTER,
+    EMPTY_STATE_MARKER,
 )
 
 from .save_load_warmup import (
@@ -904,11 +906,38 @@ def get_prompt_enrichment(
     for section in sections_data:
         section["items"] = normalize_section_items(section["items"])
 
+    # ── 空項目スキップ判定（圧縮パイプラインの前段に挿入） ──
+    # 設計書 design_enrichment_empty_skip.md §4: 既存パイプラインの前段に挿入
+    tracker: EmptySkipTracker = orch._enrichment_empty_skip_tracker
+    current_tick = orch._tick_count
+    filtered_sections: list[dict] = []
+    for section in sections_data:
+        filtered_items: list[tuple[str, str]] = []
+        for label, text in section["items"]:
+            if tracker.should_skip(label, current_tick):
+                # スキップ: 再生成処理から除外
+                # キャッシュにも前回の値をそのまま維持（圧縮パイプラインは見ない）
+                continue
+            # 再生成実行: カウンタ更新
+            tracker.update_after_generation(label, text, current_tick)
+            filtered_items.append((label, text))
+        if filtered_items:
+            filtered_sections.append({
+                "header": section["header"],
+                "items": filtered_items,
+            })
+    # 初回ティック完了を記録（安全弁3）
+    tracker.mark_first_tick_done()
+
+    skip_count = tracker.get_skip_count()
+    if skip_count > 0:
+        logger.debug("Enrichment empty skip: %d items currently skippable", skip_count)
+
     footer = ORIGINAL_FOOTER
 
-    # 圧縮パイプライン実行
+    # 圧縮パイプライン実行（フィルタ済みデータを使用）
     compressed_text, new_cache, _ratio = build_compressed_enrichment(
-        sections_data=sections_data,
+        sections_data=filtered_sections,
         prev_cache=orch._enrichment_prev_cache,
         footer=footer,
     )

@@ -638,3 +638,289 @@ class PhaseTimer:
             pass
         # 元の例外を再送出(Falseを返す = 例外を抑制しない)
         return None
+
+
+# ── 知覚入力多様性記録 ────────────────────────────────────────────
+
+# 設計書: design_perception_diversity.md
+#
+# 知覚パイプラインの入力と出力の構造的特性を事実として記録する。
+# 本機能はパイプライン計測基盤の拡張であり、以下の構造的分離を継承する:
+# - psycheの内部状態・enrichment・判断・行動に一切参照されない
+# - orchestratorのPhase処理に組み込まれない
+# - enrichmentの項目として追加されない
+# - save/loadの対象フィールドに一切追加しない
+# - 辞書の追加・削除・変更を行わない(読み取り専用参照のみ)
+# - 記録内容に基づいて知覚の振る舞いを動的に調整しない
+# - 入力テキストの全文を保持しない(テキスト長のみ記録)
+
+
+_DEFAULT_DIVERSITY_BUFFER_MAX = 200
+
+
+class PerceptionDiversityRecord:
+    """1回の知覚結果の多様性断面記録。
+
+    入力テキストは保持しない(安全弁3)。テキスト長(文字数)のみを記録する。
+    """
+
+    __slots__ = (
+        "emotion_label",
+        "intent_label",
+        "topic_count",
+        "input_length",
+        "emotion_valence",
+        "keyword_hit",
+        "timestamp",
+    )
+
+    def __init__(
+        self,
+        emotion_label: str,
+        intent_label: str,
+        topic_count: int,
+        input_length: int,
+        emotion_valence: float,
+        keyword_hit: bool,
+    ) -> None:
+        self.emotion_label: str = emotion_label
+        self.intent_label: str = intent_label
+        self.topic_count: int = topic_count
+        self.input_length: int = input_length
+        self.emotion_valence: float = emotion_valence
+        self.keyword_hit: bool = keyword_hit
+        self.timestamp: float = time.time()
+
+    def to_dict(self) -> dict[str, Any]:
+        """ログ出力用の辞書表現を返す。"""
+        return {
+            "emotion_label": self.emotion_label,
+            "intent_label": self.intent_label,
+            "topic_count": self.topic_count,
+            "input_length": self.input_length,
+            "emotion_valence": round(self.emotion_valence, 4),
+            "keyword_hit": self.keyword_hit,
+            "timestamp": self.timestamp,
+        }
+
+
+class PerceptionDiversityMeasurement:
+    """知覚パイプラインの入力多様性記録。
+
+    知覚構造化が完了するたびに、出力されたラベル・話題数・入力長・感情価を
+    事実として記録する。ラベル種類のセッション累積カウンタを保持する。
+
+    セッション開始時にインスタンスを生成し、セッション終了時に
+    emit_diversity_summary()を呼んで累積を出力する。
+    全内部状態はインスタンス破棄時に消失する(永続化対象外)。
+
+    本クラスの全メソッドは:
+    - psycheの内部状態を一切変更しない
+    - 記録値に基づく条件分岐を一切持たない
+    - 辞書の追加・削除・変更を行わない
+    - 記録内容をenrichmentに露出しない
+    - 出力はログストリームへのJSON書き込みと読み取り専用サマリのみ
+    """
+
+    def __init__(
+        self,
+        buffer_max: int = _DEFAULT_DIVERSITY_BUFFER_MAX,
+        enabled: Optional[bool] = None,
+    ) -> None:
+        """初期化。
+
+        Args:
+            buffer_max: FIFOバッファの上限サイズ(安全弁1)。
+            enabled: 明示的な有効/無効指定。Noneの場合は
+                     既存のCYRENE_MONITOR環境変数で判定(安全弁5)。
+        """
+        import os
+        self._enabled = (
+            enabled if enabled is not None
+            else os.environ.get("CYRENE_MONITOR", "0") == "1"
+        )
+
+        # (A) FIFOバッファ(入力テキスト非保持: 安全弁3)
+        self._buffer: deque[PerceptionDiversityRecord] = deque(
+            maxlen=max(1, buffer_max)
+        )
+
+        # (B) 感情ラベル累積カウンタ
+        self._emotion_label_counts: dict[str, int] = {}
+
+        # (C) 意図ラベル累積カウンタ
+        self._intent_label_counts: dict[str, int] = {}
+
+        # (D) 入力長の累積情報
+        self._input_length_min: Optional[int] = None
+        self._input_length_max: Optional[int] = None
+        self._input_length_sum: int = 0
+        self._input_length_count: int = 0
+
+    @property
+    def enabled(self) -> bool:
+        """計測が有効かどうか。"""
+        return self._enabled
+
+    @property
+    def buffer_size(self) -> int:
+        """FIFOバッファ内の記録数。"""
+        return len(self._buffer)
+
+    @property
+    def emotion_label_counts(self) -> dict[str, int]:
+        """感情ラベル累積カウンタ(読み取り専用コピー)。"""
+        return dict(self._emotion_label_counts)
+
+    @property
+    def intent_label_counts(self) -> dict[str, int]:
+        """意図ラベル累積カウンタ(読み取り専用コピー)。"""
+        return dict(self._intent_label_counts)
+
+    @property
+    def total_count(self) -> int:
+        """総記録回数。"""
+        return self._input_length_count
+
+    # ── 知覚結果の断面記録 ──────────────────────────────────────
+
+    def record_perception_diversity(
+        self,
+        emotion_label: str,
+        intent_label: str,
+        topic_count: int,
+        input_length: int,
+        emotion_valence: float,
+        keyword_hit: bool,
+    ) -> None:
+        """知覚構造化の結果を多様性断面として記録する。
+
+        知覚構造化が完了するたびに呼ばれる。
+        入力テキストの全文は受け取らない(安全弁3)。
+
+        Args:
+            emotion_label: 知覚構造化が出力した感情ラベル。
+            intent_label: 知覚構造化が出力した意図ラベル。
+            topic_count: 知覚構造化が出力した話題リストの要素数。
+            input_length: 入力テキストの長さ(文字数)。
+            emotion_valence: 感情価の数値。
+            keyword_hit: 辞書照合によるキーワード一致の有無。
+        """
+        if not self._enabled:
+            return
+        try:
+            record = PerceptionDiversityRecord(
+                emotion_label=emotion_label,
+                intent_label=intent_label,
+                topic_count=topic_count,
+                input_length=input_length,
+                emotion_valence=emotion_valence,
+                keyword_hit=keyword_hit,
+            )
+
+            # FIFOバッファに追加
+            self._buffer.append(record)
+
+            # 感情ラベル累積カウンタ更新
+            self._emotion_label_counts[emotion_label] = (
+                self._emotion_label_counts.get(emotion_label, 0) + 1
+            )
+
+            # 意図ラベル累積カウンタ更新
+            self._intent_label_counts[intent_label] = (
+                self._intent_label_counts.get(intent_label, 0) + 1
+            )
+
+            # 入力長の累積情報更新
+            if self._input_length_min is None or input_length < self._input_length_min:
+                self._input_length_min = input_length
+            if self._input_length_max is None or input_length > self._input_length_max:
+                self._input_length_max = input_length
+            self._input_length_sum += input_length
+            self._input_length_count += 1
+
+            # ログ出力
+            log_record = {
+                "type": "perception_diversity",
+                "timestamp": time.time(),
+                "emotion_label": emotion_label,
+                "intent_label": intent_label,
+                "topic_count": topic_count,
+                "input_length": input_length,
+                "emotion_valence": round(emotion_valence, 4),
+                "keyword_hit": keyword_hit,
+            }
+            self._emit_json(log_record)
+
+        except Exception:
+            # 安全弁2: 記録失敗時の安全な無視
+            pass
+
+    # ── セッションサマリ出力 ────────────────────────────────────
+
+    def emit_diversity_summary(self) -> None:
+        """セッション終了時の多様性記録累積情報を出力する。"""
+        if not self._enabled:
+            return
+        try:
+            avg_length = (
+                self._input_length_sum / self._input_length_count
+                if self._input_length_count > 0
+                else 0.0
+            )
+            record = {
+                "type": "perception_diversity_session_summary",
+                "timestamp": time.time(),
+                "total_count": self._input_length_count,
+                "emotion_label_counts": dict(self._emotion_label_counts),
+                "intent_label_counts": dict(self._intent_label_counts),
+                "emotion_label_unique_count": len(self._emotion_label_counts),
+                "intent_label_unique_count": len(self._intent_label_counts),
+                "input_length_min": self._input_length_min,
+                "input_length_max": self._input_length_max,
+                "input_length_avg": round(avg_length, 2),
+                "buffer_size": len(self._buffer),
+            }
+            self._emit_json(record)
+        except Exception:
+            # 安全弁2
+            pass
+
+    # ── 読み取り専用サマリ提供 ──────────────────────────────────
+
+    def get_summary(self) -> dict[str, Any]:
+        """現在の多様性記録サマリを読み取り専用で返す。
+
+        Returns:
+            記録サマリの辞書。
+        """
+        avg_length = (
+            self._input_length_sum / self._input_length_count
+            if self._input_length_count > 0
+            else 0.0
+        )
+        return {
+            "total_count": self._input_length_count,
+            "emotion_label_counts": dict(self._emotion_label_counts),
+            "intent_label_counts": dict(self._intent_label_counts),
+            "emotion_label_unique_count": len(self._emotion_label_counts),
+            "intent_label_unique_count": len(self._intent_label_counts),
+            "input_length_min": self._input_length_min,
+            "input_length_max": self._input_length_max,
+            "input_length_avg": round(avg_length, 2),
+            "buffer_size": len(self._buffer),
+            "latest_record": (
+                self._buffer[-1].to_dict() if self._buffer else None
+            ),
+        }
+
+    # ── 内部: JSON構造化ログ出力 ─────────────────────────────
+
+    def _emit_json(self, record: dict[str, Any]) -> None:
+        """JSON構造化ログをログストリームに出力する。"""
+        try:
+            text = json.dumps(record, ensure_ascii=False, default=str)
+            monitor_logger.debug(text)
+        except Exception:
+            # 安全弁2
+            pass

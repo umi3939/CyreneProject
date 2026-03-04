@@ -498,3 +498,125 @@ def prepend_freshness_annotation(
     if annotation is None:
         return enrichment_text
     return f"{annotation}\n\n{enrichment_text}"
+
+
+# =============================================================================
+# 空項目スキップ判定
+# 設計書: design_enrichment_empty_skip.md
+# =============================================================================
+
+# 再生成間隔の上限（スキップ対象でもこのティック数以内に必ず再生成する）
+# 安全弁1: 状態遷移の見逃し防止
+SKIP_REGEN_MAX_INTERVAL = 10
+
+# スキップ対象になるまでの連続空ティック数の閾値
+SKIP_CONSECUTIVE_EMPTY_THRESHOLD = 3
+
+
+class EmptySkipTracker:
+    """enrichment項目の空状態スキップ判定を管理する。
+
+    各enrichment項目のテキストが空状態（EMPTY_STATE_MARKER を含む）であるかを
+    追跡し、連続して空状態である項目の再生成をスキップする判定を行う。
+
+    設計書 design_enrichment_empty_skip.md の実装構造:
+    - 項目別連続空カウンタ
+    - 項目別最終再生成ティック
+    - セッション境界で全カウンタが消失（永続化対象外）
+
+    安全弁:
+    1. 再生成間隔の上限（SKIP_REGEN_MAX_INTERVAL）
+    2. 圧縮除外リスト（ALWAYS_FULL_LABELS）の項目はスキップ対象外
+    3. 初回起動時は全項目生成（スキップなし）
+    4. 空/非空の判定基準は is_empty_state_text のみ使用
+    5. 永続化非対象
+    6. 項目等価性の維持（空/未蓄積以外は全て等価に毎ティック再生成）
+    """
+
+    def __init__(self) -> None:
+        # 項目別連続空カウンタ: ラベル → 連続空ティック数
+        self._consecutive_empty_count: dict[str, int] = {}
+        # 項目別最終再生成ティック: ラベル → 最後に再生成したティック番号
+        self._last_regen_tick: dict[str, int] = {}
+        # 初回フラグ（安全弁3: 初回は全項目生成）
+        self._first_tick_done: bool = False
+
+    def should_skip(
+        self,
+        label: str,
+        current_tick: int,
+    ) -> bool:
+        """指定された項目をこのティックでスキップすべきかを判定する。
+
+        Args:
+            label: enrichment項目のラベル
+            current_tick: 現在のティック番号
+
+        Returns:
+            True=スキップ（再生成不要）、False=再生成必要
+        """
+        # 安全弁3: 初回は全項目生成
+        if not self._first_tick_done:
+            return False
+
+        # 安全弁2: 圧縮除外リストの項目はスキップ対象外
+        if label in ALWAYS_FULL_LABELS:
+            return False
+
+        # カウンタ未登録の項目はスキップしない
+        count = self._consecutive_empty_count.get(label, 0)
+        if count < SKIP_CONSECUTIVE_EMPTY_THRESHOLD:
+            return False
+
+        # 安全弁1: 再生成間隔の上限チェック
+        last_tick = self._last_regen_tick.get(label, 0)
+        if current_tick - last_tick >= SKIP_REGEN_MAX_INTERVAL:
+            return False
+
+        return True
+
+    def update_after_generation(
+        self,
+        label: str,
+        text: str,
+        current_tick: int,
+    ) -> None:
+        """項目の再生成後にカウンタを更新する。
+
+        Args:
+            label: enrichment項目のラベル
+            text: 再生成されたテキスト（空状態統一処理適用後）
+            current_tick: 現在のティック番号
+        """
+        # 最終再生成ティックを記録
+        self._last_regen_tick[label] = current_tick
+
+        # 空状態判定（安全弁4: 既存の判定関数のみ使用）
+        # normalize_empty_state 適用後のテキストを判定する
+        # EMPTY_STATE_MARKER を含んでいれば空状態
+        if EMPTY_STATE_MARKER in text:
+            self._consecutive_empty_count[label] = (
+                self._consecutive_empty_count.get(label, 0) + 1
+            )
+        else:
+            # 即時復帰: 空でない結果が得られた場合はカウンタリセット
+            self._consecutive_empty_count[label] = 0
+
+    def mark_first_tick_done(self) -> None:
+        """初回ティック完了を記録する。"""
+        self._first_tick_done = True
+
+    def get_skip_count(self) -> int:
+        """現在スキップ対象となっている項目数を返す（ログ出力用）。"""
+        return sum(
+            1 for count in self._consecutive_empty_count.values()
+            if count >= SKIP_CONSECUTIVE_EMPTY_THRESHOLD
+        )
+
+    def get_consecutive_empty_count(self, label: str) -> int:
+        """指定ラベルの連続空カウンタを返す（テスト・ログ用）。"""
+        return self._consecutive_empty_count.get(label, 0)
+
+    def get_last_regen_tick(self, label: str) -> int:
+        """指定ラベルの最終再生成ティックを返す（テスト・ログ用）。"""
+        return self._last_regen_tick.get(label, 0)

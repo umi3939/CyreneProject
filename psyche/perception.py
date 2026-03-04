@@ -143,17 +143,22 @@ async def parse_percept(
     user_text: str,
     llm_call_fn: Optional[Callable[..., Awaitable[str]]] = None,
     state: Optional[PsycheState] = None,
+    diversity_recorder: Optional[Any] = None,
 ) -> Percept:
     """Parse user text into a Percept.
 
     1. Apply local heuristics for fast baseline.
     2. If *llm_call_fn* is available, enrich via LLM (auxiliary only).
     3. Merge results.
+    4. If *diversity_recorder* is provided, record diversity snapshot.
 
     Args:
         user_text: Raw user input.
         llm_call_fn: Optional async LLM function for enrichment.
         state: Optional current PsycheState (biases perception).
+        diversity_recorder: Optional external measurement object for
+            recording perception diversity (tools/pipeline_measurement.py).
+            Does not affect perception results.
 
     Returns:
         Percept with structured interpretation.
@@ -165,7 +170,42 @@ async def parse_percept(
     if llm_call_fn:
         percept = await _llm_enrich(user_text, percept, llm_call_fn, state)
 
+    # 3. Diversity recording hook (external measurement, does not affect result)
+    _notify_diversity_recorder(percept, user_text, diversity_recorder)
+
     return percept
+
+
+def _notify_diversity_recorder(
+    percept: Percept,
+    user_text: str,
+    diversity_recorder: Optional[Any],
+) -> None:
+    """Notify the external diversity recorder of a completed perception.
+
+    This is the sole hook connecting perception to the external measurement.
+    The recorder is called with structural metadata only (no full text).
+    Any exception is silently caught to prevent impact on perception (safety valve 2).
+
+    Args:
+        percept: The completed perception result.
+        user_text: The original input text (only length is passed).
+        diversity_recorder: External recorder object or None.
+    """
+    if diversity_recorder is None:
+        return
+    try:
+        diversity_recorder.record_perception_diversity(
+            emotion_label=percept.emotion,
+            intent_label=percept.intent,
+            topic_count=len(percept.topics),
+            input_length=len(user_text),
+            emotion_valence=percept.emotion_valence,
+            keyword_hit=len(percept.topics) > 0,
+        )
+    except Exception:
+        # Safety valve 2: recording failure does not affect perception
+        pass
 
 
 # ── Local heuristic ────────────────────────────────────────────

@@ -64,5 +64,29 @@
     "perception": {
         "bias_bandwidth": 0.04,
         "bias_coefficient": 0.1
+    },
+
+    "memory_emotion_return": {
+        "per_candidate_max_delta": 0.03,
+        "total_max_delta": 0.15,
+        "rumination_threshold": 2,
+        "rumination_decay_factor": 0.5,
+        "low_arousal_threshold": 0.2,
+        "low_arousal_scale": 0.3,
+        "convergence_scale": 0.5,
+        "direction_freshness_decay": 0.8,
+        "tracking_speed_modulation_ratio_cap": 0.10,
+        "tracking_speed_modulation_scale": 0.02
+    },
+
+    "other_hypothesis_emotion_return": {
+        "per_candidate_max_delta": 0.02,
+        "total_max_delta": 0.07,
+        "rumination_threshold": 2,
+        "rumination_decay_factor": 0.5,
+        "low_arousal_threshold": 0.2,
+        "low_arousal_scale": 0.3,
+        "convergence_scale": 0.5,
+        "combined_max_delta": 0.15
     }
 }

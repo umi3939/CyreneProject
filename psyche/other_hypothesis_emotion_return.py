@@ -53,6 +53,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -256,39 +258,44 @@ class OtherHypothesisEmotionReturnState:
 # Configuration
 # =============================================================================
 
+def _oher_defaults() -> dict[str, Any]:
+    """Load other hypothesis emotion return defaults from coefficient registry."""
+    return coefficient_registry.get("other_hypothesis_emotion_return")
+
+
 @dataclass
 class OtherHypothesisEmotionReturnConfig:
     """設定。"""
 
-    # 帰還事実履歴のFIFOウィンドウサイズ
+    # 帰還事実履歴のFIFOウィンドウサイズ（ローカルバッファ管理、外部化対象外）
     history_window_size: int = 50
 
     # 候補別帰還量上限（各感情軸ごと）(安全弁1)
     # 記憶帰還経路の per_candidate_max_delta=0.03 以下
-    per_candidate_max_delta: float = 0.02
+    per_candidate_max_delta: float = field(default_factory=lambda: _oher_defaults()["per_candidate_max_delta"])
 
     # 合成後総帰還量上限（各感情軸ごと）(安全弁2)
     # 記憶帰還経路の total_max_delta=0.15 の半分以下
-    total_max_delta: float = 0.07
+    total_max_delta: float = field(default_factory=lambda: _oher_defaults()["total_max_delta"])
 
     # ルーミネーション減衰: 履歴内の同一仮説出現回数の閾値（安全弁4）
-    rumination_threshold: int = 2
+    rumination_threshold: int = field(default_factory=lambda: _oher_defaults()["rumination_threshold"])
 
     # ルーミネーション減衰率: 出現回数に応じた減衰
-    rumination_decay_factor: float = 0.5
+    rumination_decay_factor: float = field(default_factory=lambda: _oher_defaults()["rumination_decay_factor"])
 
     # 覚醒度による帰還量鈍化の閾値
-    low_arousal_threshold: float = 0.2
+    low_arousal_threshold: float = field(default_factory=lambda: _oher_defaults()["low_arousal_threshold"])
 
     # 覚醒度鈍化係数（低覚醒時にかかる係数）
-    low_arousal_scale: float = 0.3
+    low_arousal_scale: float = field(default_factory=lambda: _oher_defaults()["low_arousal_scale"])
 
     # 既存感情値による収束係数（高い感情への帰還は縮小する）
-    convergence_scale: float = 0.5
+    convergence_scale: float = field(default_factory=lambda: _oher_defaults()["convergence_scale"])
 
     # 合算帯域上限（安全弁3: 記憶帰還経路との合算）
     # 本経路の帯域は記憶帰還経路より狭い
-    combined_max_delta: float = 0.15
+    combined_max_delta: float = field(default_factory=lambda: _oher_defaults()["combined_max_delta"])
 
 
 # =============================================================================

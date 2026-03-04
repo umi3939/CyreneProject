@@ -54,6 +54,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -193,43 +195,48 @@ class MemoryEmotionReturnState:
 # Configuration
 # =============================================================================
 
+def _mer_defaults() -> dict[str, Any]:
+    """Load memory emotion return defaults from coefficient registry."""
+    return coefficient_registry.get("memory_emotion_return")
+
+
 @dataclass
 class MemoryEmotionReturnConfig:
     """設定。"""
 
-    # 帰還事実履歴のFIFOウィンドウサイズ
+    # 帰還事実履歴のFIFOウィンドウサイズ（ローカルバッファ管理、外部化対象外）
     history_window_size: int = 50
 
     # 候補別帰還量上限（各感情軸ごと）(安全弁1)
-    per_candidate_max_delta: float = 0.03
+    per_candidate_max_delta: float = field(default_factory=lambda: _mer_defaults()["per_candidate_max_delta"])
 
     # 合成後総帰還量上限（各感情軸ごと）(安全弁2)
     # 実行時に max_bias_strength で上書き可能
-    total_max_delta: float = 0.15
+    total_max_delta: float = field(default_factory=lambda: _mer_defaults()["total_max_delta"])
 
     # ルーミネーション減衰: 履歴内の同一記憶出現回数の閾値（安全弁3）
-    rumination_threshold: int = 2
+    rumination_threshold: int = field(default_factory=lambda: _mer_defaults()["rumination_threshold"])
 
     # ルーミネーション減衰率: 出現回数に応じた減衰 (回数 * この値で帰還量を削減)
-    rumination_decay_factor: float = 0.5
+    rumination_decay_factor: float = field(default_factory=lambda: _mer_defaults()["rumination_decay_factor"])
 
     # 覚醒度による帰還量鈍化の閾値
-    low_arousal_threshold: float = 0.2
+    low_arousal_threshold: float = field(default_factory=lambda: _mer_defaults()["low_arousal_threshold"])
 
     # 覚醒度鈍化係数（低覚醒時にかかる係数）
-    low_arousal_scale: float = 0.3
+    low_arousal_scale: float = field(default_factory=lambda: _mer_defaults()["low_arousal_scale"])
 
     # 既存感情値による収束係数（高い感情への帰還は縮小する）
-    convergence_scale: float = 0.5
+    convergence_scale: float = field(default_factory=lambda: _mer_defaults()["convergence_scale"])
 
     # 方向連続性追跡: 段階的鮮度減衰の減衰率（0-1, 1に近いほど減衰が弱い）
-    direction_freshness_decay: float = 0.8
+    direction_freshness_decay: float = field(default_factory=lambda: _mer_defaults()["direction_freshness_decay"])
 
     # 方向連続性追跡: 変調量の上限（現在の追従速度に対する比率）
-    tracking_speed_modulation_ratio_cap: float = 0.10
+    tracking_speed_modulation_ratio_cap: float = field(default_factory=lambda: _mer_defaults()["tracking_speed_modulation_ratio_cap"])
 
     # 方向連続性追跡: 連続カウントから変調量への変換係数
-    tracking_speed_modulation_scale: float = 0.02
+    tracking_speed_modulation_scale: float = field(default_factory=lambda: _mer_defaults()["tracking_speed_modulation_scale"])
 
 
 # =============================================================================

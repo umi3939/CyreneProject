@@ -159,6 +159,19 @@ def build_mood_context(
     except Exception:
         pass
 
+    # 感情帰還方向連続性由来の追従速度変調量を注入
+    try:
+        v_mod, a_mod = orch._memory_emotion_return.get_tracking_speed_modulation(
+            current_tracking_speed_valence=0.10,
+            current_tracking_speed_arousal=0.10,
+        )
+        if v_mod > 0.0:
+            ctx.emotion_return_tracking_speed_modulation_valence = v_mod
+        if a_mod > 0.0:
+            ctx.emotion_return_tracking_speed_modulation_arousal = a_mod
+    except Exception:
+        pass
+
     return ctx
 
 

@@ -154,11 +154,21 @@ class MemoryEmotionReturnState:
     # サイクルカウンタ（記述用、判定に使用しない）
     cycle_count: int = 0
 
+    # 方向連続カウント（減衰適用済み）: 正方向と負方向を別々に追跡
+    direction_consecutive_count_positive: float = 0.0
+    direction_consecutive_count_negative: float = 0.0
+
+    # 直前の帰還方向ラベル: "positive", "negative", "neutral"
+    last_direction_label: str = "neutral"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "return_history": [r.to_dict() for r in self.return_history],
             "last_applied_tick": self.last_applied_tick,
             "cycle_count": self.cycle_count,
+            "direction_consecutive_count_positive": self.direction_consecutive_count_positive,
+            "direction_consecutive_count_negative": self.direction_consecutive_count_negative,
+            "last_direction_label": self.last_direction_label,
         }
 
     @classmethod
@@ -169,6 +179,13 @@ class MemoryEmotionReturnState:
             ],
             last_applied_tick=data.get("last_applied_tick", -1),
             cycle_count=data.get("cycle_count", 0),
+            direction_consecutive_count_positive=data.get(
+                "direction_consecutive_count_positive", 0.0
+            ),
+            direction_consecutive_count_negative=data.get(
+                "direction_consecutive_count_negative", 0.0
+            ),
+            last_direction_label=data.get("last_direction_label", "neutral"),
         )
 
 
@@ -204,6 +221,15 @@ class MemoryEmotionReturnConfig:
 
     # 既存感情値による収束係数（高い感情への帰還は縮小する）
     convergence_scale: float = 0.5
+
+    # 方向連続性追跡: 段階的鮮度減衰の減衰率（0-1, 1に近いほど減衰が弱い）
+    direction_freshness_decay: float = 0.8
+
+    # 方向連続性追跡: 変調量の上限（現在の追従速度に対する比率）
+    tracking_speed_modulation_ratio_cap: float = 0.10
+
+    # 方向連続性追跡: 連続カウントから変調量への変換係数
+    tracking_speed_modulation_scale: float = 0.02
 
 
 # =============================================================================
@@ -652,6 +678,10 @@ class MemoryEmotionReturnProcessor:
         if len(self._state.return_history) > window:
             self._state.return_history = self._state.return_history[-window:]
 
+        # Update direction tracking after records are added
+        if new_records:
+            self._update_direction_tracking(clamped_deltas)
+
         # Record last applied tick
         self._state.last_applied_tick = tick_number
 
@@ -671,6 +701,100 @@ class MemoryEmotionReturnProcessor:
             total_candidates_processed=len(mpr_candidates) + len(sr_candidates),
             candidates_with_traces=len(all_traces),
         )
+
+    def _update_direction_tracking(self, deltas: dict[str, float]) -> None:
+        """帰還方向の連続性追跡を更新する。
+
+        帰還量の合計の符号から帰還方向（正/負/中立）を判定し、
+        減衰付き同方向連続カウントを更新する。
+        逆方向の帰還でカウントをリセットする。
+
+        enrichmentに露出しない。想起モジュールへの逆流なし。
+        """
+        # Determine direction from sum of all deltas
+        total_delta = sum(deltas.values())
+        if total_delta > 1e-6:
+            current_direction = "positive"
+        elif total_delta < -1e-6:
+            current_direction = "negative"
+        else:
+            current_direction = "neutral"
+
+        prev_direction = self._state.last_direction_label
+
+        if current_direction == "neutral":
+            # Neutral does not contribute to consecutive counts
+            self._state.last_direction_label = current_direction
+            return
+
+        if current_direction == "positive":
+            if prev_direction == "positive":
+                # Same direction: apply freshness decay to existing count, then add 1
+                self._state.direction_consecutive_count_positive = (
+                    self._state.direction_consecutive_count_positive
+                    * self._config.direction_freshness_decay
+                    + 1.0
+                )
+            else:
+                # Direction changed: reset negative, start new positive count
+                self._state.direction_consecutive_count_negative = 0.0
+                self._state.direction_consecutive_count_positive = 1.0
+        elif current_direction == "negative":
+            if prev_direction == "negative":
+                # Same direction: apply freshness decay to existing count, then add 1
+                self._state.direction_consecutive_count_negative = (
+                    self._state.direction_consecutive_count_negative
+                    * self._config.direction_freshness_decay
+                    + 1.0
+                )
+            else:
+                # Direction changed: reset positive, start new negative count
+                self._state.direction_consecutive_count_positive = 0.0
+                self._state.direction_consecutive_count_negative = 1.0
+
+        self._state.last_direction_label = current_direction
+
+    def get_tracking_speed_modulation(
+        self,
+        current_tracking_speed_valence: float = 0.10,
+        current_tracking_speed_arousal: float = 0.10,
+    ) -> tuple[float, float]:
+        """帰還方向の連続性から追従速度への変調量を導出する。
+
+        変調量は現在の追従速度に対する比率で上限制限される。
+        増加方向のみ変調し、減少方向は行わない（固定化助長防止）。
+        enrichmentに直接露出しない。
+
+        Args:
+            current_tracking_speed_valence: 現在のvalence追従速度
+            current_tracking_speed_arousal: 現在のarousal追従速度
+
+        Returns:
+            (valence_modulation, arousal_modulation) — 各々 >= 0.0
+        """
+        # Use the maximum of positive and negative consecutive counts
+        max_count = max(
+            self._state.direction_consecutive_count_positive,
+            self._state.direction_consecutive_count_negative,
+        )
+
+        if max_count <= 0.0:
+            return 0.0, 0.0
+
+        # Derive raw modulation from consecutive count
+        raw_modulation = max_count * self._config.tracking_speed_modulation_scale
+
+        # Cap at ratio of current tracking speed (safety valve 1)
+        cap = self._config.tracking_speed_modulation_ratio_cap
+
+        v_mod = min(raw_modulation, current_tracking_speed_valence * cap)
+        a_mod = min(raw_modulation, current_tracking_speed_arousal * cap)
+
+        # Only increase direction (safety valve 6: no decrease)
+        v_mod = max(0.0, v_mod)
+        a_mod = max(0.0, a_mod)
+
+        return v_mod, a_mod
 
     def get_summary(self) -> dict[str, Any]:
         """モジュールサマリを返す。判断系への経路なし。"""

@@ -600,6 +600,9 @@ class MoodContextInputs:
     time_density_label: Optional[str] = None
     # 経過時間
     delta_time: float = 1.0
+    # 感情帰還方向連続性由来の追従速度変調量 (valence, arousal)
+    emotion_return_tracking_speed_modulation_valence: Optional[float] = None
+    emotion_return_tracking_speed_modulation_arousal: Optional[float] = None
 
 
 def _derive_mood_targets(ctx: MoodContextInputs) -> tuple[float, float]:
@@ -734,6 +737,12 @@ def _derive_tracking_speeds(ctx: MoodContextInputs) -> tuple[float, float]:
         a_speed *= 0.85
     elif ctx.time_density_label in ("dense", "somewhat_dense"):
         a_speed *= 1.1
+
+    # 感情帰還方向連続性由来の追従速度変調（増加方向のみ）
+    if ctx.emotion_return_tracking_speed_modulation_valence is not None:
+        v_speed += max(0.0, ctx.emotion_return_tracking_speed_modulation_valence)
+    if ctx.emotion_return_tracking_speed_modulation_arousal is not None:
+        a_speed += max(0.0, ctx.emotion_return_tracking_speed_modulation_arousal)
 
     # 帯域制限 (安全弁2)
     v_speed = max(_TRACKING_SPEED_MIN, min(_TRACKING_SPEED_MAX, v_speed))

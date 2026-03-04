@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 from .state import Percept
 
-from .reaction import MoodContextInputs, DriveContextInputs
+from .reaction import MoodContextInputs, DriveContextInputs, _compute_result_diversity_return
 from .reaction_with_stm import react_with_stm
 
 from .dynamics import (
@@ -67,6 +67,11 @@ from .input_pathway_balance import (
 
 from .attention_distribution_description import (
     process_attention_distribution,
+)
+
+from tools.return_pathway_monitor import (
+    PATHWAY_D as _RPM_PATHWAY_D,
+    PATHWAY_E as _RPM_PATHWAY_E,
 )
 
 logger = logging.getLogger(__name__)
@@ -291,6 +296,46 @@ def _run_1t_emotion_core(
     )
     orch._psyche = new_psyche
     orch._loop_state = new_loop
+
+    # ── 帰還経路D: 発火通知 ──
+    # ドライブ変動係数導出の合成完了後に配置する。
+    # 断面8（行動結果多様性帰還）の寄与分を通知する。
+    # 通知は合成処理の外部に配置し、合成処理自体のロジックには変更を加えない。
+    # 通知失敗時は例外を捕捉してスキップする(安全弁パターン踏襲)。
+    try:
+        pathway_d_deltas = _compute_result_diversity_return(drive_ctx)
+        applied_d = {k: v for k, v in pathway_d_deltas.items() if abs(v) >= 1e-9}
+        if applied_d:
+            orch._return_pathway_monitor.record_firing(
+                pathway_id=_RPM_PATHWAY_D,
+                tick_number=orch._tick_count,
+                drive_deltas=applied_d,
+            )
+    except Exception:
+        pass
+
+    # ── 帰還経路E: 発火通知 ──
+    # ムード追従速度の変調量取得完了後に配置する。
+    # 変調量の取得はムードコンテキスト構築(build_mood_context)で行われる。
+    # 取得された変調量（valence変調量とarousal変調量）を通知する。
+    # 通知は取得処理の外部に配置し、取得処理自体のロジックには変更を加えない。
+    # 通知失敗時は例外を捕捉してスキップする(安全弁パターン踏襲)。
+    try:
+        v_mod = getattr(mood_ctx, 'emotion_return_tracking_speed_modulation_valence', None)
+        a_mod = getattr(mood_ctx, 'emotion_return_tracking_speed_modulation_arousal', None)
+        speed_deltas: dict[str, float] = {}
+        if v_mod is not None and v_mod > 0.0:
+            speed_deltas["valence_modulation"] = v_mod
+        if a_mod is not None and a_mod > 0.0:
+            speed_deltas["arousal_modulation"] = a_mod
+        if speed_deltas:
+            orch._return_pathway_monitor.record_firing(
+                pathway_id=_RPM_PATHWAY_E,
+                tick_number=orch._tick_count,
+                mood_speed_deltas=speed_deltas,
+            )
+    except Exception:
+        pass
 
     # Phase 2: dynamics — ピーク/リバウンド判定
     emo_dict = orch._psyche.emotions.as_dict()

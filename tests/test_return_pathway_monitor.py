@@ -96,7 +96,7 @@ class TestInitialState:
         assert PATHWAY_A == "memory_emotion_return"
         assert PATHWAY_B == "selection_emotion_return"
         assert PATHWAY_C == "other_hypothesis_emotion_return"
-        assert len(_ALL_PATHWAYS) == 3
+        assert len(_ALL_PATHWAYS) == 5
 
 
 # ── 段階1: 発火記録の構成テスト ──────────────────────────────────────

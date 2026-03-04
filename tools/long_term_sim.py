@@ -28,6 +28,7 @@ from typing import Any
 
 from psyche.orchestrator import PsycheOrchestrator
 from psyche.state import Percept
+from psyche.orchestrator_5tick_phases import _derive_dynamic_cooldown
 from tools.return_pathway_monitor import PATHWAY_A, PATHWAY_B, PATHWAY_C
 
 
@@ -126,6 +127,17 @@ SCENARIOS: dict[str, list[str]] = {
         + ["confused"] * 10
         + ["negative"] * 10
         + ["angry"] * 10
+    ),
+    # ── Cycle 9 動態検証シナリオ ──
+    "c9_high_arousal": (
+        ["loving", "angry", "loving", "angry", "fearful"] * 10
+    ),
+    "c9_monotone": (
+        ["neutral"] * 50
+    ),
+    "c9_abrupt_shift": (
+        ["positive", "loving"] * 13
+        + ["negative", "angry", "rejected", "fearful"] * 6
     ),
 }
 
@@ -280,6 +292,120 @@ def _read_return_pathway_tick(orch: PsycheOrchestrator) -> dict[str, Any]:
     }
 
 
+# ── Cycle 9 Dynamics Reading ──────────────────────────────
+
+def _read_cycle9_dynamics(
+    orch: PsycheOrchestrator,
+    drives_before: dict[str, float],
+) -> dict[str, Any]:
+    """Cycle 9固有の動態観測項目を読み取る。
+
+    全てのCycle 9固有読み取りをtry-exceptで囲み、読み取り失敗時は
+    フォールバック値を返す（安全弁1: 安全な無視）。
+    psycheの状態を変更する呼び出しを含まない（READ-ONLY）。
+
+    Args:
+        orch: オーケストレータ
+        drives_before: ターン処理前のドライブベクトル
+
+    Returns:
+        cycle9_dynamics辞書（4サブフィールド）
+    """
+    result: dict[str, Any] = {}
+
+    # ── drive_dynamics: 合成後の各軸変動量、合成後総変動量 ──
+    try:
+        drives_after = orch._psyche.drives.as_dict()
+        per_axis: dict[str, float] = {}
+        total_variation = 0.0
+        for axis in drives_after:
+            before_val = drives_before.get(axis, 0.5)
+            delta = drives_after[axis] - before_val
+            per_axis[axis] = round(delta, 6)
+            total_variation += abs(delta)
+        result["drive_dynamics"] = {
+            "per_axis_delta": per_axis,
+            "total_variation": round(total_variation, 6),
+        }
+    except Exception:
+        result["drive_dynamics"] = {
+            "per_axis_delta": {},
+            "total_variation": 0.0,
+        }
+
+    # ── exp_bandwidth: Phase 26-EXP帯域拡大 ──
+    try:
+        last_tick = getattr(orch, '_exp_bandwidth_last_tick', None)
+        drive_mult = getattr(orch, '_exp_drive_total_limit_multiplier', None)
+        score_add = getattr(orch, '_exp_score_band_addition', None)
+        fired = (drive_mult is not None and drive_mult > 1.0) or (
+            score_add is not None and score_add > 0.0
+        )
+        result["exp_bandwidth"] = {
+            "fired": fired,
+            "last_applied_tick": last_tick if last_tick is not None else -1,
+            "drive_limit_multiplier": round(drive_mult, 6) if drive_mult is not None else None,
+            "score_band_addition": round(score_add, 6) if score_add is not None else None,
+        }
+    except Exception:
+        result["exp_bandwidth"] = {
+            "fired": False,
+            "last_applied_tick": -1,
+            "drive_limit_multiplier": None,
+            "score_band_addition": None,
+        }
+
+    # ── dynamic_cooldown: 冷却期間の動的導出 ──
+    try:
+        arousal = orch._psyche.mood.arousal
+        # 駆動変動幅: _exp_prev_drives から算出
+        current_drives = orch._psyche.drives.as_dict()
+        prev_drives = getattr(orch, '_exp_prev_drives', None)
+        drive_variation = 0.0
+        if prev_drives is not None:
+            diffs = []
+            for axis in current_drives:
+                prev_val = prev_drives.get(axis, 0.5)
+                diffs.append(abs(current_drives[axis] - prev_val))
+            if diffs:
+                drive_variation = max(diffs)
+        cooldown_ticks = _derive_dynamic_cooldown(arousal, drive_variation)
+        result["dynamic_cooldown"] = {
+            "cooldown_ticks": cooldown_ticks,
+            "arousal_input": round(arousal, 6),
+            "drive_variation_input": round(drive_variation, 6),
+        }
+    except Exception:
+        result["dynamic_cooldown"] = {
+            "cooldown_ticks": 0,
+            "arousal_input": 0.0,
+            "drive_variation_input": 0.0,
+        }
+
+    # ── emotion_return_tracking: 感情帰還方向追跡 ──
+    try:
+        mer = orch._memory_emotion_return
+        state = mer._state
+        pos_count = state.direction_consecutive_count_positive
+        neg_count = state.direction_consecutive_count_negative
+        v_mod, a_mod = mer.get_tracking_speed_modulation()
+        result["emotion_return_tracking"] = {
+            "positive_consecutive_count": round(pos_count, 6),
+            "negative_consecutive_count": round(neg_count, 6),
+            "valence_modulation": round(v_mod, 6),
+            "arousal_modulation": round(a_mod, 6),
+        }
+    except Exception:
+        result["emotion_return_tracking"] = {
+            "positive_consecutive_count": 0.0,
+            "negative_consecutive_count": 0.0,
+            "valence_modulation": 0.0,
+            "arousal_modulation": 0.0,
+        }
+
+    return result
+
+
 # ── Intermediate Snapshot ──────────────────────────────────
 
 def _compute_snapshot_positions(total_turns: int) -> list[int]:
@@ -346,6 +472,7 @@ def _extract_turn_record(
     user_id: str,
     enrichment_chars: dict[str, int] | None = None,
     return_pathway: dict[str, Any] | None = None,
+    cycle9_dynamics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """1ターン分の観測レコードを生成する。"""
     p = orch.psyche
@@ -405,6 +532,10 @@ def _extract_turn_record(
     # 拡張フィールド: 帰還経路発火情報（処理Aに対応）
     if return_pathway is not None:
         record["return_pathway"] = return_pathway
+
+    # 拡張フィールド: Cycle 9動態観測（既存フィールドの末尾に追加）
+    if cycle9_dynamics is not None:
+        record["cycle9_dynamics"] = cycle9_dynamics
 
     return record
 
@@ -480,6 +611,14 @@ def run_simulation(
         if user_ids_per_turn is not None and turn_idx < len(user_ids_per_turn):
             turn_user_id = user_ids_per_turn[turn_idx]
 
+        # Step 0: ドライブ前値の記録（Cycle 9動態観測用、READ-ONLY）
+        try:
+            drives_before = {
+                k: v for k, v in orch._psyche.drives.as_dict().items()
+            }
+        except Exception:
+            drives_before = {}
+
         # Step 1: Create Percept
         percept = Percept(**INPUT_PATTERNS[pattern_key])
 
@@ -518,6 +657,9 @@ def run_simulation(
         # 帰還経路の処理が完了した後に読み取る。処理自体には影響しない。
         return_pathway = _read_return_pathway_tick(orch)
 
+        # Step 5b: Cycle 9動態観測項目の読み取り（ターン処理完了後の末尾追加）
+        cycle9_dynamics = _read_cycle9_dynamics(orch, drives_before)
+
         # Step 6: extract record
         record = _extract_turn_record(
             turn=turn_num,
@@ -530,6 +672,7 @@ def run_simulation(
             user_id=turn_user_id,
             enrichment_chars=enrichment_chars,
             return_pathway=return_pathway,
+            cycle9_dynamics=cycle9_dynamics,
         )
         records.append(record)
 
@@ -746,6 +889,114 @@ def compute_statistics(result: dict[str, Any]) -> dict[str, Any]:
     if "return_pathway_summary" in result:
         stats["return_pathway_session"] = result["return_pathway_summary"]
 
+    # ── Cycle 9 動態統計 ──
+    # cycle9_dynamicsフィールドが存在するターンのみから算出する。
+    # 品質判定を含まない事実記述のみ。
+    turns_with_c9 = [t for t in turns if "cycle9_dynamics" in t]
+    if turns_with_c9:
+        c9_stats: dict[str, Any] = {}
+
+        # SD-3 合成後ドライブ変動量の分布
+        total_variations = [
+            t["cycle9_dynamics"]["drive_dynamics"]["total_variation"]
+            for t in turns_with_c9
+        ]
+        c9_stats["drive_total_variation"] = {
+            "min": round(min(total_variations), 6),
+            "max": round(max(total_variations), 6),
+            "mean": round(sum(total_variations) / len(total_variations), 6),
+            "stddev": round(_safe_stddev(total_variations), 6),
+        }
+
+        # 各ドライブ軸の変動量分布
+        axis_keys: set[str] = set()
+        for t in turns_with_c9:
+            axis_keys.update(t["cycle9_dynamics"]["drive_dynamics"]["per_axis_delta"].keys())
+        drive_axis_stats: dict[str, dict[str, float]] = {}
+        for axis in sorted(axis_keys):
+            axis_vals = [
+                t["cycle9_dynamics"]["drive_dynamics"]["per_axis_delta"].get(axis, 0.0)
+                for t in turns_with_c9
+            ]
+            drive_axis_stats[axis] = {
+                "min": round(min(axis_vals), 6),
+                "max": round(max(axis_vals), 6),
+                "mean": round(sum(axis_vals) / len(axis_vals), 6),
+                "stddev": round(_safe_stddev(axis_vals), 6),
+            }
+        c9_stats["drive_per_axis_variation"] = drive_axis_stats
+
+        # Phase 26-EXP 帯域拡大の発動ターン比率、経験強度係数の分布
+        fired_count = sum(
+            1 for t in turns_with_c9
+            if t["cycle9_dynamics"]["exp_bandwidth"]["fired"]
+        )
+        c9_stats["exp_bandwidth_fire_ratio"] = round(
+            fired_count / len(turns_with_c9), 6
+        )
+        drive_mults = [
+            t["cycle9_dynamics"]["exp_bandwidth"]["drive_limit_multiplier"]
+            for t in turns_with_c9
+            if t["cycle9_dynamics"]["exp_bandwidth"]["drive_limit_multiplier"] is not None
+        ]
+        if drive_mults:
+            c9_stats["exp_drive_limit_multiplier"] = {
+                "min": round(min(drive_mults), 6),
+                "max": round(max(drive_mults), 6),
+                "mean": round(sum(drive_mults) / len(drive_mults), 6),
+                "stddev": round(_safe_stddev(drive_mults), 6),
+            }
+        score_adds = [
+            t["cycle9_dynamics"]["exp_bandwidth"]["score_band_addition"]
+            for t in turns_with_c9
+            if t["cycle9_dynamics"]["exp_bandwidth"]["score_band_addition"] is not None
+        ]
+        if score_adds:
+            c9_stats["exp_score_band_addition"] = {
+                "min": round(min(score_adds), 6),
+                "max": round(max(score_adds), 6),
+                "mean": round(sum(score_adds) / len(score_adds), 6),
+                "stddev": round(_safe_stddev(score_adds), 6),
+            }
+
+        # 冷却動的期間の分布
+        cooldown_vals = [
+            t["cycle9_dynamics"]["dynamic_cooldown"]["cooldown_ticks"]
+            for t in turns_with_c9
+        ]
+        c9_stats["dynamic_cooldown_ticks"] = {
+            "min": min(cooldown_vals),
+            "max": max(cooldown_vals),
+            "mean": round(sum(cooldown_vals) / len(cooldown_vals), 4),
+            "stddev": round(_safe_stddev([float(v) for v in cooldown_vals]), 4),
+        }
+
+        # 追従速度変調量の分布
+        v_mods = [
+            t["cycle9_dynamics"]["emotion_return_tracking"]["valence_modulation"]
+            for t in turns_with_c9
+        ]
+        a_mods = [
+            t["cycle9_dynamics"]["emotion_return_tracking"]["arousal_modulation"]
+            for t in turns_with_c9
+        ]
+        c9_stats["tracking_speed_modulation"] = {
+            "valence": {
+                "min": round(min(v_mods), 6),
+                "max": round(max(v_mods), 6),
+                "mean": round(sum(v_mods) / len(v_mods), 6),
+                "stddev": round(_safe_stddev(v_mods), 6),
+            },
+            "arousal": {
+                "min": round(min(a_mods), 6),
+                "max": round(max(a_mods), 6),
+                "mean": round(sum(a_mods) / len(a_mods), 6),
+                "stddev": round(_safe_stddev(a_mods), 6),
+            },
+        }
+
+        stats["cycle9_dynamics"] = c9_stats
+
     return stats
 
 
@@ -838,6 +1089,15 @@ def generate_diff_report(
         report["return_pathway_fire_counts"] = rp_fire_counts
     if rp_cumulative_deltas:
         report["return_pathway_cumulative_deltas"] = rp_cumulative_deltas
+
+    # ── Cycle 9 動態の並列比較 ──
+    # シナリオ間のCycle 9固有統計の並列記述。品質判定を含まない。
+    c9_comparisons: dict[str, dict[str, Any]] = {}
+    for name, st in stats_map.items():
+        if "cycle9_dynamics" in st:
+            c9_comparisons[name] = st["cycle9_dynamics"]
+    if c9_comparisons:
+        report["cycle9_dynamics"] = c9_comparisons
 
     return report
 

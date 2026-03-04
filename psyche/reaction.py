@@ -15,8 +15,8 @@ Handles emotion updates, decay, drive changes, mood update, and **responsibility
 
 ドライブ動態の状態依存化（Drive Dynamics State-Dependent）:
 - ドライブの変化量を「固定定数」から「現在の内部状態に依存する導出値」に変更
-- 7断面（感情-ドライブ連動/ドライブ間相互作用/目的階層存在/時間経過/覚醒-ドライブ
-         /行動結果偏り/内部矛盾有無）
+- 8断面（感情-ドライブ連動/ドライブ間相互作用/目的階層存在/時間経過/覚醒-ドライブ
+         /行動結果偏り/内部矛盾有無/結果多様性帰還）
 - 安全弁6種: 断面別上限/合成後上限/有効範囲クランプ/相互作用帯域制限/入力不在中立化/非蓄積
 
 ムードの自律化（Mood Autonomy）:
@@ -78,6 +78,7 @@ _SECTION_BAND: dict[str, dict[str, float]] = {
     "arousal_drive":          {"social": 0.04, "curiosity": 0.04, "expression": 0.04},
     "behavioral_diversity":   {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
     "internal_contradiction": {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
+    "result_diversity_return": {"social": 0.03, "curiosity": 0.03, "expression": 0.03},
 }
 
 # 合成後の1ティックあたり総変動量の上限 (既存固定加減算の最大値 ~0.15 と同水準)
@@ -122,6 +123,10 @@ class DriveContextInputs:
     behavioral_diversity_stage_value: Optional[str] = None
     # 内部矛盾並置記述: 直前サイクルの矛盾対検出件数 (READ-ONLY参照)
     contradiction_count: Optional[int] = None
+    # 行動多様性記述: 3つの段階値 (結果多様性帰還経路用, READ-ONLY参照)
+    result_diversity_section_key_level: Optional[str] = None
+    result_diversity_selection_label_level: Optional[str] = None
+    result_diversity_candidate_variance_level: Optional[str] = None
 
 
 def _compute_emotion_drive_coupling(
@@ -443,10 +448,78 @@ def _compute_internal_contradiction(
     return result
 
 
+def _compute_result_diversity_return(
+    ctx: DriveContextInputs,
+) -> dict[str, float]:
+    """断面8: 行動結果の蓄積多様性からドライブ帯域への微弱反映。
+
+    行動多様性記述構造の3つの段階値（結果断面キー種類数/選択ラベル種類数/
+    候補群サイズ分散度）をREAD-ONLYで読み取り、ドライブ帯域への微弱な寄与を導出する。
+    3つの段階値を等価に平均化し、全ドライブ軸に等量配分する。
+    入力不在時はゼロ寄与（安全弁5）。
+    純粋関数。状態なし（安全弁6）。
+    """
+    band = _SECTION_BAND["result_diversity_return"]
+    result = {"social": 0.0, "curiosity": 0.0, "expression": 0.0}
+
+    section_key = ctx.result_diversity_section_key_level
+    selection_label = ctx.result_diversity_selection_label_level
+    candidate_variance = ctx.result_diversity_candidate_variance_level
+
+    # 3つ全てNoneの場合はゼロ寄与（安全弁: 入力不在時の中立化）
+    if section_key is None and selection_label is None and candidate_variance is None:
+        return result
+
+    # TypeCountLevel段階値→数値スケール変換（5段階、等間隔正規化）
+    # 最低段階=0.0、最高段階=1.0
+    _type_count_scale: dict[str, float] = {
+        "level_0": 0.0,
+        "level_1_5": 0.25,
+        "level_6_10": 0.5,
+        "level_11_15": 0.75,
+        "level_16_plus": 1.0,
+    }
+
+    # DispersionLevel段階値→数値スケール変換（5段階、等間隔正規化）
+    _dispersion_scale: dict[str, float] = {
+        "empty": 0.0,
+        "uniform": 0.25,
+        "low": 0.5,
+        "moderate": 0.75,
+        "high": 1.0,
+    }
+
+    # 各段階値をスケール値に変換（None→0.0として扱い、有効入力のみ平均に含める）
+    scale_values: list[float] = []
+
+    if section_key is not None:
+        scale_values.append(_type_count_scale.get(section_key, 0.0))
+
+    if selection_label is not None:
+        scale_values.append(_type_count_scale.get(selection_label, 0.0))
+
+    if candidate_variance is not None:
+        scale_values.append(_dispersion_scale.get(candidate_variance, 0.0))
+
+    if not scale_values:
+        return result
+
+    # 等価平均化: 特定の断面が他を支配することを防ぐ
+    avg_scale = sum(scale_values) / len(scale_values)
+
+    # 帯域変動量の導出: 平均スケール値を各軸に等量配分
+    raw = avg_scale * 0.03  # 帯域上限0.03の範囲内
+
+    for axis in result:
+        result[axis] = max(-band[axis], min(band[axis], raw))
+
+    return result
+
+
 def compute_state_dependent_drive_changes(
     ctx: DriveContextInputs,
 ) -> dict[str, float]:
-    """7断面の変動係数を合成し、各ドライブ軸の最終変動量を算出する。
+    """8断面の変動係数を合成し、各ドライブ軸の最終変動量を算出する。
 
     純粋関数。蓄積なし（安全弁6）。
 
@@ -464,6 +537,7 @@ def compute_state_dependent_drive_changes(
         _compute_arousal_drive(ctx),
         _compute_behavioral_diversity(ctx),
         _compute_internal_contradiction(ctx),
+        _compute_result_diversity_return(ctx),
     ]
 
     # 加算合成

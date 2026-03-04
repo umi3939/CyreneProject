@@ -214,6 +214,22 @@ def build_drive_context(
     except Exception:
         pass
 
+    # 断面8: 行動多様性記述の3つの段階値（結果多様性帰還経路用, READ-ONLY参照）
+    try:
+        latest_record = orch._behavioral_diversity_state.latest_record
+        if latest_record is not None:
+            ctx.result_diversity_section_key_level = (
+                latest_record.section_key_type_count_level
+            )
+            ctx.result_diversity_selection_label_level = (
+                latest_record.policy_label_type_count_level
+            )
+            ctx.result_diversity_candidate_variance_level = (
+                latest_record.candidate_size_dispersion_level
+            )
+    except Exception:
+        pass
+
     # 断面7: 内部矛盾並置記述の直前サイクル矛盾対件数（READ-ONLY参照）
     try:
         prev = orch._contradiction_processor.state.previous_contradictions

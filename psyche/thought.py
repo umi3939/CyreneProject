@@ -31,12 +31,14 @@ from typing import Any, Optional
 from .state import Percept, PsycheState
 from .responsibility import ResponsibilityInfluence
 from .decision_bias import DecisionBias, apply_bias_to_score
+from . import coefficient_registry
 
 logger = logging.getLogger(__name__)
 
 # ── スコアリング断面別帯域上限 ──
 # 全断面で同一の上限値を使用（断面間の均衡化）
-_SCORE_SECTION_BAND: float = 1.5
+# Value loaded from coefficient registry
+_SCORE_SECTION_BAND: float = coefficient_registry.get("policy_selection", "score_section_band")
 
 # ── Policy definitions ─────────────────────────────────────────
 

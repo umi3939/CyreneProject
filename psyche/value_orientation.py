@@ -40,6 +40,8 @@ from typing import Any, Optional
 import time
 import math
 
+from . import coefficient_registry
+
 
 # ── Value Orientation State ─────────────────────────────────────────
 
@@ -174,6 +176,11 @@ class ValueOrientation:
 # ── Configuration ───────────────────────────────────────────────────
 
 
+def _vo_defaults() -> dict[str, Any]:
+    """Load value orientation defaults from coefficient registry."""
+    return coefficient_registry.get("value_orientation")
+
+
 @dataclass
 class ValueOrientationConfig:
     """
@@ -186,28 +193,28 @@ class ValueOrientationConfig:
     """
 
     # Base learning rate for dimension updates (VERY SMALL for inertia)
-    base_learning_rate: float = 0.01
+    base_learning_rate: float = field(default_factory=lambda: _vo_defaults()["base_learning_rate"])
 
     # How much confidence dampens learning (higher = more stable)
-    confidence_damping: float = 0.5
+    confidence_damping: float = field(default_factory=lambda: _vo_defaults()["confidence_damping"])
 
     # Rate at which confidence increases with consistent signals
-    confidence_growth_rate: float = 0.005
+    confidence_growth_rate: float = field(default_factory=lambda: _vo_defaults()["confidence_growth_rate"])
 
     # Rate at which confidence decays without reinforcement
-    confidence_decay_rate: float = 0.001
+    confidence_decay_rate: float = field(default_factory=lambda: _vo_defaults()["confidence_decay_rate"])
 
     # Maximum bias strength applied to candidates
-    max_bias_strength: float = 0.15
+    max_bias_strength: float = field(default_factory=lambda: _vo_defaults()["max_bias_strength"])
 
     # Minimum absolute dimension value to apply bias
-    min_dimension_threshold: float = 0.1
+    min_dimension_threshold: float = field(default_factory=lambda: _vo_defaults()["min_dimension_threshold"])
 
     # How much confidence amplifies bias application
-    confidence_bias_amplifier: float = 0.5
+    confidence_bias_amplifier: float = field(default_factory=lambda: _vo_defaults()["confidence_bias_amplifier"])
 
     # Decay rate for orientation toward neutral (very slow)
-    neutral_decay_rate: float = 0.0001
+    neutral_decay_rate: float = field(default_factory=lambda: _vo_defaults()["neutral_decay_rate"])
 
     # Policy dimension mappings (abstract, not moral)
     # Maps policy labels to dimension influences

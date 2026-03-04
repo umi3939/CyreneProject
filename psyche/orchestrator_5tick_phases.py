@@ -1265,29 +1265,32 @@ def _run_5t_value_responsibility(orch: PsycheOrchestrator, user_id: str) -> None
 
 # ── Experience-driven value update bandwidth expansion ───────────────────────
 
+from . import coefficient_registry as _coeff_registry
+_exp_coeffs = _coeff_registry.get("experience_intensity")
+
 # 帯域拡大係数の絶対上限（基本学習率の倍数）
-_EXP_BANDWIDTH_MAX_MULTIPLIER: float = 4.0
+_EXP_BANDWIDTH_MAX_MULTIPLIER: float = _exp_coeffs["bandwidth_max_multiplier"]
 
 # 1回の帯域拡大更新で次元が変動できる絶対上限
-_EXP_BANDWIDTH_MAX_DELTA_PER_DIM: float = 0.08
+_EXP_BANDWIDTH_MAX_DELTA_PER_DIM: float = _exp_coeffs["bandwidth_max_delta_per_dim"]
 
 # 冷却期間（ティック数）— フォールバック用の固定値
-_EXP_BANDWIDTH_COOLDOWN_TICKS: int = 3
+_EXP_BANDWIDTH_COOLDOWN_TICKS: int = _exp_coeffs["bandwidth_cooldown_ticks"]
 
 # 動的冷却期間の下限（最短値保証: 設計書安全弁1）
-_EXP_COOLDOWN_MIN_TICKS: int = 2
+_EXP_COOLDOWN_MIN_TICKS: int = _exp_coeffs["cooldown_min_ticks"]
 
 # ── 対象A: ドライブ合成後総変動量の上限の一時的拡大 ──
 # 乗数として表現。1.0 = 拡大なし。
 # 絶対上限: 既存の断面別帯域の合計 (0.31) と _TOTAL_CHANGE_LIMIT (0.15) の比率を考慮。
 # 最大1.3倍 (0.15 * 1.3 = 0.195) は断面別合計 0.31 を超えない範囲。
-_EXP_DRIVE_LIMIT_MULTIPLIER_MAX: float = 1.3
+_EXP_DRIVE_LIMIT_MULTIPLIER_MAX: float = _exp_coeffs["drive_limit_multiplier_max"]
 
 # ── 対象B: ポリシースコアリングの断面別帯域上限の一時的拡大 ──
 # 加算量として表現。0.0 = 拡大なし。
 # 絶対上限: スコア差の非線形圧縮 (gap > 1.0 で発動) が有効に機能する範囲。
 # _SCORE_SECTION_BAND=1.5 に対して最大+0.5 (=2.0) で圧縮が引き続き有効。
-_EXP_SCORE_BAND_ADDITION_MAX: float = 0.5
+_EXP_SCORE_BAND_ADDITION_MAX: float = _exp_coeffs["score_band_addition_max"]
 
 
 def _derive_dynamic_cooldown(

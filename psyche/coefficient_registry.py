@@ -1,0 +1,291 @@
+"""
+psyche/coefficient_registry.py - 散在する定数の外部ファイル集約と起動時読み込み
+
+外部係数ファイル（data/coefficients.json）を起動時に一度だけ読み込み、
+各モジュールに読み取り専用で定数値を提供する。
+
+設計原則 (design_coefficient_file.md 準拠):
+- 起動時の一度の読み込みのみ（ティック実行中の再読み込み禁止）
+- 読み取り専用（書き込み経路なし）
+- ファイル不在時は全デフォルト値使用
+- 個別定数欠落時はその定数のみデフォルト値
+- 導出ロジックの外部化禁止（定数値のみ）
+- enrichmentに非露出
+
+安全弁:
+  1. 読み取り専用の強制（書き込みメソッドなし）
+  2. フォールバックの保証（デフォルト値 = ハードコード値と同一）
+  3. ティック中の再読み込み禁止（起動時のみ）
+  4. enrichmentへの非露出
+  5. 導出ロジックの非外部化
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Default values (identical to current hardcoded values)
+# =============================================================================
+
+_DEFAULTS: dict[str, Any] = {
+    # ── Category A: Drive dynamics band constants ──
+    "drive_dynamics": {
+        "section_band": {
+            "emotion_drive_coupling": {"social": 0.06, "curiosity": 0.06, "expression": 0.06},
+            "drive_interaction":      {"social": 0.03, "curiosity": 0.03, "expression": 0.03},
+            "goal_hierarchy":         {"social": 0.05, "curiosity": 0.05, "expression": 0.05},
+            "time_passage":           {"social": 0.06, "curiosity": 0.06, "expression": 0.06},
+            "arousal_drive":          {"social": 0.04, "curiosity": 0.04, "expression": 0.04},
+            "behavioral_diversity":   {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
+            "internal_contradiction": {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
+            "result_diversity_return": {"social": 0.03, "curiosity": 0.03, "expression": 0.03},
+        },
+        "total_change_limit": 0.15,
+    },
+
+    # ── Category B: Mood autonomy band constants ──
+    "mood_autonomy": {
+        "mood_band": {
+            "emotion":  {"valence": 0.12, "arousal": 0.10},
+            "drive":    {"valence": 0.05, "arousal": 0.04},
+            "goal":     {"valence": 0.03, "arousal": 0.02},
+            "fear":     {"valence": 0.00, "arousal": 0.06},
+        },
+        "tracking_speed_min": 0.03,
+        "tracking_speed_max": 0.25,
+        "mood_delta_limit": 0.15,
+    },
+
+    # ── Category C: Policy selection band constants ──
+    "policy_selection": {
+        "score_section_band": 1.5,
+    },
+
+    # ── Category D: Value orientation constants ──
+    "value_orientation": {
+        "base_learning_rate": 0.01,
+        "confidence_damping": 0.5,
+        "confidence_growth_rate": 0.005,
+        "confidence_decay_rate": 0.001,
+        "max_bias_strength": 0.15,
+        "min_dimension_threshold": 0.1,
+        "confidence_bias_amplifier": 0.5,
+        "neutral_decay_rate": 0.0001,
+    },
+
+    # ── Category E: Fluctuation constants ──
+    "fluctuation": {
+        "amplitude_cap": 0.12,
+        "amplitude_floor": 0.005,
+    },
+
+    # ── Category F: Experience intensity band expansion constants ──
+    "experience_intensity": {
+        "bandwidth_max_multiplier": 4.0,
+        "bandwidth_max_delta_per_dim": 0.08,
+        "bandwidth_cooldown_ticks": 3,
+        "cooldown_min_ticks": 2,
+        "drive_limit_multiplier_max": 1.3,
+        "score_band_addition_max": 0.5,
+    },
+
+    # ── Category G: Emotion processing constants ──
+    "emotion_processing": {
+        "decay_rate": 0.95,
+        "stimulus_base_delta": 0.2,
+        "valence_positive": {"joy": 0.15, "love": 0.05, "fun": 0.05},
+        "valence_negative": {"sorrow": 0.10, "anger": 0.05, "fear": 0.05},
+    },
+
+    # ── Category H: Perception processing constants ──
+    "perception": {
+        "bias_bandwidth": 0.04,
+        "bias_coefficient": 0.1,
+    },
+}
+
+
+# =============================================================================
+# Registry (module-level singleton)
+# =============================================================================
+
+_registry: dict[str, Any] | None = None
+_loaded: bool = False
+
+
+def _deep_merge(defaults: dict, overrides: dict) -> dict:
+    """Recursively merge overrides into defaults.
+
+    For each key in defaults:
+    - If the key exists in overrides and both values are dicts, recurse.
+    - If the key exists in overrides and the override value is not a dict
+      (or the default value is not a dict), use the override value.
+    - If the key does not exist in overrides, keep the default value.
+
+    Keys in overrides that do not exist in defaults are ignored.
+    """
+    result = {}
+    for key, default_val in defaults.items():
+        if key in overrides:
+            override_val = overrides[key]
+            if isinstance(default_val, dict) and isinstance(override_val, dict):
+                result[key] = _deep_merge(default_val, override_val)
+            else:
+                result[key] = override_val
+        else:
+            # Deep copy dicts to prevent mutation
+            if isinstance(default_val, dict):
+                result[key] = _deep_copy_dict(default_val)
+            else:
+                result[key] = default_val
+    return result
+
+
+def _deep_copy_dict(d: dict) -> dict:
+    """Deep copy a nested dict structure (dicts and primitives only)."""
+    result = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            result[k] = _deep_copy_dict(v)
+        else:
+            result[k] = v
+    return result
+
+
+def _resolve_coefficient_file_path() -> str:
+    """Resolve the path to the coefficients.json file.
+
+    Looks for data/coefficients.json relative to the project root
+    (parent of the psyche/ directory).
+    """
+    psyche_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(psyche_dir)
+    return os.path.join(project_root, "data", "coefficients.json")
+
+
+def load(file_path: str | None = None) -> None:
+    """Load coefficients from the external JSON file.
+
+    This function should be called once at system startup, before
+    any module initialization.
+
+    If the file does not exist or cannot be read, all defaults are used.
+    If individual constants are missing from the file, their defaults
+    are used.
+
+    Args:
+        file_path: Optional path to the coefficients file. If None,
+                   the default path (data/coefficients.json) is used.
+    """
+    global _registry, _loaded
+
+    path = file_path or _resolve_coefficient_file_path()
+
+    if not os.path.isfile(path):
+        logger.info(
+            "Coefficient file not found at %s; using all defaults.", path
+        )
+        _registry = _deep_copy_dict(_DEFAULTS)
+        _loaded = True
+        return
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            file_data = json.load(f)
+    except (json.JSONDecodeError, OSError, ValueError) as e:
+        logger.warning(
+            "Failed to read coefficient file %s: %s; using all defaults.",
+            path, e,
+        )
+        _registry = _deep_copy_dict(_DEFAULTS)
+        _loaded = True
+        return
+
+    if not isinstance(file_data, dict):
+        logger.warning(
+            "Coefficient file content is not a dict; using all defaults."
+        )
+        _registry = _deep_copy_dict(_DEFAULTS)
+        _loaded = True
+        return
+
+    # Merge file values into defaults (missing values fall back to defaults)
+    _registry = _deep_merge(_DEFAULTS, file_data)
+    _loaded = True
+    logger.info("Coefficients loaded from %s.", path)
+
+
+def get(category: str, key: str | None = None) -> Any:
+    """Get coefficient value(s) by category and optional key.
+
+    If the registry has not been loaded yet, it is initialized with
+    all default values (equivalent to file-not-found behavior).
+
+    Args:
+        category: Top-level category name (e.g., "drive_dynamics").
+        key: Optional key within the category. If None, returns the
+             entire category dict.
+
+    Returns:
+        The coefficient value. For nested dicts, returns a deep copy
+        to prevent external mutation.
+
+    Raises:
+        KeyError: If the category or key does not exist in the defaults.
+    """
+    global _registry, _loaded
+
+    if not _loaded:
+        # Auto-initialize with defaults if not explicitly loaded
+        _registry = _deep_copy_dict(_DEFAULTS)
+        _loaded = True
+
+    if category not in _registry:
+        raise KeyError(f"Unknown coefficient category: {category}")
+
+    cat_data = _registry[category]
+
+    if key is None:
+        # Return deep copy of entire category
+        if isinstance(cat_data, dict):
+            return _deep_copy_dict(cat_data)
+        return cat_data
+
+    if not isinstance(cat_data, dict):
+        raise KeyError(
+            f"Category '{category}' is not a dict; cannot access key '{key}'"
+        )
+
+    if key not in cat_data:
+        raise KeyError(
+            f"Unknown coefficient key '{key}' in category '{category}'"
+        )
+
+    val = cat_data[key]
+    if isinstance(val, dict):
+        return _deep_copy_dict(val)
+    return val
+
+
+def get_defaults() -> dict[str, Any]:
+    """Return a deep copy of all default values.
+
+    This is useful for testing and verification purposes.
+    """
+    return _deep_copy_dict(_DEFAULTS)
+
+
+def reset() -> None:
+    """Reset the registry to unloaded state.
+
+    This is intended for testing purposes only.
+    """
+    global _registry, _loaded
+    _registry = None
+    _loaded = False

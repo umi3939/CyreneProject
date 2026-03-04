@@ -37,6 +37,7 @@ from .fear import fear_drive_boost, fear_emotion_boost
 from .responsibility import ResponsibilityInfluence
 from .state import DriveVector, EmotionVector, Mood, Percept, PsycheState
 from .emotion_amplitude import apply_amplitude_to_delta
+from . import coefficient_registry
 
 # Mapping from percept emotion labels to emotion vector fields
 _EMOTION_MAP: dict[str, str] = {
@@ -50,11 +51,12 @@ _EMOTION_MAP: dict[str, str] = {
     "neutral": "",
 }
 
-# How strongly a percept's valence affects each emotion
-_VALENCE_POSITIVE = {"joy": 0.15, "love": 0.05, "fun": 0.05}
-_VALENCE_NEGATIVE = {"sorrow": 0.10, "anger": 0.05, "fear": 0.05}
+# How strongly a percept's valence affects each emotion (from coefficient registry)
+_emo_coeffs = coefficient_registry.get("emotion_processing")
+_VALENCE_POSITIVE = _emo_coeffs["valence_positive"]
+_VALENCE_NEGATIVE = _emo_coeffs["valence_negative"]
 
-DECAY_RATE = 0.95  # Per-second exponential decay factor
+DECAY_RATE = _emo_coeffs["decay_rate"]  # Per-second exponential decay factor
 
 
 def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -70,19 +72,12 @@ def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
 # 価値方向性の影響上限 (max_bias_strength=0.15) と同水準以下
 
 # 断面別の帯域上限 (per-section per-axis absolute max contribution)
-_SECTION_BAND: dict[str, dict[str, float]] = {
-    "emotion_drive_coupling": {"social": 0.06, "curiosity": 0.06, "expression": 0.06},
-    "drive_interaction":      {"social": 0.03, "curiosity": 0.03, "expression": 0.03},
-    "goal_hierarchy":         {"social": 0.05, "curiosity": 0.05, "expression": 0.05},
-    "time_passage":           {"social": 0.06, "curiosity": 0.06, "expression": 0.06},
-    "arousal_drive":          {"social": 0.04, "curiosity": 0.04, "expression": 0.04},
-    "behavioral_diversity":   {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
-    "internal_contradiction": {"social": 0.02, "curiosity": 0.02, "expression": 0.02},
-    "result_diversity_return": {"social": 0.03, "curiosity": 0.03, "expression": 0.03},
-}
+# Values loaded from coefficient registry (identical to previous hardcoded values)
+_drive_coeffs = coefficient_registry.get("drive_dynamics")
+_SECTION_BAND: dict[str, dict[str, float]] = _drive_coeffs["section_band"]
 
 # 合成後の1ティックあたり総変動量の上限 (既存固定加減算の最大値 ~0.15 と同水準)
-_TOTAL_CHANGE_LIMIT: float = 0.15
+_TOTAL_CHANGE_LIMIT: float = _drive_coeffs["total_change_limit"]
 
 # 安全弁1: 断面別寄与量の上限 = 上の _SECTION_BAND
 # 安全弁2: 合成後総変動量の上限 = _TOTAL_CHANGE_LIMIT
@@ -566,19 +561,16 @@ def compute_state_dependent_drive_changes(
 
 # 入力源別帯域上限 (valence/arousalへの寄与の絶対値上限)
 # 価値方向性の max_bias_strength=0.15 と同水準以下
-_MOOD_BAND: dict[str, dict[str, float]] = {
-    "emotion":  {"valence": 0.12, "arousal": 0.10},   # 最も広い帯域 (主要入力源)
-    "drive":    {"valence": 0.05, "arousal": 0.04},   # 感情より狭い
-    "goal":     {"valence": 0.03, "arousal": 0.02},   # さらに狭い (微弱)
-    "fear":     {"valence": 0.00, "arousal": 0.06},   # arousalのみ (valenceは感情経由)
-}
+# Values loaded from coefficient registry
+_mood_coeffs = coefficient_registry.get("mood_autonomy")
+_MOOD_BAND: dict[str, dict[str, float]] = _mood_coeffs["mood_band"]
 
 # 追従速度の帯域制限 (安全弁2)
-_TRACKING_SPEED_MIN: float = 0.03   # 完全停滞を防ぐ下限
-_TRACKING_SPEED_MAX: float = 0.25   # 即時追従を防ぐ上限
+_TRACKING_SPEED_MIN: float = _mood_coeffs["tracking_speed_min"]   # 完全停滞を防ぐ下限
+_TRACKING_SPEED_MAX: float = _mood_coeffs["tracking_speed_max"]   # 即時追従を防ぐ上限
 
 # 1ティックあたりの変動量上限 (安全弁3)
-_MOOD_DELTA_LIMIT: float = 0.15
+_MOOD_DELTA_LIMIT: float = _mood_coeffs["mood_delta_limit"]
 
 
 @dataclass
@@ -832,7 +824,7 @@ def react(
     # Direct emotion mapping (with amplitude scaling)
     target_field = _EMOTION_MAP.get(percept.emotion, "")
     if target_field and target_field in emo:
-        base_delta = 0.2
+        base_delta = _emo_coeffs["stimulus_base_delta"]
         scaled_delta = apply_amplitude_to_delta(base_delta, amplitude_modifier)
         emo[target_field] = _clamp(emo[target_field] + scaled_delta)
 

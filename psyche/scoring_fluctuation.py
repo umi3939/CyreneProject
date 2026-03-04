@@ -35,12 +35,19 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
 # Configuration
 # =============================================================================
+
+def _fluct_defaults() -> dict[str, Any]:
+    """Load fluctuation defaults from coefficient registry."""
+    return coefficient_registry.get("fluctuation")
+
 
 @dataclass
 class ScoringFluctuationConfig:
@@ -52,10 +59,10 @@ class ScoringFluctuationConfig:
 
     # 振幅の絶対上限（安全弁1）
     # value_orientation の max_bias_strength (0.15) より厳密に小さい
-    amplitude_cap: float = 0.12
+    amplitude_cap: float = field(default_factory=lambda: _fluct_defaults()["amplitude_cap"])
 
     # 振幅の下限（安全弁5: 揺らぎが完全に消失しない）
-    amplitude_floor: float = 0.005
+    amplitude_floor: float = field(default_factory=lambda: _fluct_defaults()["amplitude_floor"])
 
     # value_orientation の max_bias_strength（超過チェック用）
     vo_max_bias_strength: float = 0.15

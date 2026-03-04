@@ -17,6 +17,7 @@ import logging
 from typing import Any, Awaitable, Callable, Optional
 
 from .state import Percept, PsycheState
+from . import coefficient_registry
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +170,10 @@ async def parse_percept(
 
 # ── Local heuristic ────────────────────────────────────────────
 
-_BIAS_BANDWIDTH = 0.04  # Absolute upper bound for perceptual bias (base_delta 0.2 / 5)
-_BIAS_COEFFICIENT = 0.1  # Fixed coefficient: valence * coefficient = raw bias
+# Values loaded from coefficient registry
+_perception_coeffs = coefficient_registry.get("perception")
+_BIAS_BANDWIDTH = _perception_coeffs["bias_bandwidth"]  # Absolute upper bound for perceptual bias
+_BIAS_COEFFICIENT = _perception_coeffs["bias_coefficient"]  # Fixed coefficient: valence * coefficient = raw bias
 
 
 def _compute_valence_bias(state: Optional[PsycheState]) -> float:

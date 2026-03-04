@@ -159,6 +159,10 @@ from .enrichment_compression import (
     ORIGINAL_FOOTER,
 )
 
+from .save_load_warmup import (
+    build_session_diff_enrichment_text,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -304,6 +308,12 @@ def _collect_enrichment_self(
                 self_items.append(("注意配分", f"注意配分: {att_text}"))
         except Exception:
             pass
+    # #49 session_difference (セッション間差分記述)
+    try:
+        sd_text = build_session_diff_enrichment_text(orch._session_diff_scalar)
+        self_items.append(("セッション間変化", sd_text))
+    except Exception:
+        pass
     return self_items
 
 

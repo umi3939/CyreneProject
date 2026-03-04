@@ -924,3 +924,149 @@ def execute_session_recovery_check(
 def get_consistency_check_entries() -> tuple[ConsistencyCheckEntry, ...]:
     """整合性検証エントリの静的宣言テーブルを返す (テスト・検証用)。"""
     return CONSISTENCY_CHECK_ENTRIES
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# セッション間差分記述
+# design_session_difference.md に基づく実装
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _compute_field_distance(prev_value: Any, curr_value: Any) -> float:
+    """2つのフィールド値間の数値的距離を算出する。
+
+    フィールド値の構造によって算出方法が異なる:
+    - スカラー数値（整数・浮動小数点）: 差の絶対値
+    - 辞書型: 内部数値フィールドの差の絶対値の合計（非数値は無視）
+    - リスト型: レコード件数の差の絶対値のみ
+    - その他: 0（距離算出不可能）
+
+    Args:
+        prev_value: 前回スナップショットの値
+        curr_value: 現在の値
+
+    Returns:
+        数値的距離（非負のスカラー値）
+    """
+    # 両方がスカラー数値の場合
+    if isinstance(prev_value, (int, float)) and isinstance(curr_value, (int, float)):
+        return abs(float(curr_value) - float(prev_value))
+
+    # 両方が辞書型の場合
+    if isinstance(prev_value, dict) and isinstance(curr_value, dict):
+        total = 0.0
+        all_keys = set(prev_value.keys()) | set(curr_value.keys())
+        for key in all_keys:
+            pv = prev_value.get(key)
+            cv = curr_value.get(key)
+            if isinstance(pv, (int, float)) and isinstance(cv, (int, float)):
+                total += abs(float(cv) - float(pv))
+            elif isinstance(pv, dict) and isinstance(cv, dict):
+                # 再帰的に辞書内の数値フィールドを走査
+                total += _compute_field_distance(pv, cv)
+        return total
+
+    # 両方がリスト型の場合
+    if isinstance(prev_value, list) and isinstance(curr_value, list):
+        return abs(float(len(curr_value)) - float(len(prev_value)))
+
+    # 型が異なるか、距離算出不可能な型の場合
+    return 0.0
+
+
+def compute_session_difference_scalar(
+    prev_snapshot: dict[str, Any],
+    current_dict: dict[str, Any],
+) -> float:
+    """前回スナップショットと現在の保存辞書間の数値的距離の総和を算出する。
+
+    設計書の仕様:
+    - 全永続化フィールドのフィールドごとの数値的距離を算出
+    - 各フィールドの距離をスカラー値に集約（総和）
+    - 片方にのみ存在するフィールドの距離は0とする
+
+    メタデータフィールド（version, save_timestamp, tick_count, session_diff_scalar）
+    は差分算出の対象外とする。
+
+    Args:
+        prev_snapshot: 前回復元時の辞書データ
+        current_dict: 現在の保存辞書データ
+
+    Returns:
+        セッション間差分のスカラー要約値（非負）
+    """
+    # 差分算出対象外のメタデータキー
+    exclude_keys = {"version", "save_timestamp", "tick_count", "session_diff_scalar"}
+
+    total_distance = 0.0
+    all_keys = (set(prev_snapshot.keys()) | set(current_dict.keys())) - exclude_keys
+
+    for key in all_keys:
+        prev_val = prev_snapshot.get(key)
+        curr_val = current_dict.get(key)
+
+        if prev_val is None or curr_val is None:
+            # 片方にのみ存在するフィールド: 距離0
+            continue
+
+        total_distance += _compute_field_distance(prev_val, curr_val)
+
+    return total_distance
+
+
+# ── セッション間差分の段階値変換 ──────────────────────────────────────
+#
+# 安全弁3: スカラー値から段階値への変換は固定の区間分割であり、
+# 内部状態に依存しない。区間の境界値は静的に定義される。
+
+# 段階値の区間分割定義（境界値, テキスト）
+# 設計書: 「ほぼ変化なし」/「微小な変化」/「中程度の変化」/「大きな変化」
+_SESSION_DIFF_THRESHOLDS: list[tuple[float, str]] = [
+    (0.1, "ほぼ変化なし"),
+    (5.0, "微小な変化"),
+    (50.0, "中程度の変化"),
+]
+_SESSION_DIFF_LARGE_LABEL = "大きな変化"
+
+# 差分値不在時の空状態テキスト
+SESSION_DIFF_EMPTY_LABEL = "(不明)"
+
+
+def classify_session_difference(scalar: Optional[float]) -> str:
+    """セッション間差分スカラー値を段階値テキストに変換する。
+
+    安全弁3: 固定の区間分割による機械的変換。
+    安全弁4: 評価的表現を含まない事実記述のみ。
+    安全弁5: フィールド内訳を含まない。
+
+    Args:
+        scalar: セッション間差分のスカラー値。Noneの場合は空状態
+
+    Returns:
+        段階値テキスト
+    """
+    if scalar is None:
+        return SESSION_DIFF_EMPTY_LABEL
+
+    for threshold, label in _SESSION_DIFF_THRESHOLDS:
+        if scalar <= threshold:
+            return label
+
+    return _SESSION_DIFF_LARGE_LABEL
+
+
+def build_session_diff_enrichment_text(scalar: Optional[float]) -> str:
+    """セッション間差分のenrichment項目テキストを生成する。
+
+    安全弁1: enrichment経由の間接参照のみ。
+    安全弁4: 評価的表現を含まない事実記述のみ。
+    安全弁5: フィールド内訳を含まない（スカラー要約のみ）。
+
+    Args:
+        scalar: セッション間差分のスカラー値。Noneの場合は空状態
+
+    Returns:
+        enrichment項目テキスト
+    """
+    label = classify_session_difference(scalar)
+    return f"セッション間状態変化: {label}"

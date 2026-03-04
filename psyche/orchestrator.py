@@ -2754,6 +2754,9 @@ class PsycheOrchestrator:
                 "me_supply_strength": cs_inputs.meta_emotion_supply_strength,
             }
 
+        # Phase 26-EXP 帯域拡大: 対象Bの加算量を参照（非永続属性）
+        _score_band_add = getattr(self, '_exp_score_band_addition', None)
+
         candidates = generate_thought_candidates(
             state=self._psyche,
             percept=percept,
@@ -2762,6 +2765,7 @@ class PsycheOrchestrator:
             decision_bias=decision_bias,
             extended_inputs=extended_inputs,
             collect_breakdown=self._policy_selection_log.enabled,
+            score_section_band_addition=_score_band_add,
         )
 
         # Phase 30b: policy_candidate_expansion — 内面反映候補拡張

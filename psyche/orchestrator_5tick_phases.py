@@ -1277,6 +1277,18 @@ _EXP_BANDWIDTH_COOLDOWN_TICKS: int = 3
 # 動的冷却期間の下限（最短値保証: 設計書安全弁1）
 _EXP_COOLDOWN_MIN_TICKS: int = 2
 
+# ── 対象A: ドライブ合成後総変動量の上限の一時的拡大 ──
+# 乗数として表現。1.0 = 拡大なし。
+# 絶対上限: 既存の断面別帯域の合計 (0.31) と _TOTAL_CHANGE_LIMIT (0.15) の比率を考慮。
+# 最大1.3倍 (0.15 * 1.3 = 0.195) は断面別合計 0.31 を超えない範囲。
+_EXP_DRIVE_LIMIT_MULTIPLIER_MAX: float = 1.3
+
+# ── 対象B: ポリシースコアリングの断面別帯域上限の一時的拡大 ──
+# 加算量として表現。0.0 = 拡大なし。
+# 絶対上限: スコア差の非線形圧縮 (gap > 1.0 で発動) が有効に機能する範囲。
+# _SCORE_SECTION_BAND=1.5 に対して最大+0.5 (=2.0) で圧縮が引き続き有効。
+_EXP_SCORE_BAND_ADDITION_MAX: float = 0.5
+
 
 def _derive_dynamic_cooldown(
     arousal: float,
@@ -1382,6 +1394,11 @@ def _apply_experience_driven_value_update(orch: "PsycheOrchestrator") -> None:
     - 帯域拡大の事実は enrichment に直接露出しない
     - 帯域拡大係数・適用履歴は永続化しない
     """
+    # ── 対象A・対象Bのリセット（Phase 26-EXP処理時に必ずリセット） ──
+    # 安全弁: リセット保証。冷却期間中は拡大なしの既存値が使用される。
+    orch._exp_drive_total_limit_multiplier = None
+    orch._exp_score_band_addition = None
+
     # ── 冷却期間チェック ──
     # _exp_bandwidth_last_tick は非永続属性（ティック間のみ、セッション間で引き継がない）
     if not hasattr(orch, '_exp_bandwidth_last_tick'):
@@ -1480,6 +1497,24 @@ def _apply_experience_driven_value_update(orch: "PsycheOrchestrator") -> None:
     # 実質的な拡大がない場合はスキップ
     if expansion_coeff <= 1.05:
         return
+
+    # ── 対象A: ドライブ合成後総変動量の上限の一時的拡大 ──
+    # expansion_coeff (1.05..4.0) から乗数を導出。
+    # 線形マッピング: expansion_coeff=1.05 -> multiplier=1.0, expansion_coeff=4.0 -> multiplier=1.3
+    _ec_range = _EXP_BANDWIDTH_MAX_MULTIPLIER - 1.05  # 2.95
+    _mult_range = _EXP_DRIVE_LIMIT_MULTIPLIER_MAX - 1.0  # 0.3
+    raw_multiplier = 1.0 + ((expansion_coeff - 1.05) / max(_ec_range, 0.01)) * _mult_range
+    # 絶対上限クランプ（安全弁: 対象A固有の絶対上限）
+    clamped_multiplier = min(raw_multiplier, _EXP_DRIVE_LIMIT_MULTIPLIER_MAX)
+    orch._exp_drive_total_limit_multiplier = clamped_multiplier
+
+    # ── 対象B: ポリシースコアリングの断面別帯域上限の一時的拡大 ──
+    # expansion_coeff (1.05..4.0) から加算量を導出。
+    # 線形マッピング: expansion_coeff=1.05 -> addition=0.0, expansion_coeff=4.0 -> addition=0.5
+    raw_addition = ((expansion_coeff - 1.05) / max(_ec_range, 0.01)) * _EXP_SCORE_BAND_ADDITION_MAX
+    # 絶対上限クランプ（安全弁: 対象B固有の絶対上限）
+    clamped_addition = min(max(0.0, raw_addition), _EXP_SCORE_BAND_ADDITION_MAX)
+    orch._exp_score_band_addition = clamped_addition
 
     # ── 段階3: 既存経路への投入 ──
     # 帯域拡大された学習率を持つ一時的な設定を作成

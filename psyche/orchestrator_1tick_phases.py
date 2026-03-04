@@ -250,6 +250,14 @@ def build_drive_context(
     except Exception:
         pass
 
+    # Phase 26-EXP 帯域拡大: ドライブ合成後総変動量の上限の一時的乗数
+    try:
+        multiplier = getattr(orch, '_exp_drive_total_limit_multiplier', None)
+        if multiplier is not None:
+            ctx.drive_total_limit_multiplier = multiplier
+    except Exception:
+        pass
+
     return ctx
 
 

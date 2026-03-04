@@ -166,6 +166,7 @@ def generate_thought_candidates(
     decision_bias: Optional[DecisionBias] = None,
     extended_inputs: Optional[dict] = None,
     collect_breakdown: bool = False,
+    score_section_band_addition: Optional[float] = None,
 ) -> list[dict]:
     """Generate response policy candidates from local state analysis.
 
@@ -199,6 +200,7 @@ def generate_thought_candidates(
             policy_def, state, percept, recalled,
             responsibility_influence, decision_bias, extended_inputs,
             collect_breakdown=collect_breakdown,
+            score_section_band_addition=score_section_band_addition,
         )
         if collect_breakdown:
             score, breakdown = result
@@ -286,6 +288,7 @@ def _score_candidate(
     decision_bias: Optional[DecisionBias] = None,
     extended_inputs: Optional[dict] = None,
     collect_breakdown: bool = False,
+    score_section_band_addition: Optional[float] = None,
 ) -> float | tuple[float, dict[str, float]]:
     """Score a candidate policy against current state.  Pure function.
 
@@ -312,8 +315,13 @@ def _score_candidate(
     label = policy_def["policy_label"]
 
     # 帯域制限ヘルパー: 各断面の寄与を均一上限でクランプ
+    # Phase 26-EXP 帯域拡大: 加算量が指定されている場合は一時的に上限を拡大
+    effective_band = _SCORE_SECTION_BAND
+    if score_section_band_addition is not None:
+        effective_band = _SCORE_SECTION_BAND + score_section_band_addition
+
     def _clamp_section(v: float) -> float:
-        return max(-_SCORE_SECTION_BAND, min(_SCORE_SECTION_BAND, v))
+        return max(-effective_band, min(effective_band, v))
 
     # 1. Drive satisfaction: high drive + policy satisfies it → bonus
     target_drive = policy_def["drive_target"]

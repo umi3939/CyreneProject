@@ -127,6 +127,9 @@ class DriveContextInputs:
     result_diversity_section_key_level: Optional[str] = None
     result_diversity_selection_label_level: Optional[str] = None
     result_diversity_candidate_variance_level: Optional[str] = None
+    # Phase 26-EXP 帯域拡大: 合成後総変動量の上限に対する一時的乗数
+    # None の場合は既存固定値(_TOTAL_CHANGE_LIMIT)を使用
+    drive_total_limit_multiplier: Optional[float] = None
 
 
 def _compute_emotion_drive_coupling(
@@ -547,8 +550,12 @@ def compute_state_dependent_drive_changes(
             total[axis] += section.get(axis, 0.0)
 
     # 安全弁2: 合成後総変動量の上限
+    # Phase 26-EXP 帯域拡大: 乗数が指定されている場合は一時的に上限を拡大
+    effective_limit = _TOTAL_CHANGE_LIMIT
+    if ctx.drive_total_limit_multiplier is not None:
+        effective_limit = _TOTAL_CHANGE_LIMIT * ctx.drive_total_limit_multiplier
     for axis in total:
-        total[axis] = max(-_TOTAL_CHANGE_LIMIT, min(_TOTAL_CHANGE_LIMIT, total[axis]))
+        total[axis] = max(-effective_limit, min(effective_limit, total[axis]))
 
     return total
 

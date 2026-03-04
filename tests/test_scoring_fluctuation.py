@@ -260,8 +260,14 @@ class TestStage2ComposeVariability:
 
     def test_all_one(self):
         cfg = ScoringFluctuationConfig()
-        result = compose_variability(1.0, 1.0, 1.0, 1.0, cfg)
+        # All 5 inputs at 1.0 → weighted_avg=1.0, max=1.0, composed=1.0
+        result = compose_variability(1.0, 1.0, 1.0, 1.0, cfg, 1.0)
         assert result == 1.0
+        # With 5th input at 0.0 (default), weighted avg is < 1.0 due to
+        # 5th weight in denominator, but max is still 1.0
+        result_4_only = compose_variability(1.0, 1.0, 1.0, 1.0, cfg)
+        assert result_4_only < 1.0
+        assert result_4_only > 0.9
 
     def test_single_source_does_not_dominate(self):
         """単一の入力源が揺らぎを支配しない（最大値と平均値の中間）。"""

@@ -65,6 +65,7 @@ class ScoringFluctuationConfig:
     weight_stm: float = 0.25
     weight_drives: float = 0.25
     weight_elapsed: float = 0.2
+    weight_reference_imbalance: float = 0.15
 
     # 経過時間の最大考慮秒数（これ以上は頭打ち）
     max_elapsed_seconds: float = 300.0
@@ -239,17 +240,42 @@ def extract_elapsed_variability(
 # Stage 2: 変動度の合成
 # =============================================================================
 
+def extract_reference_imbalance_variability(
+    reference_imbalance: Optional[float],
+) -> float:
+    """参照偏在度から変動度を抽出する。
+
+    偏在度が高い（1.0に近い）ほど変動度が大きくなる。
+    偏在度が低い（0.0に近い）場合は変動度は0.0に近づくが、負にはならない。
+    偏在度がNoneの場合は0.0を返す。
+
+    Args:
+        reference_imbalance: 参照頻度記述構造の偏在度スカラー (0.0-1.0)、
+                            またはNone（未生成の場合）
+
+    Returns:
+        0.0-1.0 の変動度スカラー
+    """
+    if reference_imbalance is None:
+        return 0.0
+    return _clamp(max(0.0, reference_imbalance))
+
+
 def compose_variability(
     emotion_var: float,
     stm_var: float,
     drive_var: float,
     elapsed_var: float,
     config: ScoringFluctuationConfig,
+    reference_imbalance_var: float = 0.0,
 ) -> float:
     """複数の入力源からの変動度を合成する。
 
     合成は加重平均ではなく、最大値と平均値の中間的な統合とする。
     これにより、単一の入力源が揺らぎを支配することを防ぐ。
+
+    5入力源: 感情・短期記憶・駆動・経過時間・参照偏在度。
+    参照偏在度は第5入力源として他の入力源と同列に扱われる。
 
     Args:
         emotion_var: 感情由来の変動度
@@ -257,16 +283,18 @@ def compose_variability(
         drive_var: 駆動由来の変動度
         elapsed_var: 経過時間由来の変動度
         config: 設定
+        reference_imbalance_var: 参照偏在度由来の変動度 (デフォルト0.0)
 
     Returns:
         0.0-1.0 の合成変動度
     """
-    values = [emotion_var, stm_var, drive_var, elapsed_var]
+    values = [emotion_var, stm_var, drive_var, elapsed_var, reference_imbalance_var]
     weights = [
         config.weight_emotion,
         config.weight_stm,
         config.weight_drives,
         config.weight_elapsed,
+        config.weight_reference_imbalance,
     ]
 
     if not values:
@@ -527,13 +555,15 @@ def apply_scoring_fluctuation(
     stm: Any = None,
     elapsed_seconds: float = 0.0,
     config: Optional[ScoringFluctuationConfig] = None,
+    reference_imbalance: Optional[float] = None,
 ) -> list[dict[str, Any]]:
     """5段パイプラインを実行し、揺らぎを適用した候補リストを返す。
 
     安全弁2: 本関数は内部状態を保持せず、呼び出しごとに完結する。
-    安全弁3: 入力（emotions, drives, stm）は読み取り専用で変更しない。
+    安全弁3: 入力（emotions, drives, stm, reference_imbalance）は読み取り専用で変更しない。
     安全弁4: 揺らぎ値は返却される候補のメタデータにのみ付記され、
              長期価値軸やその他の構造には伝播しない。
+    安全弁(設計書): 参照偏在度は正の寄与のみ（振幅微減は構造的に不可能）。
 
     Args:
         candidates: ポリシー候補リスト（バイアス適用済み）
@@ -542,6 +572,8 @@ def apply_scoring_fluctuation(
         stm: ShortTermMemory インスタンス（None可）
         elapsed_seconds: 前回のポリシー選択からの経過秒数
         config: 設定（None時はデフォルト）
+        reference_imbalance: 参照頻度記述構造の偏在度スカラー (0.0-1.0)。
+                            None時は偏在度入力なしとして既存4入力源のみで合成する。
 
     Returns:
         揺らぎが加算されたポリシー候補リスト（新しいリスト）。
@@ -567,6 +599,9 @@ def apply_scoring_fluctuation(
 
     elapsed_var = extract_elapsed_variability(elapsed_seconds, cfg)
 
+    # 第5入力源: 参照偏在度からの変動度抽出
+    ref_imbalance_var = extract_reference_imbalance_variability(reference_imbalance)
+
     # ── 段階2: 変動度の合成 ──
     composed = compose_variability(
         emotion_var=emotion_var,
@@ -574,6 +609,7 @@ def apply_scoring_fluctuation(
         drive_var=drive_var,
         elapsed_var=elapsed_var,
         config=cfg,
+        reference_imbalance_var=ref_imbalance_var,
     )
 
     # ── 段階3: 振幅の制限 ──

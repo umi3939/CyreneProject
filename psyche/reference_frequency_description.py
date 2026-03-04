@@ -35,7 +35,9 @@ psyche/reference_frequency_description.py - 参照頻度の構造的記述
      「長期的にこの方向に向かっている」という傾向の累積的蓄積を行わない
   4. 断面履歴の有限性 — 断面履歴には保持上限があり、古い断面は消失する
   5. 出力経路の限定と不拡張 — 出力先は内省系構造への参照情報に限定される。
-     enrichment出力経路を持たない。運用中に出力先を動的に追加する仕組みを持たない
+     enrichment出力経路を持たない。運用中に出力先を動的に追加する仕組みを持たない。
+     追加許可: 揺らぎ生成構造(scoring_fluctuation)からの偏在度読み取り（1経路のみ、
+     オーケストレータ経由、書き込みなし）
 """
 
 from __future__ import annotations
@@ -703,6 +705,9 @@ def process_reference_frequency(
 # 外部出力層への出力経路を持たない。
 # 忘却パイプラインへの出力経路を持たない。
 # 想起経路の選択への出力経路を持たない。
+# 追加許可経路: 揺らぎ生成構造(scoring_fluctuation)からの偏在度(structural_bias)
+#   読み取り。この経路はオーケストレータが断面から偏在度スカラーを取得し、
+#   揺らぎ生成構造の引数として渡す形で実現される。書き込み経路は存在しない。
 
 def get_latest_snapshot(state: ReferenceFrequencyState) -> Optional[ReferenceSnapshot]:
     """最新の断面を返す（内省系参照経路、READ-ONLY）。

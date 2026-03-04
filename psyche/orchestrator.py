@@ -509,6 +509,7 @@ from .reference_frequency_description import (
     process_reference_frequency,
     create_reference_frequency_state,
     get_reference_summary,
+    get_latest_snapshot as get_ref_freq_latest_snapshot,
 )
 
 # Persistent commitment (持続的取り組み保持構造)
@@ -714,7 +715,11 @@ from tools.return_pathway_monitor import (
 
 # Save/load warmup (復帰時キャッシュ再導出)
 # 独自の内部状態を保持しない。永続化フィールド追加なし。
-from .save_load_warmup import execute_warmup, execute_session_recovery_check
+from .save_load_warmup import (
+    execute_warmup,
+    execute_session_recovery_check,
+    compute_session_difference_scalar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1479,6 +1484,12 @@ class PsycheOrchestrator:
         # ── Session boundary freshness (save/load対象外、毎セッション再算出) ──
         self._session_gap_seconds: Optional[float] = None
         self._session_resume_tick: Optional[int] = None
+
+        # ── Session difference (セッション間差分記述) ──
+        # 前回復元時の辞書データ（次回保存時の差分算出に使用）
+        self._session_prev_snapshot: Optional[dict[str, Any]] = None
+        # 直近の保存時に算出された差分スカラー値（復元時に読み取り）
+        self._session_diff_scalar: Optional[float] = None
 
         # ── Phase 30-35 cached results (for enrichment) ──
         self._last_decision_bias: Optional[DecisionBias] = None
@@ -2874,10 +2885,20 @@ class PsycheOrchestrator:
 
         # Phase 35c: scoring_fluctuation — スコアリングの構造的揺らぎ
         # 全バイアス適用完了後の最後の加算層として、内部状態由来の揺らぎを適用
+        # 第5入力源: 参照頻度記述構造の偏在度（READ-ONLY）
         try:
             now = time.time()
             elapsed = now - self._last_fluctuation_select_time if self._last_fluctuation_select_time > 0 else 0.0
             self._last_fluctuation_select_time = now
+
+            # 参照偏在度の取得（参照頻度記述構造からREAD-ONLY）
+            ref_imbalance: Optional[float] = None
+            try:
+                ref_snap = get_ref_freq_latest_snapshot(self._reference_frequency_state)
+                if ref_snap is not None:
+                    ref_imbalance = ref_snap.structural_bias
+            except Exception:
+                pass
 
             p = self._psyche
             candidates = apply_scoring_fluctuation(
@@ -2887,6 +2908,7 @@ class PsycheOrchestrator:
                 stm=self._loop_state.memory if self._loop_state else None,
                 elapsed_seconds=elapsed,
                 config=self._fluctuation_config,
+                reference_imbalance=ref_imbalance,
             )
         except Exception as e:
             logger.debug("Scoring fluctuation skipped: %s", e)
@@ -4336,6 +4358,18 @@ class PsycheOrchestrator:
         }
         data.update(save_fields(self, FIELD_DEFINITIONS))
 
+        # セッション間差分: 前回スナップショットがあれば差分スカラーを算出
+        if self._session_prev_snapshot is not None:
+            try:
+                diff_scalar = compute_session_difference_scalar(
+                    self._session_prev_snapshot, data,
+                )
+                data["session_diff_scalar"] = diff_scalar
+                self._session_diff_scalar = diff_scalar
+            except Exception as e:
+                logger.debug("Session diff computation failed: %s", e)
+        # 差分フィールドが不明の場合は含めない（設計書の仕様）
+
         save_path.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -4379,6 +4413,11 @@ class PsycheOrchestrator:
                 # No timestamp in snapshot (pre-existing data) — no annotation
                 self._session_gap_seconds = None
                 self._session_resume_tick = None
+
+            # セッション間差分: 保存辞書から差分スカラー値を読み取り、
+            # 辞書データを前回スナップショットとして保持
+            self._session_diff_scalar = data.get("session_diff_scalar")
+            self._session_prev_snapshot = dict(data)
 
             # Cache warmup: 復元済みモジュール蓄積状態から中間キャッシュを再導出
             # セッション境界鮮度注釈の計算後、最初のティック実行前に実行する。

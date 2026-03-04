@@ -457,8 +457,13 @@ class TestSafetyValves:
         # 履歴・ログ・永続化の蓄積パターンが存在しない
         assert "_history" not in source
         assert "_coefficient_log" not in source
-        assert "save" not in source.lower()
-        assert "persist" not in source.lower()
+        # コメント行を除外してから検索（コメント中の "save" 誤検出を防止）
+        source_no_comments = "\n".join(
+            line for line in source.splitlines()
+            if not line.strip().startswith("#")
+        )
+        assert "save" not in source_no_comments.lower()
+        assert "persist" not in source_no_comments.lower()
         # _exp_bandwidth_last_tick のみが設定される（冷却管理用、非永続）
         assert "_exp_bandwidth_last_tick" in source
 

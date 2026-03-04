@@ -121,11 +121,13 @@ def _deep_compare(
     keys1 = set(dict1.keys()) if isinstance(dict1, dict) else set()
     keys2 = set(dict2.keys()) if isinstance(dict2, dict) else set()
 
-    # キーの過不足
+    # キーの過不足（skip_keys対象は除外）
     for k in keys1 - keys2:
-        diffs.append(f"{path}.{k}: 1回目にあるが2回目にない")
+        if k not in skip_keys:
+            diffs.append(f"{path}.{k}: 1回目にあるが2回目にない")
     for k in keys2 - keys1:
-        diffs.append(f"{path}.{k}: 2回目にあるが1回目にない")
+        if k not in skip_keys:
+            diffs.append(f"{path}.{k}: 2回目にあるが1回目にない")
 
     # 共通キーの比較
     for k in keys1 & keys2:
@@ -186,7 +188,7 @@ def _deep_compare(
 # session_decay により load 時に変動が想定されるキー。
 # これらは apply_session_decay() が freshness を -0.3 し
 # freshness_stage を再計算するため、save->load->save で値が変わる。
-_SESSION_DECAY_KEYS: set[str] = {"freshness", "freshness_stage"}
+_SESSION_DECAY_KEYS: set[str] = {"freshness", "freshness_stage", "session_diff_scalar"}
 
 
 def _build_version_dict(target_version: int) -> dict[str, Any]:

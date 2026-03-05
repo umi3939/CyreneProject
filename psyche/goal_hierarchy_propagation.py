@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -521,10 +523,10 @@ class GoalHierarchyPropagationState:
 class GoalHierarchyPropagationConfig:
     """設定。"""
     # 隣接変化記録の蓄積上限（FIFO）
-    max_records: int = 200
+    max_records: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_200"))
 
     # 記録自体の鮮度減衰速度（サイクルあたり、均一減衰）
-    record_freshness_decay_rate: float = 0.02
+    record_freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
 
     # 内省系構造に提供する記録の件数上限
     reference_count: int = 10

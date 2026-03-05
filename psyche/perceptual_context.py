@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -158,7 +160,7 @@ class PerceptualContextState:
 class PerceptualContextConfig:
     """設定。"""
     # 知覚サマリのスライディングウィンドウ上限
-    max_summaries: int = 50
+    max_summaries: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_50"))
 
     # 特徴量記述で使用するウィンドウ内レコードの最小件数
     # この件数未満の場合は各断面のデフォルト値とする

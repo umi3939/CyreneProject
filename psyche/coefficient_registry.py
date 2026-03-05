@@ -153,6 +153,22 @@ _DEFAULTS: dict[str, Any] = {
         "convergence_scale": 0.5,
         "combined_max_delta": 0.15,
     },
+
+    # ── Category K: Description layer common constants ──
+    # 記述層モジュール群の共通パターン定数（等価変換・値変更なし）
+    "description_common": {
+        # FIFO蓄積上限 — 複数モジュールに共通するFIFOバッファの最大保持件数
+        "fifo_limit_30": 30,     # stabilization / behavioral_diversity / forgetting_recall_balance / reference_frequency / attention_distribution / input_pathway_balance(snapshot)
+        "fifo_limit_50": 50,     # selection_attribution / self_action_perception / intent_action_gap / emotion_cooccurrence / perceptual_context(summaries)
+        "fifo_limit_100": 100,   # interaction_accumulation(pairs) / temporal_cognition(elapsed) / responsibility_temporal_trace(snapshots)
+        "fifo_limit_200": 200,   # expectation_lifecycle / goal_hierarchy_propagation / input_pathway_balance(usage_facts) / other_boundary(total) / situational_self_presentation(total) / hypothesis_observation(total)
+        # スライディングウィンドウサイズ — 複数モジュールに共通する時間窓
+        "window_size_25": 25,    # introspection_cross_section
+        "window_size_30": 30,    # emotional_backdrop_cognition / multi_path_recall(rumination) / spontaneous_recall(rumination)
+        "window_size_50": 50,    # internal_contradiction / drive_variation / input_pathway_balance(sliding)
+        # 鮮度減衰速度 — 複数モジュールに共通する鮮度減衰レート
+        "freshness_decay_rate_002": 0.02,  # emotion_cooccurrence / drive_variation / emotional_backdrop / other_boundary / situational_self_presentation / hypothesis_observation / goal_hierarchy / expectation_lifecycle
+    },
 }
 
 

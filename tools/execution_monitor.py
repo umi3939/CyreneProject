@@ -138,6 +138,11 @@ class ExecutionMonitor:
             EnrichmentEffectivenessAnalyzer()
         )
 
+        # ── enrichment実効性評価(セッション境界で消失) ──
+        self._enrichment_eval: EnrichmentEffectivenessEvaluator = (
+            EnrichmentEffectivenessEvaluator()
+        )
+
     @property
     def enabled(self) -> bool:
         """モニタリングが有効かどうか。"""
@@ -188,6 +193,11 @@ class ExecutionMonitor:
         """enrichment有効性分析(読み取り専用アクセサ)。"""
         return self._enrichment_effectiveness
 
+    @property
+    def enrichment_evaluator(self) -> "EnrichmentEffectivenessEvaluator":
+        """enrichment実効性評価(読み取り専用アクセサ)。"""
+        return self._enrichment_eval
+
     # ── enrichment分布の記録 ────────────────────────────────────────
 
     def record_enrichment_distribution(
@@ -227,6 +237,43 @@ class ExecutionMonitor:
         except Exception:
             # 安全弁1
             pass
+
+        # ── enrichment実効性評価: enrichmentデータ更新 ──
+        try:
+            self._enrichment_eval.update_enrichment_data(
+                sections_data=sections_data,
+            )
+        except Exception:
+            # 安全弁1
+            pass
+
+    # ── enrichment実効性評価: 代弁テキストとの照合 ─────────────────
+
+    def evaluate_enrichment_manifestation(
+        self, utterance_text: str
+    ) -> dict[str, bool]:
+        """代弁テキストとenrichment項目の照合を実行する。
+
+        代弁品質記録に新しいペアが蓄積されるたびに呼び出される。
+        enrichment各項目の語彙断片がGemini出力テキストに含まれるかを照合し、
+        結果を蓄積する。
+
+        Args:
+            utterance_text: Gemini代弁出力テキスト
+
+        Returns:
+            項目識別子→表出有無の辞書。無効時は空辞書。
+        """
+        if not self._enabled:
+            return {}
+        try:
+            return self._enrichment_eval.evaluate_manifestation(
+                utterance_text=utterance_text,
+                monitor=self,
+            )
+        except Exception:
+            # 安全弁1
+            return {}
 
     # ── 帯域実行時間の記録 ────────────────────────────────────────
 
@@ -438,6 +485,13 @@ class ExecutionMonitor:
         # ── enrichment有効性分析: セッション終了時サマリ出力 ──
         try:
             self._enrichment_effectiveness.emit_session_summary(self)
+        except Exception:
+            # 安全弁1
+            pass
+
+        # ── enrichment実効性評価: セッション終了時サマリ出力 ──
+        try:
+            self._enrichment_eval.emit_session_summary(self)
         except Exception:
             # 安全弁1
             pass
@@ -1629,6 +1683,424 @@ class EnrichmentEffectivenessAnalyzer:
 
         except Exception:
             # 安全弁1: 計測失敗時の安全な無視
+            pass
+
+
+# ── EnrichmentEffectivenessEvaluator ──────────────────────────────
+#
+# enrichment実効性の体系的評価。
+# 設計書: design_enrichment_effectiveness_eval.md
+#
+# enrichment各項目のテキストから語彙断片を機械的に抽出し、
+# Gemini代弁出力テキストとの文字列部分一致照合を行い、
+# 項目別の「直接表出」有無を事実として記録する仕組み。
+#
+# 本機能の構造的分離:
+# - enrichment項目の出力を読み取り専用で観測する(一方向のデータフロー)
+# - enrichmentテキスト、圧縮パイプライン、psycheモジュール、
+#   判断・行動の選択に出力を供給する経路が存在しない
+# - 出力先はログストリームへのJSON書き込みと読み取り専用アクセサのみ
+# - psycheモジュールの内部状態を一切変更しない
+# - save/loadの対象フィールドに一切追加しない
+# - orchestratorのPhase処理に組み込まれない
+# - enrichment項目として追加されない
+#
+# 安全弁:
+# 1. enrichment経路の構造的遮断: enrichment出力を生成する関数を持たない
+# 2. 永続化の非対象: save/loadフィールド追加なし、セッション境界で消失
+# 3. 事実記述限定: 項目の有用性判定・不要判定を含まない。
+#    記録するのは「文字列一致の有無」という事実のみ
+# 4. 蓄積量のFIFO上限: 項目別照合結果バッファの上限を設定し、メモリ消費を制限
+# 5. 環境変数による完全無効化: 既存のモニタリング基盤の有効/無効制御に従う
+# 6. 間接影響の非評価: 直接表出のみを計測し、間接的影響の推定を行わない
+# 7. 自動最適化の禁止: 計測結果に基づくenrichment構成の自動変更を行わない
+
+
+# 照合結果FIFOのデフォルト上限(安全弁4)
+_EVAL_MATCH_BUFFER_DEFAULT_MAX = 50
+
+# 語彙断片の最小文字数(短すぎる断片は偶然一致が多いため除外)
+_VOCAB_FRAGMENT_MIN_LENGTH = 2
+
+
+def _extract_vocab_fragments(text: str) -> list[str]:
+    """enrichment項目テキストから語彙断片を機械的に抽出する。
+
+    抽出は文字列分割による機械的操作のみであり、意味解釈は行わない。
+    段階値ラベル、断面キー名称等を特徴づける語彙断片を抽出する。
+
+    Args:
+        text: enrichment項目のテキスト
+
+    Returns:
+        語彙断片のリスト(重複なし、空文字列なし)
+    """
+    if not text or not text.strip():
+        return []
+
+    fragments: list[str] = []
+    seen: set[str] = set()
+
+    # 各種区切り文字で分割して断片を収集
+    # 日本語テキストの構造: 「ラベル: 値」「→」「/」「・」「、」「（）」等
+    separators = [":", "：", "→", "/", "・", "、", "。", "（", "）", "(", ")",
+                  "「", "」", "【", "】", " ", "　", "\n", "\t", "=", "|",
+                  "[", "]", "{", "}", "；", ";"]
+
+    # 分割処理: テキストを区切り文字で再帰的に分割
+    parts = [text.strip()]
+    for sep in separators:
+        new_parts: list[str] = []
+        for part in parts:
+            new_parts.extend(part.split(sep))
+        parts = new_parts
+
+    # 各断片をフィルタリング
+    for part in parts:
+        stripped = part.strip()
+        # 最小文字数未満は除外
+        if len(stripped) < _VOCAB_FRAGMENT_MIN_LENGTH:
+            continue
+        # 既知の空パターンは除外
+        if stripped in _KNOWN_EMPTY_PATTERNS:
+            continue
+        # 純粋な数値のみは除外(偶然一致が多いため)
+        try:
+            float(stripped)
+            continue
+        except ValueError:
+            pass
+        # 重複除去
+        if stripped not in seen:
+            seen.add(stripped)
+            fragments.append(stripped)
+
+    return fragments
+
+
+def _match_fragments_in_text(
+    fragments: list[str], target_text: str
+) -> list[str]:
+    """語彙断片のリストをターゲットテキストと照合する。
+
+    照合は完全一致部分文字列マッチのみ。
+    間接的影響の推定は行わない(安全弁6)。
+
+    Args:
+        fragments: 語彙断片のリスト
+        target_text: 照合対象のテキスト(Gemini代弁出力)
+
+    Returns:
+        ターゲットテキスト中に出現した語彙断片のリスト
+    """
+    if not fragments or not target_text:
+        return []
+    matched: list[str] = []
+    for frag in fragments:
+        if frag in target_text:
+            matched.append(frag)
+    return matched
+
+
+class EnrichmentEffectivenessEvaluator:
+    """enrichment実効性の体系的評価。
+
+    enrichment各項目のテキストから語彙断片を機械的に抽出し、
+    Gemini代弁出力テキストとの文字列部分一致照合を行い、
+    項目別の「直接表出」有無を事実として記録する。
+
+    全内部状態はインスタンス破棄時に消失する(永続化対象外)。
+
+    本クラスの全メソッドは:
+    - 内部システムの状態変数を一切変更しない
+    - 計測値に基づく条件分岐を一切持たない(蓄積と参照のみ)
+    - 出力はログストリームへのJSON書き込みとアクセサ返却のみ
+    - 項目の有用性判定・不要判定を行わない(安全弁3)
+    - enrichment構成の自動変更を行わない(安全弁7)
+    """
+
+    def __init__(
+        self,
+        match_buffer_max: int = _EVAL_MATCH_BUFFER_DEFAULT_MAX,
+    ) -> None:
+        """初期化。
+
+        Args:
+            match_buffer_max: 項目別照合結果FIFOの上限(安全弁4)
+        """
+        # 安全弁4: FIFO上限(最低1)
+        self._match_buffer_max = max(1, match_buffer_max)
+
+        # 1. 項目別照合結果バッファ: 項目識別子→deque[bool]
+        #    キーはenrichmentの項目識別子(セクション番号+項目番号の組 → "S{n}_{label}")
+        self._match_buffers: dict[str, deque] = {}
+
+        # 2. 項目別語彙断片キャッシュ: 項目識別子→語彙断片リスト
+        #    enrichmentテキストが更新されるたびに再生成される
+        self._vocab_cache: dict[str, list[str]] = {}
+
+        # 項目別の最新enrichmentテキストキャッシュ(変更検出用)
+        self._text_cache: dict[str, str] = {}
+
+        # 3. セッション累積統計
+        self._total_match_count: int = 0  # 総照合回数
+        self._total_manifest_count: int = 0  # 総表出回数
+
+        # 項目→セクション対応
+        self._item_section_map: dict[str, str] = {}
+
+        # 照合実行回数(evaluate_manifestation呼び出し回数)
+        self._evaluation_count: int = 0
+
+    @property
+    def evaluation_count(self) -> int:
+        """照合実行回数。"""
+        return self._evaluation_count
+
+    @property
+    def total_match_count(self) -> int:
+        """総照合回数(項目数×評価回数の累積)。"""
+        return self._total_match_count
+
+    @property
+    def total_manifest_count(self) -> int:
+        """総表出回数。"""
+        return self._total_manifest_count
+
+    def update_enrichment_data(
+        self,
+        sections_data: list[dict],
+    ) -> None:
+        """enrichmentデータを更新し、語彙断片キャッシュを再生成する。
+
+        enrichment生成完了後に呼び出される。各項目のテキストが変更された場合のみ
+        語彙断片キャッシュを再生成する。
+
+        Args:
+            sections_data: セクション定義のリスト。各要素は:
+                {"header": str, "items": list[tuple[str, str]]}
+        """
+        try:
+            for sec_idx, section in enumerate(sections_data):
+                header = section.get("header", "")
+                items = section.get("items", [])
+
+                for item_idx, (label, text) in enumerate(items):
+                    # 項目識別子: S{セクション番号}_{ラベル}
+                    item_id = f"S{sec_idx}_{label}"
+
+                    # 項目→セクション対応を記録
+                    self._item_section_map[item_id] = header
+
+                    # 空項目はスキップ(語彙断片なし)
+                    if _is_empty_text(text):
+                        self._vocab_cache[item_id] = []
+                        self._text_cache[item_id] = text
+                        continue
+
+                    # テキストが変更された場合のみ語彙断片キャッシュを再生成
+                    if self._text_cache.get(item_id) != text:
+                        self._text_cache[item_id] = text
+                        self._vocab_cache[item_id] = _extract_vocab_fragments(text)
+
+                    # バッファの初期化(未作成の場合)
+                    if item_id not in self._match_buffers:
+                        self._match_buffers[item_id] = deque(
+                            maxlen=self._match_buffer_max
+                        )
+
+        except Exception:
+            # 安全弁: 更新失敗時の安全な無視
+            pass
+
+    def evaluate_manifestation(
+        self,
+        utterance_text: str,
+        monitor: Optional["ExecutionMonitor"] = None,
+    ) -> dict[str, bool]:
+        """代弁テキストとenrichment項目の照合を実行し、結果を蓄積する。
+
+        代弁品質記録に新しいペアが蓄積されるたびに呼び出される。
+        各enrichment項目の語彙断片がGemini出力テキストに文字列として
+        含まれるかを照合する。照合は完全一致部分文字列マッチのみ(安全弁6)。
+
+        Args:
+            utterance_text: Gemini代弁出力テキスト
+            monitor: 親のExecutionMonitorインスタンス(ログ出力用)
+
+        Returns:
+            項目識別子→表出有無の辞書
+        """
+        results: dict[str, bool] = {}
+        try:
+            self._evaluation_count += 1
+
+            for item_id, fragments in self._vocab_cache.items():
+                # バッファの初期化(未作成の場合)
+                if item_id not in self._match_buffers:
+                    self._match_buffers[item_id] = deque(
+                        maxlen=self._match_buffer_max
+                    )
+
+                # 語彙断片が空の場合は非表出として記録
+                if not fragments:
+                    self._match_buffers[item_id].append(False)
+                    results[item_id] = False
+                    self._total_match_count += 1
+                    continue
+
+                # 照合実行
+                matched = _match_fragments_in_text(fragments, utterance_text)
+                is_manifest = len(matched) > 0
+
+                # 結果を蓄積
+                self._match_buffers[item_id].append(is_manifest)
+                results[item_id] = is_manifest
+
+                # セッション累積統計の更新
+                self._total_match_count += 1
+                if is_manifest:
+                    self._total_manifest_count += 1
+
+            # ログ出力
+            if monitor and monitor.enabled:
+                manifest_count = sum(1 for v in results.values() if v)
+                record = {
+                    "type": "enrichment_eval_manifestation",
+                    "timestamp": time.time(),
+                    "evaluation_count": self._evaluation_count,
+                    "items_evaluated": len(results),
+                    "items_manifest": manifest_count,
+                    "items_non_manifest": len(results) - manifest_count,
+                }
+                monitor._emit_json(record)
+
+        except Exception:
+            # 安全弁: 照合失敗時の安全な無視
+            pass
+
+        return results
+
+    def get_item_manifestation_rate(self, item_id: str) -> float:
+        """特定項目の表出率を返す。
+
+        直近N件中の表出回数/Nを返す。
+        項目が存在しない場合は0.0を返す。
+
+        Args:
+            item_id: 項目識別子
+
+        Returns:
+            0.0〜1.0の表出率
+        """
+        try:
+            buf = self._match_buffers.get(item_id)
+            if not buf or len(buf) == 0:
+                return 0.0
+            return sum(1 for v in buf if v) / len(buf)
+        except Exception:
+            return 0.0
+
+    def get_all_manifestation_rates(self) -> dict[str, float]:
+        """全項目の表出率を返す(読み取り専用)。
+
+        Returns:
+            項目識別子→表出率の辞書
+        """
+        rates: dict[str, float] = {}
+        try:
+            for item_id in self._match_buffers:
+                rates[item_id] = self.get_item_manifestation_rate(item_id)
+        except Exception:
+            pass
+        return rates
+
+    def get_section_manifestation_rates(self) -> dict[str, dict[str, Any]]:
+        """セクション別の表出率集計を返す(読み取り専用)。
+
+        各セクションに属する項目の表出率の等価列挙。
+        セクション全体の集約的判定は行わない(安全弁3)。
+
+        Returns:
+            セクションヘッダ→{item_rates: dict, item_count: int}の辞書
+        """
+        section_data: dict[str, dict[str, Any]] = {}
+        try:
+            # セクション別にグループ化
+            section_items: dict[str, list[str]] = {}
+            for item_id, section in self._item_section_map.items():
+                if section not in section_items:
+                    section_items[section] = []
+                section_items[section].append(item_id)
+
+            for section, items in section_items.items():
+                item_rates: dict[str, float] = {}
+                for item_id in items:
+                    item_rates[item_id] = self.get_item_manifestation_rate(item_id)
+
+                section_data[section] = {
+                    "item_rates": item_rates,
+                    "item_count": len(items),
+                }
+
+        except Exception:
+            pass
+        return section_data
+
+    def get_summary(self) -> dict[str, Any]:
+        """現在の評価サマリを読み取り専用で返す。
+
+        Returns:
+            サマリ辞書
+        """
+        try:
+            all_rates = self.get_all_manifestation_rates()
+            section_rates = self.get_section_manifestation_rates()
+
+            return {
+                "evaluation_count": self._evaluation_count,
+                "total_match_count": self._total_match_count,
+                "total_manifest_count": self._total_manifest_count,
+                "item_count": len(self._match_buffers),
+                "item_manifestation_rates": all_rates,
+                "section_manifestation_rates": {
+                    sec: {
+                        "item_count": data["item_count"],
+                        "item_rates": data["item_rates"],
+                    }
+                    for sec, data in section_rates.items()
+                },
+            }
+        except Exception:
+            return {}
+
+    def emit_session_summary(
+        self, monitor: Optional["ExecutionMonitor"] = None
+    ) -> None:
+        """セッション終了時にサマリをJSON形式でログストリームに出力する。
+
+        Args:
+            monitor: 親のExecutionMonitorインスタンス(ログ出力用)
+        """
+        try:
+            summary = self.get_summary()
+            if not summary:
+                return
+
+            record = {
+                "type": "enrichment_eval_session_summary",
+                "timestamp": time.time(),
+                **summary,
+            }
+
+            if monitor:
+                monitor._emit_json(record)
+            else:
+                text = json.dumps(record, ensure_ascii=False, default=str)
+                monitor_logger.debug(text)
+
+        except Exception:
+            # 安全弁: ログ出力失敗時の安全な無視
             pass
 
 

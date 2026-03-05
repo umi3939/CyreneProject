@@ -40,6 +40,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -186,7 +188,7 @@ class IntrospectionCrossSectionConfig:
 
     # スライディングウィンドウの上限（安全弁4: ウィンドウサイズの制限）
     # 25件: 内省の時間的奥行きを確保しつつ、上限による自然な押し出しを維持
-    max_snapshots: int = 25
+    max_snapshots: int = field(default_factory=lambda: coefficient_registry.get("description_common", "window_size_25"))
 
     # 各断面の要約テキストの長さ上限（文字数）
     max_summary_length: int = 200

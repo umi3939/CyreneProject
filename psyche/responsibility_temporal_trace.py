@@ -37,6 +37,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -198,7 +200,7 @@ class ResponsibilityTemporalTraceConfig:
     """設定。"""
 
     # スナップショットのスライディングウィンドウ上限
-    max_snapshots: int = 100
+    max_snapshots: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_100"))
 
     # 段階値記述で使用するウィンドウ内レコードの最小件数
     # この件数未満の場合はMODERATEとする

@@ -39,6 +39,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,13 +53,13 @@ class InputPathwayBalanceConfig:
     """入力経路間均衡記述モジュールの設定。"""
 
     # 使用事実リストの保持上限（安全弁5: 窓外の事実はカウント対象外）
-    max_usage_facts: int = 200
+    max_usage_facts: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_200"))
 
     # 断面履歴の最大保持件数
-    max_snapshot_history: int = 30
+    max_snapshot_history: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_30"))
 
     # スライディングウィンドウの幅（使用事実件数）
-    sliding_window_size: int = 50
+    sliding_window_size: int = field(default_factory=lambda: coefficient_registry.get("description_common", "window_size_50"))
 
     # 変動記述で比較する過去断面の件数
     variation_comparison_count: int = 5

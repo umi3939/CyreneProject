@@ -39,6 +39,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +53,7 @@ class StabilizationDescriptionConfig:
     """安定化記述モジュールの設定。"""
 
     # 蓄積リストの最大保持件数（安全弁: 有限性、最古押し出しが唯一の消失経路）
-    max_history: int = 30
+    max_history: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_30"))
 
 
 # =============================================================================
@@ -504,9 +506,11 @@ def create_stabilization_description_state() -> StabilizationDescriptionState:
 
 
 def create_stabilization_description_config(
-    max_history: int = 30,
+    max_history: int | None = None,
 ) -> StabilizationDescriptionConfig:
     """設定のファクトリ関数。"""
+    if max_history is None:
+        return StabilizationDescriptionConfig()
     return StabilizationDescriptionConfig(
         max_history=max_history,
     )

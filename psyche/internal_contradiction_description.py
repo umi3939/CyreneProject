@@ -48,6 +48,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -289,7 +291,7 @@ class ContradictionResult:
 class ContradictionConfig:
     """設定。"""
     # スライディングウィンドウの上限
-    max_window_size: int = 50
+    max_window_size: int = field(default_factory=lambda: coefficient_registry.get("description_common", "window_size_50"))
 
     # 鮮度減衰速度（ティック毎）
     freshness_decay_rate: float = 0.03

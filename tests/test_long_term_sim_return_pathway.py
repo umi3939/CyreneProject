@@ -360,9 +360,9 @@ class TestVersionAndCompatibility:
         result = run_simulation(scenario_name="smoke")
         assert result["metadata"]["version"] == 3
 
-    def test_return_pathway_ids_has_3_entries(self):
-        """RETURN_PATHWAY_IDSが3経路分ある。"""
-        assert len(RETURN_PATHWAY_IDS) == 3
+    def test_return_pathway_ids_has_5_entries(self):
+        """RETURN_PATHWAY_IDSが5経路分ある。"""
+        assert len(RETURN_PATHWAY_IDS) == 5
         assert PATHWAY_A in RETURN_PATHWAY_IDS
         assert PATHWAY_B in RETURN_PATHWAY_IDS
         assert PATHWAY_C in RETURN_PATHWAY_IDS

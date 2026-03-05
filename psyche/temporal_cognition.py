@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -154,10 +156,10 @@ class TemporalCognitionState:
 class TemporalCognitionConfig:
     """設定。"""
     # 経過記録のスライディングウィンドウ上限
-    max_elapsed_records: int = 100
+    max_elapsed_records: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_100"))
 
     # 外部入力到着記録の上限
-    max_external_input_records: int = 100
+    max_external_input_records: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_100"))
 
     # enrichment に含める断面情報のフォーマット設定（列挙順序は断面の定義順に固定）
     # これは設定可能な値ではなく、断面定義順が固定であることの表明

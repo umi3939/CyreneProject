@@ -218,14 +218,15 @@ class TestFallbackMechanism:
         result = coefficient_registry.get("other_hypothesis_emotion_return", "per_candidate_max_delta")
         assert result == 0.02
 
-    def test_all_10_categories_accessible(self):
-        """All 10 categories (8 existing + 2 new) should be accessible."""
+    def test_all_11_categories_accessible(self):
+        """All 11 categories (8 existing + 2 emotion return + 1 description_common) should be accessible."""
         coefficient_registry.load("/nonexistent.json")
         expected_categories = [
             "drive_dynamics", "mood_autonomy", "policy_selection",
             "value_orientation", "fluctuation", "experience_intensity",
             "emotion_processing", "perception",
             "memory_emotion_return", "other_hypothesis_emotion_return",
+            "description_common",
         ]
         for cat in expected_categories:
             result = coefficient_registry.get(cat)

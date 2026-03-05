@@ -40,6 +40,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -365,7 +367,7 @@ class SituationalSelfPresentationConfig:
     # 相手別の蓄積上限（上限到達時は最古から押し出す）
     max_records_per_user: int = 50
     # 全体の蓄積上限
-    max_records_total: int = 200
+    max_records_total: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_200"))
     # 出力テキストのプレビュー長
     text_preview_length: int = 80
     # 構成記述の履歴上限
@@ -373,7 +375,7 @@ class SituationalSelfPresentationConfig:
     # 収束監視記録の上限
     max_convergence_records: int = 50
     # 鮮度減衰速度
-    freshness_decay_rate: float = 0.02
+    freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
     # 相手不在時の追加減衰速度
     absent_user_decay_rate: float = 0.01
     # enrichmentに含める構成記述の件数（現在の対話相手のみ）

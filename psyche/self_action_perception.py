@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -142,7 +144,7 @@ class SelfActionPerceptionState:
 class SelfActionPerceptionConfig:
     """設定。"""
     # 自己行動記録の最大保持数（上限到達時は最古から押し出す）
-    max_records: int = 50
+    max_records: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_50"))
 
     # enrichment に含める直近記録数
     enrichment_recent_count: int = 3

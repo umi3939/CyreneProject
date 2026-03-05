@@ -49,6 +49,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -264,7 +266,7 @@ class MultiPathRecallConfig:
     per_path_limit: int = 5
 
     # ルーミネーション防止のスライディングウィンドウサイズ（サイクル数分の履歴保持）
-    rumination_window_size: int = 30
+    rumination_window_size: int = field(default_factory=lambda: coefficient_registry.get("description_common", "window_size_30"))
 
     # 顕著性バイアス抑制: 感情痕跡が弱い記憶の強制混入割合 (0.0-1.0)
     weak_trace_ratio: float = 0.2

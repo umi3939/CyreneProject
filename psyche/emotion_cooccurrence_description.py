@@ -42,6 +42,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -277,13 +279,13 @@ class CooccurrenceResult:
 class CooccurrenceConfig:
     """設定。"""
     # FIFOバッファの上限件数
-    max_records: int = 50
+    max_records: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_50"))
 
     # 共起閾値（設計書: 外部から設定可能であり、固定値ではない）
     cooccurrence_threshold: float = 0.15
 
     # 鮮度減衰速度（処理サイクル毎）
-    freshness_decay_rate: float = 0.02
+    freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
 
     # 多様性復元時の鮮度回復量
     diversity_recovery_amount: float = 0.15

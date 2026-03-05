@@ -36,6 +36,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +50,7 @@ class ForgettingRecallBalanceConfig:
     """忘却と想起の均衡記述モジュールの設定。"""
 
     # 並置記述の履歴の最大保持件数（安全弁4: FIFO自然消失）
-    max_history: int = 30
+    max_history: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_30"))
 
     # enrichment出力に含める直近件数
     enrichment_recent_count: int = 5
@@ -719,11 +721,11 @@ def create_forgetting_recall_balance_state() -> ForgettingRecallBalanceState:
 
 
 def create_forgetting_recall_balance_config(
-    max_history: int = 30,
+    max_history: int | None = None,
     enrichment_recent_count: int = 5,
 ) -> ForgettingRecallBalanceConfig:
     """設定のファクトリ関数。"""
-    return ForgettingRecallBalanceConfig(
-        max_history=max_history,
-        enrichment_recent_count=enrichment_recent_count,
-    )
+    kwargs: dict[str, Any] = {"enrichment_recent_count": enrichment_recent_count}
+    if max_history is not None:
+        kwargs["max_history"] = max_history
+    return ForgettingRecallBalanceConfig(**kwargs)

@@ -47,6 +47,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -360,14 +362,14 @@ class OtherBoundaryAccumulationConfig:
     # 相手別の蓄積上限（上限到達時は最古から押し出す: 安全弁1）
     max_records_per_user: int = 50
     # 全体の蓄積上限
-    max_records_total: int = 200
+    max_records_total: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_200"))
     # 収束監視記録の上限
     max_convergence_records: int = 50
     # 記述要約の最大長
     description_max_length: int = 80
 
     # 鮮度減衰速度（安全弁2）
-    freshness_decay_rate: float = 0.02
+    freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
     # 相手不在時の追加減衰速度
     absent_user_decay_rate: float = 0.01
 

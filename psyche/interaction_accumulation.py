@@ -36,6 +36,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -189,7 +191,7 @@ class InteractionAccumulationState:
 class InteractionAccumulationConfig:
     """設定。"""
     # 隣接対リストの上限（FIFO押し出し）
-    max_pairs: int = 100
+    max_pairs: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_100"))
 
     # 構成バッファの上限
     max_buffer: int = 20

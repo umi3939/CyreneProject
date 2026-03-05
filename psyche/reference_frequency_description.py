@@ -47,6 +47,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,7 +69,7 @@ class ReferenceFrequencyConfig:
     """参照頻度記述モジュールの設定。"""
 
     # 断面履歴の最大保持件数（安全弁4: 有限性）
-    max_snapshot_history: int = 30
+    max_snapshot_history: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_30"))
 
     # 変動記述で比較する過去断面の件数
     variation_comparison_count: int = 5
@@ -817,11 +819,11 @@ def create_reference_frequency_state() -> ReferenceFrequencyState:
 
 
 def create_reference_frequency_config(
-    max_snapshot_history: int = 30,
+    max_snapshot_history: int | None = None,
     variation_comparison_count: int = 5,
 ) -> ReferenceFrequencyConfig:
     """設定のファクトリ関数。"""
-    return ReferenceFrequencyConfig(
-        max_snapshot_history=max_snapshot_history,
-        variation_comparison_count=variation_comparison_count,
-    )
+    kwargs: dict[str, Any] = {"variation_comparison_count": variation_comparison_count}
+    if max_snapshot_history is not None:
+        kwargs["max_snapshot_history"] = max_snapshot_history
+    return ReferenceFrequencyConfig(**kwargs)

@@ -924,3 +924,330 @@ class PerceptionDiversityMeasurement:
         except Exception:
             # 安全弁2
             pass
+
+
+# ── enrichment消費量可視化 ──────────────────────────────────────────
+
+# 設計書: design_enrichment_consumption_viz.md
+#
+# enrichment部分の文字数とプロンプト全体の文字数をティックごとに記録する。
+# 本機能はパイプライン計測基盤の拡張であり、以下の構造的分離を継承する:
+# - psycheの内部状態・enrichment・判断・行動に一切参照されない
+# - orchestratorのPhase処理に組み込まれない
+# - enrichmentの項目として追加されない
+# - save/loadの対象フィールドに一切追加しない
+# - enrichment圧縮の設定（圧縮率、対象項目等）に帰還しない
+# - enrichment生成ロジックの入力に帰還しない
+# - Geminiのコンテキスト設定に帰還しない
+# - プロンプト構築処理の実行順序・内容を変更しない
+# - 計測は文字数ベースの近似であり、Geminiのトークン数とは一致しない
+
+
+_DEFAULT_CONSUMPTION_BUFFER_MAX = 200
+
+
+class EnrichmentConsumptionRecord:
+    """1ティックのenrichment消費量記録。
+
+    enrichmentテキスト・プロンプトテキストの全文は保持しない。
+    文字数と占有率のみを記録する。
+    """
+
+    __slots__ = (
+        "enrichment_chars",
+        "enrichment_chars_before_compression",
+        "prompt_total_chars",
+        "occupancy_ratio",
+        "non_empty_item_count",
+        "total_item_count",
+        "section_chars",
+        "timestamp",
+    )
+
+    def __init__(
+        self,
+        enrichment_chars: int,
+        enrichment_chars_before_compression: int,
+        prompt_total_chars: int,
+        occupancy_ratio: float,
+        non_empty_item_count: int,
+        total_item_count: int,
+        section_chars: dict[str, int],
+    ) -> None:
+        self.enrichment_chars: int = enrichment_chars
+        self.enrichment_chars_before_compression: int = enrichment_chars_before_compression
+        self.prompt_total_chars: int = prompt_total_chars
+        self.occupancy_ratio: float = occupancy_ratio
+        self.non_empty_item_count: int = non_empty_item_count
+        self.total_item_count: int = total_item_count
+        self.section_chars: dict[str, int] = dict(section_chars)
+        self.timestamp: float = time.time()
+
+    def to_dict(self) -> dict[str, Any]:
+        """ログ出力用の辞書表現を返す。"""
+        return {
+            "enrichment_chars": self.enrichment_chars,
+            "enrichment_chars_before_compression": self.enrichment_chars_before_compression,
+            "prompt_total_chars": self.prompt_total_chars,
+            "occupancy_ratio": round(self.occupancy_ratio, 4),
+            "non_empty_item_count": self.non_empty_item_count,
+            "total_item_count": self.total_item_count,
+            "section_chars": dict(self.section_chars),
+            "timestamp": self.timestamp,
+        }
+
+
+class EnrichmentConsumptionMeasurement:
+    """enrichment消費量の可視化。
+
+    代弁プロンプト構築のたびに、enrichment部分の文字数とプロンプト全体の
+    文字数をティックごとに記録する。enrichmentの5セクションそれぞれの文字数、
+    空項目スキップ後の実効項目数も記録する。
+
+    セッション開始時にインスタンスを生成し、セッション終了時に
+    emit_consumption_summary()を呼んで累積を出力する。
+    全内部状態はインスタンス破棄時に消失する(永続化対象外)。
+
+    本計測は文字数ベースの近似であり、Geminiのトークン数とは一致しない。
+    日本語テキストの場合、文字数ベースの占有率はトークンベースの
+    占有率の過小推定となる傾向がある。
+
+    本クラスの全メソッドは:
+    - psycheの内部状態を一切変更しない
+    - 計測値に基づく条件分岐を一切持たない
+    - enrichment圧縮の設定に帰還しない
+    - enrichment生成ロジックの入力に帰還しない
+    - Geminiのコンテキスト設定に帰還しない
+    - 占有率の「望ましい水準」「過大判定」を含まない
+    - 出力はログストリームへのJSON書き込みと読み取り専用サマリのみ
+    """
+
+    def __init__(
+        self,
+        buffer_max: int = _DEFAULT_CONSUMPTION_BUFFER_MAX,
+        enabled: Optional[bool] = None,
+    ) -> None:
+        """初期化。
+
+        Args:
+            buffer_max: FIFOバッファの上限サイズ(安全弁4)。
+            enabled: 明示的な有効/無効指定。Noneの場合は
+                     既存のCYRENE_MONITOR環境変数で判定(安全弁5)。
+        """
+        import os
+        self._enabled = (
+            enabled if enabled is not None
+            else os.environ.get("CYRENE_MONITOR", "0") == "1"
+        )
+
+        # (A) FIFOバッファ(テキスト全文非保持)
+        self._buffer: deque[EnrichmentConsumptionRecord] = deque(
+            maxlen=max(1, buffer_max)
+        )
+
+        # (B) セッション累積統計
+        self._total_measurement_count: int = 0
+        self._occupancy_ratio_max: Optional[float] = None
+        self._occupancy_ratio_min: Optional[float] = None
+
+    @property
+    def enabled(self) -> bool:
+        """計測が有効かどうか。"""
+        return self._enabled
+
+    @property
+    def buffer_size(self) -> int:
+        """FIFOバッファ内の記録数。"""
+        return len(self._buffer)
+
+    @property
+    def total_measurement_count(self) -> int:
+        """総計測回数。"""
+        return self._total_measurement_count
+
+    @property
+    def occupancy_ratio_max(self) -> Optional[float]:
+        """占有率の最大値。"""
+        return self._occupancy_ratio_max
+
+    @property
+    def occupancy_ratio_min(self) -> Optional[float]:
+        """占有率の最小値。"""
+        return self._occupancy_ratio_min
+
+    # ── 計測記録 ──────────────────────────────────────────────────
+
+    def record_consumption(
+        self,
+        enrichment_text: str,
+        enrichment_text_before_compression: str,
+        prompt_total_text: str,
+        non_empty_item_count: int,
+        total_item_count: int,
+        section_texts: dict[str, str],
+    ) -> None:
+        """enrichment消費量を記録する。
+
+        代弁プロンプト構築が完了するたびに呼ばれる。
+        テキスト全文は保持しない(文字数のみ記録)。
+
+        Args:
+            enrichment_text: 圧縮後のenrichmentテキスト。
+            enrichment_text_before_compression: 圧縮前のenrichmentテキスト。
+            prompt_total_text: Geminiに送信される完全なプロンプトテキスト。
+            non_empty_item_count: 49項目のうち実際に送信された項目数(非空項目数)。
+            total_item_count: enrichment項目の総数(49)。
+            section_texts: セクション名→セクションテキストの辞書。
+        """
+        if not self._enabled:
+            return
+        try:
+            enrichment_chars = len(enrichment_text)
+            enrichment_chars_before = len(enrichment_text_before_compression)
+            prompt_total_chars = len(prompt_total_text)
+
+            # 占有率の算出
+            if prompt_total_chars > 0:
+                occupancy_ratio = enrichment_chars / prompt_total_chars
+            else:
+                occupancy_ratio = 0.0
+
+            # セクション別文字数の記録
+            section_chars: dict[str, int] = {}
+            for sec_name, sec_text in section_texts.items():
+                section_chars[sec_name] = len(sec_text)
+
+            record = EnrichmentConsumptionRecord(
+                enrichment_chars=enrichment_chars,
+                enrichment_chars_before_compression=enrichment_chars_before,
+                prompt_total_chars=prompt_total_chars,
+                occupancy_ratio=occupancy_ratio,
+                non_empty_item_count=non_empty_item_count,
+                total_item_count=total_item_count,
+                section_chars=section_chars,
+            )
+
+            # FIFOバッファに追加
+            self._buffer.append(record)
+
+            # セッション累積統計の更新
+            self._total_measurement_count += 1
+            if (
+                self._occupancy_ratio_max is None
+                or occupancy_ratio > self._occupancy_ratio_max
+            ):
+                self._occupancy_ratio_max = occupancy_ratio
+            if (
+                self._occupancy_ratio_min is None
+                or occupancy_ratio < self._occupancy_ratio_min
+            ):
+                self._occupancy_ratio_min = occupancy_ratio
+
+            # ログ出力
+            log_record = {
+                "type": "enrichment_consumption",
+                "timestamp": time.time(),
+                "enrichment_chars": enrichment_chars,
+                "enrichment_chars_before_compression": enrichment_chars_before,
+                "prompt_total_chars": prompt_total_chars,
+                "occupancy_ratio": round(occupancy_ratio, 4),
+                "non_empty_item_count": non_empty_item_count,
+                "total_item_count": total_item_count,
+                "section_chars": section_chars,
+            }
+            self._emit_json(log_record)
+
+        except Exception:
+            # 安全弁1: 計測失敗時の安全な無視
+            pass
+
+    # ── セッションサマリ出力 ────────────────────────────────────────
+
+    def emit_consumption_summary(self) -> None:
+        """セッション終了時のenrichment消費量累積情報を出力する。"""
+        if not self._enabled:
+            return
+        try:
+            record = {
+                "type": "enrichment_consumption_session_summary",
+                "timestamp": time.time(),
+                "total_measurement_count": self._total_measurement_count,
+                "occupancy_ratio_max": (
+                    round(self._occupancy_ratio_max, 4)
+                    if self._occupancy_ratio_max is not None else None
+                ),
+                "occupancy_ratio_min": (
+                    round(self._occupancy_ratio_min, 4)
+                    if self._occupancy_ratio_min is not None else None
+                ),
+                "buffer_size": len(self._buffer),
+            }
+            self._emit_json(record)
+        except Exception:
+            # 安全弁1
+            pass
+
+    # ── 読み取り専用アクセサ ──────────────────────────────────────
+
+    def get_latest_occupancy_ratio(self) -> Optional[float]:
+        """直近の占有率を返す。
+
+        Returns:
+            直近のティックにおけるenrichment占有率。記録がない場合はNone。
+        """
+        if not self._buffer:
+            return None
+        return self._buffer[-1].occupancy_ratio
+
+    def get_latest_section_chars(self) -> Optional[dict[str, int]]:
+        """直近のセクション別文字数を返す。
+
+        Returns:
+            直近のティックにおけるセクション別文字数。記録がない場合はNone。
+        """
+        if not self._buffer:
+            return None
+        return dict(self._buffer[-1].section_chars)
+
+    def get_latest_non_empty_item_count(self) -> Optional[int]:
+        """直近の非空項目数を返す。
+
+        Returns:
+            直近のティックにおける非空項目数。記録がない場合はNone。
+        """
+        if not self._buffer:
+            return None
+        return self._buffer[-1].non_empty_item_count
+
+    def get_summary(self) -> dict[str, Any]:
+        """現在のenrichment消費量計測サマリを読み取り専用で返す。
+
+        Returns:
+            計測サマリの辞書。
+        """
+        return {
+            "total_measurement_count": self._total_measurement_count,
+            "occupancy_ratio_max": (
+                round(self._occupancy_ratio_max, 4)
+                if self._occupancy_ratio_max is not None else None
+            ),
+            "occupancy_ratio_min": (
+                round(self._occupancy_ratio_min, 4)
+                if self._occupancy_ratio_min is not None else None
+            ),
+            "buffer_size": len(self._buffer),
+            "latest_record": (
+                self._buffer[-1].to_dict() if self._buffer else None
+            ),
+        }
+
+    # ── 内部: JSON構造化ログ出力 ─────────────────────────────────
+
+    def _emit_json(self, record: dict[str, Any]) -> None:
+        """JSON構造化ログをログストリームに出力する。"""
+        try:
+            text = json.dumps(record, ensure_ascii=False, default=str)
+            monitor_logger.debug(text)
+        except Exception:
+            # 安全弁1
+            pass

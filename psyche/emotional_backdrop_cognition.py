@@ -49,6 +49,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -422,7 +424,7 @@ class BackdropResult:
 class BackdropConfig:
     """設定。"""
     # スライディングウィンドウの上限件数
-    max_window_size: int = 30
+    max_window_size: int = field(default_factory=lambda: coefficient_registry.get("description_common", "window_size_30"))
 
     # 蓄積記録の上限件数
     max_composition_records: int = 50
@@ -434,7 +436,7 @@ class BackdropConfig:
     max_convergence_records: int = 20
 
     # 鮮度減衰速度（処理サイクル毎）
-    freshness_decay_rate: float = 0.02
+    freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
 
     # 同種認知による鮮度回復量
     reference_recovery: float = 0.1

@@ -39,6 +39,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -158,7 +160,7 @@ class SelectionAttributionState:
 class SelectionAttributionConfig:
     """設定。"""
     # 選択記録の最大保持数（上限到達時は最古から押し出す）
-    max_records: int = 50
+    max_records: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_50"))
 
     # 候補群ラベル一覧の上限（超過時は先頭から切り詰め）
     max_candidate_labels: int = 20

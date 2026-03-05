@@ -56,6 +56,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -291,7 +293,7 @@ class SpontaneousRecallConfig:
     per_path_limit: int = 5
 
     # ルーミネーション防止のスライディングウィンドウサイズ（サイクル数分の履歴保持）
-    rumination_window_size: int = 30
+    rumination_window_size: int = field(default_factory=lambda: coefficient_registry.get("description_common", "window_size_30"))
 
     # ルーミネーション抑制閾値（この回数以上想起された記憶を抑制対象とする）
     rumination_suppression_threshold: int = 3

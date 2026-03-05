@@ -29,7 +29,9 @@ from typing import Any
 from psyche.orchestrator import PsycheOrchestrator
 from psyche.state import Percept
 from psyche.orchestrator_5tick_phases import _derive_dynamic_cooldown
-from tools.return_pathway_monitor import PATHWAY_A, PATHWAY_B, PATHWAY_C
+from tools.return_pathway_monitor import (
+    PATHWAY_A, PATHWAY_B, PATHWAY_C, PATHWAY_D, PATHWAY_E,
+)
 
 
 # ── Input Patterns ────────────────────────────────────────────
@@ -82,6 +84,19 @@ INPUT_PATTERNS: dict[str, dict[str, Any]] = {
         "emotion": "angry",
         "emotion_valence": -0.7,
         "intent": "farewell",
+    },
+    # ── 帰還経路相互作用分析用 ──
+    "high_positive": {
+        "text": "本当に最高！ありがとう、大好き！",
+        "emotion": "happy",
+        "emotion_valence": 0.9,
+        "intent": "expression",
+    },
+    "high_negative": {
+        "text": "最悪だ、もう耐えられない、許せない",
+        "emotion": "angry",
+        "emotion_valence": -0.9,
+        "intent": "expression",
     },
 }
 
@@ -139,6 +154,17 @@ SCENARIOS: dict[str, list[str]] = {
         ["positive", "loving"] * 13
         + ["negative", "angry", "rejected", "fearful"] * 6
     ),
+    # ── 帰還経路相互作用分析シナリオ ──
+    "return_interaction_simultaneous": (
+        ["high_positive", "loving", "high_negative", "angry", "fearful"] * 10
+    ),
+    "return_interaction_neutral": (
+        ["neutral"] * 50
+    ),
+    "return_interaction_residual": (
+        ["high_positive", "high_negative", "loving", "angry", "fearful"] * 5
+        + ["neutral"] * 25
+    ),
 }
 
 # 多人数切替シナリオのユーザーID切替定義
@@ -152,7 +178,7 @@ SCENARIO_USER_IDS: dict[str, list[str]] = {
 
 # ── Return Pathway Identifiers ───────────────────────────────
 
-RETURN_PATHWAY_IDS: list[str] = [PATHWAY_A, PATHWAY_B, PATHWAY_C]
+RETURN_PATHWAY_IDS: list[str] = [PATHWAY_A, PATHWAY_B, PATHWAY_C, PATHWAY_D, PATHWAY_E]
 
 
 # ── Enrichment Section Headers ───────────────────────────────
@@ -210,6 +236,16 @@ def _pattern_to_outcome(pattern_key: str) -> dict[str, Any]:
             "user_reaction": "rejected",
             "relationship_delta": -0.3,
             "expectation_gap": 0.6,
+        },
+        "high_positive": {
+            "user_reaction": "positive",
+            "relationship_delta": 0.2,
+            "expectation_gap": 0.0,
+        },
+        "high_negative": {
+            "user_reaction": "negative",
+            "relationship_delta": -0.2,
+            "expectation_gap": 0.5,
         },
     }
     return mapping.get(pattern_key, {
@@ -406,6 +442,277 @@ def _read_cycle9_dynamics(
     return result
 
 
+# ── Return Interaction Analysis ─────────────────────────────
+
+# 帰還経路相互作用分析対象のシナリオ名セット
+_RETURN_INTERACTION_SCENARIOS = frozenset({
+    "return_interaction_simultaneous",
+    "return_interaction_neutral",
+    "return_interaction_residual",
+})
+
+
+def _read_return_interaction_tick(
+    orch: PsycheOrchestrator,
+    emotions_before: dict[str, float],
+    drives_before: dict[str, float],
+    mood_before: dict[str, float],
+) -> dict[str, Any]:
+    """帰還経路相互作用分析用のティック単位記録を読み取る。
+
+    各ティックにおける帰還経路の発火状態と、感情・ドライブ・ムードの
+    変動量を対にして記録する。READ-ONLY操作のみ。
+
+    Args:
+        orch: オーケストレータ
+        emotions_before: ターン処理前の感情ベクトル
+        drives_before: ターン処理前のドライブベクトル
+        mood_before: ターン処理前のムード(valence, arousal)
+
+    Returns:
+        帰還経路相互作用記録辞書
+    """
+    result: dict[str, Any] = {}
+
+    # 帰還経路発火状態の読み取り
+    try:
+        monitor = orch._return_pathway_monitor
+        last = monitor.last_tick_record
+        if last is not None:
+            result["fired_pathways"] = last.get("fired_pathways", [])
+            result["fire_count"] = last.get("fire_count", 0)
+            # 種類別の合算変動値を記録
+            result["combined_emotion_deltas"] = {
+                k: round(v, 6)
+                for k, v in last.get("combined_emotion_deltas", {}).items()
+                if isinstance(v, (int, float))
+            }
+            result["combined_drive_deltas"] = {
+                k: round(v, 6)
+                for k, v in last.get("combined_drive_deltas", {}).items()
+                if isinstance(v, (int, float))
+            }
+            result["combined_mood_speed_deltas"] = {
+                k: round(v, 6)
+                for k, v in last.get("combined_mood_speed_deltas", {}).items()
+                if isinstance(v, (int, float))
+            }
+        else:
+            result["fired_pathways"] = []
+            result["fire_count"] = 0
+            result["combined_emotion_deltas"] = {}
+            result["combined_drive_deltas"] = {}
+            result["combined_mood_speed_deltas"] = {}
+    except Exception:
+        result["fired_pathways"] = []
+        result["fire_count"] = 0
+        result["combined_emotion_deltas"] = {}
+        result["combined_drive_deltas"] = {}
+        result["combined_mood_speed_deltas"] = {}
+
+    # 状態変動量の算出(処理前後の差分)
+    try:
+        emotions_after = orch._psyche.emotions.as_dict()
+        emotion_deltas: dict[str, float] = {}
+        for k in emotions_after:
+            before_val = emotions_before.get(k, 0.0)
+            emotion_deltas[k] = round(emotions_after[k] - before_val, 6)
+        result["emotion_variation"] = emotion_deltas
+        result["emotion_total_variation"] = round(
+            sum(abs(v) for v in emotion_deltas.values()), 6
+        )
+    except Exception:
+        result["emotion_variation"] = {}
+        result["emotion_total_variation"] = 0.0
+
+    try:
+        drives_after = orch._psyche.drives.as_dict()
+        drive_deltas: dict[str, float] = {}
+        for k in drives_after:
+            before_val = drives_before.get(k, 0.5)
+            drive_deltas[k] = round(drives_after[k] - before_val, 6)
+        result["drive_variation"] = drive_deltas
+        result["drive_total_variation"] = round(
+            sum(abs(v) for v in drive_deltas.values()), 6
+        )
+    except Exception:
+        result["drive_variation"] = {}
+        result["drive_total_variation"] = 0.0
+
+    try:
+        mood_after_valence = orch._psyche.mood.valence
+        mood_after_arousal = orch._psyche.mood.arousal
+        result["mood_variation"] = {
+            "valence": round(mood_after_valence - mood_before.get("valence", 0.0), 6),
+            "arousal": round(mood_after_arousal - mood_before.get("arousal", 0.5), 6),
+        }
+        result["mood_total_variation"] = round(
+            abs(result["mood_variation"]["valence"])
+            + abs(result["mood_variation"]["arousal"]),
+            6,
+        )
+    except Exception:
+        result["mood_variation"] = {"valence": 0.0, "arousal": 0.0}
+        result["mood_total_variation"] = 0.0
+
+    return result
+
+
+def _compute_return_interaction_analysis(
+    turns: list[dict[str, Any]],
+    scenario_label: str,
+) -> dict[str, Any]:
+    """帰還経路相互作用分析シナリオの結果から分析情報を生成する。
+
+    事実記述のみ。優劣判定・最適化提案を含まない。
+
+    Args:
+        turns: ターンレコードのリスト(return_interactionフィールド含む)
+        scenario_label: シナリオ名
+
+    Returns:
+        帰還経路相互作用分析辞書
+    """
+    analysis: dict[str, Any] = {"scenario": scenario_label}
+
+    # return_interactionフィールドがあるターンのみ
+    ri_turns = [t for t in turns if "return_interaction" in t]
+    if not ri_turns:
+        return analysis
+
+    # 同時発火ティックの特定と変動量比較
+    simultaneous_ticks: list[dict[str, Any]] = []
+    non_simultaneous_ticks: list[dict[str, Any]] = []
+
+    for t in ri_turns:
+        ri = t["return_interaction"]
+        entry = {
+            "turn": t["turn"],
+            "fire_count": ri["fire_count"],
+            "fired_pathways": ri["fired_pathways"],
+            "emotion_total_variation": ri["emotion_total_variation"],
+            "drive_total_variation": ri["drive_total_variation"],
+            "mood_total_variation": ri["mood_total_variation"],
+        }
+        if ri["fire_count"] >= 2:
+            simultaneous_ticks.append(entry)
+        else:
+            non_simultaneous_ticks.append(entry)
+
+    analysis["simultaneous_fire_count"] = len(simultaneous_ticks)
+    analysis["non_simultaneous_fire_count"] = len(non_simultaneous_ticks)
+
+    # 同時発火ティックの変動量統計
+    if simultaneous_ticks:
+        emo_vars = [e["emotion_total_variation"] for e in simultaneous_ticks]
+        drv_vars = [e["drive_total_variation"] for e in simultaneous_ticks]
+        mood_vars = [e["mood_total_variation"] for e in simultaneous_ticks]
+        analysis["simultaneous_variation"] = {
+            "emotion_total": {
+                "min": round(min(emo_vars), 6),
+                "max": round(max(emo_vars), 6),
+                "mean": round(sum(emo_vars) / len(emo_vars), 6),
+            },
+            "drive_total": {
+                "min": round(min(drv_vars), 6),
+                "max": round(max(drv_vars), 6),
+                "mean": round(sum(drv_vars) / len(drv_vars), 6),
+            },
+            "mood_total": {
+                "min": round(min(mood_vars), 6),
+                "max": round(max(mood_vars), 6),
+                "mean": round(sum(mood_vars) / len(mood_vars), 6),
+            },
+        }
+
+    # 非同時発火ティックの変動量統計
+    if non_simultaneous_ticks:
+        emo_vars = [e["emotion_total_variation"] for e in non_simultaneous_ticks]
+        drv_vars = [e["drive_total_variation"] for e in non_simultaneous_ticks]
+        mood_vars = [e["mood_total_variation"] for e in non_simultaneous_ticks]
+        analysis["non_simultaneous_variation"] = {
+            "emotion_total": {
+                "min": round(min(emo_vars), 6),
+                "max": round(max(emo_vars), 6),
+                "mean": round(sum(emo_vars) / len(emo_vars), 6),
+            },
+            "drive_total": {
+                "min": round(min(drv_vars), 6),
+                "max": round(max(drv_vars), 6),
+                "mean": round(sum(drv_vars) / len(drv_vars), 6),
+            },
+            "mood_total": {
+                "min": round(min(mood_vars), 6),
+                "max": round(max(mood_vars), 6),
+                "mean": round(sum(mood_vars) / len(mood_vars), 6),
+            },
+        }
+
+    # シナリオ3(残響分析): 入力パターンの切替点を検出し、残響期間を記録
+    if scenario_label == "return_interaction_residual":
+        # 切替点: 最後の非neutralターンの次のターン
+        neutral_start_turn: int | None = None
+        for t in ri_turns:
+            if t["input_pattern"] == "neutral" and neutral_start_turn is None:
+                # 前のターンが非neutralであれば切替点
+                idx = ri_turns.index(t)
+                if idx > 0 and ri_turns[idx - 1]["input_pattern"] != "neutral":
+                    neutral_start_turn = t["turn"]
+
+        if neutral_start_turn is not None:
+            analysis["neutral_start_turn"] = neutral_start_turn
+            # 残響期間: 中立入力開始後、変動量が一定水準以下に収束するまでのティック数
+            # 水準: emotion_total_variation + drive_total_variation + mood_total_variation < 0.01
+            threshold = 0.01
+            residual_ticks = 0
+            converged = False
+            for t in ri_turns:
+                if t["turn"] < neutral_start_turn:
+                    continue
+                ri = t["return_interaction"]
+                total_var = (
+                    ri["emotion_total_variation"]
+                    + ri["drive_total_variation"]
+                    + ri["mood_total_variation"]
+                )
+                if total_var < threshold:
+                    converged = True
+                    break
+                residual_ticks += 1
+
+            analysis["residual_ticks"] = residual_ticks
+            analysis["converged"] = converged
+
+            # 残響期間中の各ティックの変動量推移
+            residual_variations: list[dict[str, float]] = []
+            for t in ri_turns:
+                if t["turn"] < neutral_start_turn:
+                    continue
+                ri = t["return_interaction"]
+                residual_variations.append({
+                    "turn": t["turn"],
+                    "emotion_total": ri["emotion_total_variation"],
+                    "drive_total": ri["drive_total_variation"],
+                    "mood_total": ri["mood_total_variation"],
+                })
+            analysis["residual_variation_series"] = residual_variations
+
+    # 帰還経路別の発火頻度(全シナリオ共通)
+    pathway_counts: dict[str, int] = {}
+    for t in ri_turns:
+        ri = t["return_interaction"]
+        for pid in ri["fired_pathways"]:
+            pathway_counts[pid] = pathway_counts.get(pid, 0) + 1
+    total_ri_turns = len(ri_turns)
+    analysis["pathway_fire_counts"] = pathway_counts
+    analysis["pathway_fire_ratios"] = {
+        pid: round(count / total_ri_turns, 6)
+        for pid, count in pathway_counts.items()
+    }
+
+    return analysis
+
+
 # ── Intermediate Snapshot ──────────────────────────────────
 
 def _compute_snapshot_positions(total_turns: int) -> list[int]:
@@ -473,6 +780,7 @@ def _extract_turn_record(
     enrichment_chars: dict[str, int] | None = None,
     return_pathway: dict[str, Any] | None = None,
     cycle9_dynamics: dict[str, Any] | None = None,
+    return_interaction: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """1ターン分の観測レコードを生成する。"""
     p = orch.psyche
@@ -537,6 +845,10 @@ def _extract_turn_record(
     if cycle9_dynamics is not None:
         record["cycle9_dynamics"] = cycle9_dynamics
 
+    # 拡張フィールド: 帰還経路相互作用分析（処理完了後の末尾追加）
+    if return_interaction is not None:
+        record["return_interaction"] = return_interaction
+
     return record
 
 
@@ -598,6 +910,9 @@ def run_simulation(
     records: list[dict[str, Any]] = []
     sim_memory_count = 0  # シミュレーション中の記憶保存カウンタ
 
+    # 帰還経路相互作用分析の対象シナリオかどうか
+    is_interaction_scenario = scenario_label in _RETURN_INTERACTION_SCENARIOS
+
     # 中間スナップショット位置の決定（処理B: 機械的に等間隔で決定）
     total_turns = len(sequence)
     snapshot_positions = _compute_snapshot_positions(total_turns)
@@ -611,13 +926,31 @@ def run_simulation(
         if user_ids_per_turn is not None and turn_idx < len(user_ids_per_turn):
             turn_user_id = user_ids_per_turn[turn_idx]
 
-        # Step 0: ドライブ前値の記録（Cycle 9動態観測用、READ-ONLY）
+        # Step 0: 前値の記録（READ-ONLY）
         try:
             drives_before = {
                 k: v for k, v in orch._psyche.drives.as_dict().items()
             }
         except Exception:
             drives_before = {}
+
+        # 帰還経路相互作用分析用の前値記録
+        emotions_before: dict[str, float] = {}
+        mood_before: dict[str, float] = {}
+        if is_interaction_scenario:
+            try:
+                emotions_before = {
+                    k: v for k, v in orch._psyche.emotions.as_dict().items()
+                }
+            except Exception:
+                pass
+            try:
+                mood_before = {
+                    "valence": orch._psyche.mood.valence,
+                    "arousal": orch._psyche.mood.arousal,
+                }
+            except Exception:
+                pass
 
         # Step 1: Create Percept
         percept = Percept(**INPUT_PATTERNS[pattern_key])
@@ -660,6 +993,13 @@ def run_simulation(
         # Step 5b: Cycle 9動態観測項目の読み取り（ターン処理完了後の末尾追加）
         cycle9_dynamics = _read_cycle9_dynamics(orch, drives_before)
 
+        # Step 5c: 帰還経路相互作用分析の読み取り（対象シナリオのみ）
+        return_interaction: dict[str, Any] | None = None
+        if is_interaction_scenario:
+            return_interaction = _read_return_interaction_tick(
+                orch, emotions_before, drives_before, mood_before,
+            )
+
         # Step 6: extract record
         record = _extract_turn_record(
             turn=turn_num,
@@ -673,6 +1013,7 @@ def run_simulation(
             enrichment_chars=enrichment_chars,
             return_pathway=return_pathway,
             cycle9_dynamics=cycle9_dynamics,
+            return_interaction=return_interaction,
         )
         records.append(record)
 
@@ -714,6 +1055,12 @@ def run_simulation(
     # 帰還経路セッションサマリーの追加
     if return_pathway_summary:
         result["return_pathway_summary"] = return_pathway_summary
+
+    # 帰還経路相互作用分析の追加（対象シナリオのみ）
+    if is_interaction_scenario:
+        result["return_interaction_analysis"] = _compute_return_interaction_analysis(
+            records, scenario_label,
+        )
 
     return result
 

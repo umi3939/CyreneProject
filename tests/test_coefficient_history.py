@@ -381,6 +381,7 @@ class TestSnapshotCompleteness:
             "value_orientation", "fluctuation", "experience_intensity",
             "emotion_processing", "perception",
             "memory_emotion_return", "other_hypothesis_emotion_return",
+            "description_common",
         }
         assert categories == expected
 

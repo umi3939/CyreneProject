@@ -41,6 +41,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -207,10 +209,10 @@ class HypothesisObservationPairingConfig:
     max_pairs_per_user: int = 50
 
     # 全体の蓄積上限（FIFO押し出し）
-    max_total_pairs: int = 200
+    max_total_pairs: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_200"))
 
     # 鮮度減衰量（処理ごとに全記録に均一適用）
-    freshness_decay_rate: float = 0.02
+    freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
 
     # 消失水準（これ以下は不可視）
     freshness_invisible_threshold: float = 0.05

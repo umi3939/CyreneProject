@@ -41,6 +41,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +55,7 @@ class BehavioralDiversityConfig:
     """行動多様性記述モジュールの設定。"""
 
     # 蓄積リストの最大保持件数（安全弁: 有限性、最古押し出しが唯一の消失経路）
-    max_history: int = 30
+    max_history: int = field(default_factory=lambda: coefficient_registry.get("description_common", "fifo_limit_30"))
 
 
 # =============================================================================
@@ -656,9 +658,11 @@ def create_behavioral_diversity_state() -> BehavioralDiversityState:
 
 
 def create_behavioral_diversity_config(
-    max_history: int = 30,
+    max_history: int | None = None,
 ) -> BehavioralDiversityConfig:
     """設定のファクトリ関数。"""
+    if max_history is None:
+        return BehavioralDiversityConfig()
     return BehavioralDiversityConfig(
         max_history=max_history,
     )

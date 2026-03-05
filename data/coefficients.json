@@ -93,5 +93,16 @@
         "low_arousal_scale": 0.3,
         "convergence_scale": 0.5,
         "combined_max_delta": 0.15
+    },
+
+    "description_common": {
+        "fifo_limit_30": 30,
+        "fifo_limit_50": 50,
+        "fifo_limit_100": 100,
+        "fifo_limit_200": 200,
+        "window_size_25": 25,
+        "window_size_30": 30,
+        "window_size_50": 50,
+        "freshness_decay_rate_002": 0.02
     }
 }

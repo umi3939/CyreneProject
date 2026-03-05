@@ -609,17 +609,22 @@ _AGGREGATE_CAP_MOOD_SPEED = 0.05
 def apply_return_aggregate_cap(
     orch: PsycheOrchestrator,
 ) -> None:
-    """帰還経路5本の合算帯域上限を適用する。
+    """帰還経路5本の合算帯域上限を監視する。
 
     全帰還経路の変動が内部状態に適用された後、帰還経路モニターのティック終了処理
     (finalize_tick)の直前に呼び出される。
 
     帰還先種類(感情帯域・ドライブ帯域・ムード追従速度)ごとに独立して合算上限を
-    判定し、超過した種類についてのみ比例縮小を適用する。
+    判定し、超過した種類についてはreturn_pathway_monitorに記録する。
+
+    注意: 比例縮小は無効化されている（監視のみ）。
+    思想的整合性の討論(discussion_c11_safety_review_20260306.md)により、
+    「比例縮小は帰還経路が内部状態に与えようとした変動量を事後的に修正するものであり
+    矯正に近い」と判断された。実測データに基づいて再有効化する可能性があるため、
+    縮小関数自体は削除しない。
 
     安全弁:
     - 種類別独立合算（3種を横断的に合算しない）
-    - 全経路等価の比例縮小（特定経路の選択的抑制を行わない）
     - 計測失敗時の安全な無視（例外時は帰還量をそのまま保持）
     - 帰還経路モニター非接続（到達記録は読み取り専用ログのみ）
     - enrichment非露出
@@ -654,12 +659,13 @@ def apply_return_aggregate_cap(
                 if isinstance(delta, (int, float)):
                     mood_speed_aggregate += abs(delta)
 
-        # ── 段階2: 合算上限の判定と比例縮小 ──
+        # ── 段階2: 合算上限の判定と記録（監視のみ） ──
+        # 比例縮小は無効化されている。上限超過の検出と記録のみ行う。
+        # 縮小関数(_apply_emotion_proportional_reduction等)は将来の
+        # 再有効化のために保持されている。
 
         # 感情帯域の合算上限チェック
         if emotion_aggregate > _AGGREGATE_CAP_EMOTION and emotion_aggregate > 1e-9:
-            ratio = _AGGREGATE_CAP_EMOTION / emotion_aggregate
-            _apply_emotion_proportional_reduction(orch, tick_buffer, ratio)
             try:
                 monitor.record_aggregate_cap_hit("emotion")
             except Exception:
@@ -667,8 +673,6 @@ def apply_return_aggregate_cap(
 
         # ドライブ帯域の合算上限チェック
         if drive_aggregate > _AGGREGATE_CAP_DRIVE and drive_aggregate > 1e-9:
-            ratio = _AGGREGATE_CAP_DRIVE / drive_aggregate
-            _apply_drive_proportional_reduction(orch, tick_buffer, ratio)
             try:
                 monitor.record_aggregate_cap_hit("drive")
             except Exception:
@@ -676,8 +680,6 @@ def apply_return_aggregate_cap(
 
         # ムード追従速度の合算上限チェック
         if mood_speed_aggregate > _AGGREGATE_CAP_MOOD_SPEED and mood_speed_aggregate > 1e-9:
-            ratio = _AGGREGATE_CAP_MOOD_SPEED / mood_speed_aggregate
-            _apply_mood_speed_proportional_reduction(orch, tick_buffer, ratio)
             try:
                 monitor.record_aggregate_cap_hit("mood_speed")
             except Exception:

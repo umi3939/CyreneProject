@@ -2,10 +2,14 @@
 tests/test_return_aggregate_cap.py - 帰還経路合算帯域上限のテスト
 
 設計書: design_return_aggregate_cap.md
+討論結果: discussion_c11_safety_review_20260306.md
 
 テスト対象:
 - orchestrator_1tick_phases.apply_return_aggregate_cap()
 - tools/return_pathway_monitor.ReturnPathwayMonitor の合算上限到達記録
+
+注意: 比例縮小は無効化されている（監視のみ）。
+上限超過時は記録のみ行い、実際の値の変更は行わない。
 """
 
 from __future__ import annotations
@@ -191,11 +195,11 @@ class TestAggregateCaps:
         assert _AGGREGATE_CAP_MOOD_SPEED > 0.0
 
 
-# ── テストクラス: apply_return_aggregate_cap ──────────────────────
+# ── テストクラス: apply_return_aggregate_cap（監視のみ） ──────────
 
 
 class TestApplyReturnAggregateCap:
-    """合算帯域上限の適用テスト。"""
+    """合算帯域上限の監視テスト（比例縮小は無効化）。"""
 
     def test_no_firing_no_change(self) -> None:
         """発火がない場合は状態変化なし。"""
@@ -209,7 +213,7 @@ class TestApplyReturnAggregateCap:
         assert orch._psyche.emotions.joy == original_joy
 
     def test_below_cap_no_reduction(self) -> None:
-        """合算が上限以下の場合は補正なし。"""
+        """合算が上限以下の場合は記録なし・変化なし。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         # 非常に小さな変動（上限の半分以下）
         monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": 0.01})
@@ -222,8 +226,8 @@ class TestApplyReturnAggregateCap:
         assert orch._psyche.emotions.joy == original_joy
         assert monitor.aggregate_cap_hit_counts["emotion"] == 0
 
-    def test_emotion_cap_exceeded_proportional_reduction(self) -> None:
-        """感情帯域の合算上限超過時に比例縮小が適用される。"""
+    def test_emotion_cap_exceeded_record_only_no_reduction(self) -> None:
+        """感情帯域の合算上限超過時に記録はされるが値は変わらない。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         # 3経路から大きな変動を記録（合算が上限を超過するように）
         delta_per_dim = _AGGREGATE_CAP_EMOTION  # 1次元だけで上限到達
@@ -239,13 +243,13 @@ class TestApplyReturnAggregateCap:
         apply_return_aggregate_cap(orch)
         post_joy = orch._psyche.emotions.joy
 
-        # 縮小が適用されたことを確認（joy値が減少）
-        assert post_joy < pre_joy
+        # 比例縮小は無効化: 値は変わらない
+        assert post_joy == pre_joy
         # 合算上限到達が記録されたことを確認
         assert monitor.aggregate_cap_hit_counts["emotion"] == 1
 
-    def test_drive_cap_exceeded_proportional_reduction(self) -> None:
-        """ドライブ帯域の合算上限超過時に比例縮小が適用される。"""
+    def test_drive_cap_exceeded_record_only_no_reduction(self) -> None:
+        """ドライブ帯域の合算上限超過時に記録はされるが値は変わらない。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         large_delta = _AGGREGATE_CAP_DRIVE * 2  # 上限の2倍
         monitor.record_firing(PATHWAY_D, 1, drive_deltas={"social": large_delta})
@@ -258,11 +262,12 @@ class TestApplyReturnAggregateCap:
         apply_return_aggregate_cap(orch)
         post_social = orch._psyche.drives.social
 
-        assert post_social < pre_social
+        # 比例縮小は無効化: 値は変わらない
+        assert post_social == pre_social
         assert monitor.aggregate_cap_hit_counts["drive"] == 1
 
-    def test_mood_speed_cap_exceeded_proportional_reduction(self) -> None:
-        """ムード追従速度の合算上限超過時に比例縮小が適用される。"""
+    def test_mood_speed_cap_exceeded_record_only_no_reduction(self) -> None:
+        """ムード追従速度の合算上限超過時に記録はされるが値は変わらない。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         large_mod = _AGGREGATE_CAP_MOOD_SPEED * 3  # 上限の3倍
         monitor.record_firing(PATHWAY_E, 1, mood_speed_deltas={
@@ -277,7 +282,8 @@ class TestApplyReturnAggregateCap:
         apply_return_aggregate_cap(orch)
         post_valence = orch._psyche.mood.valence
 
-        assert post_valence < pre_valence
+        # 比例縮小は無効化: 値は変わらない
+        assert post_valence == pre_valence
         assert monitor.aggregate_cap_hit_counts["mood_speed"] == 1
 
     def test_independent_kind_caps(self) -> None:
@@ -299,19 +305,18 @@ class TestApplyReturnAggregateCap:
 
         apply_return_aggregate_cap(orch)
 
-        # 感情は縮小
-        assert orch._psyche.emotions.joy < pre_joy
-        # ドライブは変化なし
+        # 比例縮小は無効化: どちらも値は変わらない
+        assert orch._psyche.emotions.joy == pre_joy
         assert orch._psyche.drives.social == pre_social
-        # カウンタ
+        # 感情のみ記録
         assert monitor.aggregate_cap_hit_counts["emotion"] == 1
         assert monitor.aggregate_cap_hit_counts["drive"] == 0
 
-    def test_proportional_reduction_ratio(self) -> None:
-        """比例縮小の比率が正しく計算される。"""
+    def test_emotion_cap_exceeded_values_preserved(self) -> None:
+        """合算上限超過時に値が完全に保存される（比例縮小無効化の検証）。"""
         monitor = ReturnPathwayMonitor(enabled=True)
-        # 合算が上限のちょうど2倍になる場合、比率は0.5
-        delta = _AGGREGATE_CAP_EMOTION  # 上限と同じ値を2経路で
+        # 合算が上限のちょうど2倍になる場合
+        delta = _AGGREGATE_CAP_EMOTION
         monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": delta})
         monitor.record_firing(PATHWAY_B, 1, emotion_deltas={"joy": delta})
 
@@ -323,19 +328,15 @@ class TestApplyReturnAggregateCap:
         )
         apply_return_aggregate_cap(orch)
 
-        # 合算 = 2 * delta, 上限 = delta, ratio = 0.5
-        # 逆補正 = 2 * delta * (1 - 0.5) = delta
-        # 期待値 = applied_joy - delta = base_joy + delta
-        expected = base_joy + delta
-        assert abs(orch._psyche.emotions.joy - expected) < 1e-6
+        # 比例縮小は無効化: 値は元のまま
+        assert abs(orch._psyche.emotions.joy - applied_joy) < 1e-9
 
-    def test_multi_dimension_emotion_reduction(self) -> None:
-        """複数次元の感情変動が同一比率で縮小される。"""
+    def test_multi_dimension_emotion_values_preserved(self) -> None:
+        """複数次元の感情変動でも値が完全に保存される。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         # joy + sorrow で上限超過
         joy_delta = _AGGREGATE_CAP_EMOTION * 0.8
         sorrow_delta = _AGGREGATE_CAP_EMOTION * 0.8
-        # 合算 = 1.6 * cap > cap
         monitor.record_firing(PATHWAY_A, 1, emotion_deltas={
             "joy": joy_delta,
             "sorrow": sorrow_delta,
@@ -354,30 +355,42 @@ class TestApplyReturnAggregateCap:
         pre_sorrow = orch._psyche.emotions.sorrow
         apply_return_aggregate_cap(orch)
 
-        # 両方とも縮小されること
-        assert orch._psyche.emotions.joy < pre_joy
-        assert orch._psyche.emotions.sorrow < pre_sorrow
+        # 比例縮小は無効化: 両方とも値は変わらない
+        assert orch._psyche.emotions.joy == pre_joy
+        assert orch._psyche.emotions.sorrow == pre_sorrow
+        # 記録はされる
+        assert monitor.aggregate_cap_hit_counts["emotion"] == 1
 
-    def test_all_pathways_equal_reduction(self) -> None:
-        """全経路等価の比例縮小: 各経路の変動に同一比率が適用される。"""
+    def test_all_three_kinds_exceeded_record_all(self) -> None:
+        """3種類全てが上限超過した場合、3種類全て記録される（値は変わらない）。"""
         monitor = ReturnPathwayMonitor(enabled=True)
-        d = _AGGREGATE_CAP_EMOTION * 0.6  # 各経路0.6*cap
-        monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": d})
-        monitor.record_firing(PATHWAY_C, 1, emotion_deltas={"joy": d})
-        # 合算 = 1.2 * cap > cap
+        large_e = _AGGREGATE_CAP_EMOTION * 2
+        large_d = _AGGREGATE_CAP_DRIVE * 2
+        large_m = _AGGREGATE_CAP_MOOD_SPEED * 2
+        monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": large_e})
+        monitor.record_firing(PATHWAY_D, 1, drive_deltas={"social": large_d})
+        monitor.record_firing(PATHWAY_E, 1, mood_speed_deltas={"valence_modulation": large_m})
 
-        base = 0.3
         orch = _make_mock_orch(
-            emotions={"joy": base + 2 * d},
+            emotions={"joy": 0.3 + large_e},
+            drives={"social": 0.3 + large_d, "curiosity": 0.5, "expression": 0.5},
+            mood_valence=0.1 + large_m,
             monitor=monitor,
         )
+        pre_joy = orch._psyche.emotions.joy
+        pre_social = orch._psyche.drives.social
+        pre_valence = orch._psyche.mood.valence
+
         apply_return_aggregate_cap(orch)
 
-        # ratio = cap / (1.2 * cap) = 1/1.2
-        ratio = 1.0 / 1.2
-        correction = 2 * d * (1.0 - ratio)
-        expected = base + 2 * d - correction
-        assert abs(orch._psyche.emotions.joy - expected) < 1e-6
+        # 値は変わらない
+        assert orch._psyche.emotions.joy == pre_joy
+        assert orch._psyche.drives.social == pre_social
+        assert orch._psyche.mood.valence == pre_valence
+        # 3種類全て記録
+        assert monitor.aggregate_cap_hit_counts["emotion"] == 1
+        assert monitor.aggregate_cap_hit_counts["drive"] == 1
+        assert monitor.aggregate_cap_hit_counts["mood_speed"] == 1
 
     def test_exception_safety_monitor_failure(self) -> None:
         """モニター読み取り失敗時に例外が伝播しない。"""
@@ -388,66 +401,20 @@ class TestApplyReturnAggregateCap:
         # 例外が伝播しないことを確認
         apply_return_aggregate_cap(orch)
 
-    def test_exception_safety_state_update_failure(self) -> None:
-        """状態更新失敗時に例外が伝播しない。"""
+    def test_exact_cap_no_record(self) -> None:
+        """合算がちょうど上限と一致する場合は記録なし。"""
         monitor = ReturnPathwayMonitor(enabled=True)
-        large = _AGGREGATE_CAP_EMOTION * 3
-        monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": large})
-
-        orch = MagicMock()
-        orch._return_pathway_monitor = monitor
-        orch._psyche = MagicMock()
-        orch._psyche.emotions.as_dict.side_effect = RuntimeError("fail")
-
-        # 例外が伝播しないことを確認
-        apply_return_aggregate_cap(orch)
-
-    def test_emotion_values_clamped_0_1(self) -> None:
-        """補正後の感情値が0.0-1.0の範囲内に収まる。"""
-        monitor = ReturnPathwayMonitor(enabled=True)
-        # 負方向の大きな変動
-        monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": -0.5})
-        monitor.record_firing(PATHWAY_B, 1, emotion_deltas={"joy": -0.5})
-        # 合算絶対値 = 1.0 > cap
+        # ちょうど上限と一致
+        monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": _AGGREGATE_CAP_EMOTION})
 
         orch = _make_mock_orch(
-            emotions={"joy": 0.0},  # 帰還適用後既にクランプ
+            emotions={"joy": 0.3 + _AGGREGATE_CAP_EMOTION},
             monitor=monitor,
         )
+        original = orch._psyche.emotions.joy
         apply_return_aggregate_cap(orch)
-        # 逆補正は正方向に作用するが、1.0を超えない
-        assert 0.0 <= orch._psyche.emotions.joy <= 1.0
-
-    def test_drive_values_clamped_0_1(self) -> None:
-        """補正後のドライブ値が0.0-1.0の範囲内に収まる。"""
-        monitor = ReturnPathwayMonitor(enabled=True)
-        large = _AGGREGATE_CAP_DRIVE * 5
-        monitor.record_firing(PATHWAY_D, 1, drive_deltas={"social": large})
-
-        orch = _make_mock_orch(
-            drives={"social": 1.0, "curiosity": 0.5, "expression": 0.5},
-            monitor=monitor,
-        )
-        apply_return_aggregate_cap(orch)
-        assert 0.0 <= orch._psyche.drives.social <= 1.0
-
-    def test_mood_values_clamped(self) -> None:
-        """補正後のムード値が範囲内に収まる。"""
-        monitor = ReturnPathwayMonitor(enabled=True)
-        large = _AGGREGATE_CAP_MOOD_SPEED * 5
-        monitor.record_firing(PATHWAY_E, 1, mood_speed_deltas={
-            "valence_modulation": large,
-            "arousal_modulation": large,
-        })
-
-        orch = _make_mock_orch(
-            mood_valence=0.9,
-            mood_arousal=0.9,
-            monitor=monitor,
-        )
-        apply_return_aggregate_cap(orch)
-        assert -1.0 <= orch._psyche.mood.valence <= 1.0
-        assert 0.0 <= orch._psyche.mood.arousal <= 1.0
+        assert orch._psyche.emotions.joy == original
+        assert monitor.aggregate_cap_hit_counts["emotion"] == 0
 
     def test_tick_independence(self) -> None:
         """ティック間の独立性: 前ティックの上限到達が次ティックに影響しない。"""
@@ -495,36 +462,21 @@ class TestApplyReturnAggregateCap:
 
         apply_return_aggregate_cap(orch)
 
-        # どちらも上限以下なので変化なし
+        # どちらも上限以下なので変化なし・記録なし
         assert orch._psyche.emotions.joy == pre_joy
         assert orch._psyche.drives.social == pre_social
         assert monitor.aggregate_cap_hit_counts["emotion"] == 0
         assert monitor.aggregate_cap_hit_counts["drive"] == 0
 
-    def test_exact_cap_no_reduction(self) -> None:
-        """合算がちょうど上限と一致する場合は縮小なし。"""
-        monitor = ReturnPathwayMonitor(enabled=True)
-        # ちょうど上限と一致
-        monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": _AGGREGATE_CAP_EMOTION})
 
-        orch = _make_mock_orch(
-            emotions={"joy": 0.3 + _AGGREGATE_CAP_EMOTION},
-            monitor=monitor,
-        )
-        original = orch._psyche.emotions.joy
-        apply_return_aggregate_cap(orch)
-        assert orch._psyche.emotions.joy == original
-        assert monitor.aggregate_cap_hit_counts["emotion"] == 0
-
-
-# ── テストクラス: 個別縮小関数の直接テスト ────────────────────────
+# ── テストクラス: 個別縮小関数の直接テスト（関数自体は保持） ──────
 
 
 class TestEmotionProportionalReduction:
-    """_apply_emotion_proportional_reduction のテスト。"""
+    """_apply_emotion_proportional_reduction のテスト（関数は保持されている）。"""
 
     def test_basic_reduction(self) -> None:
-        """基本的な比例縮小。"""
+        """基本的な比例縮小（関数自体の動作確認）。"""
         tick_buffer = [
             {"emotion_deltas": {"joy": 0.1, "sorrow": 0.1}},
         ]
@@ -556,10 +508,10 @@ class TestEmotionProportionalReduction:
 
 
 class TestDriveProportionalReduction:
-    """_apply_drive_proportional_reduction のテスト。"""
+    """_apply_drive_proportional_reduction のテスト（関数は保持されている）。"""
 
     def test_basic_reduction(self) -> None:
-        """基本的な比例縮小。"""
+        """基本的な比例縮小（関数自体の動作確認）。"""
         tick_buffer = [
             {"drive_deltas": {"social": 0.1}},
         ]
@@ -577,10 +529,10 @@ class TestDriveProportionalReduction:
 
 
 class TestMoodSpeedProportionalReduction:
-    """_apply_mood_speed_proportional_reduction のテスト。"""
+    """_apply_mood_speed_proportional_reduction のテスト（関数は保持されている）。"""
 
     def test_basic_reduction(self) -> None:
-        """基本的な比例縮小。"""
+        """基本的な比例縮小（関数自体の動作確認）。"""
         tick_buffer = [
             {"mood_speed_deltas": {"valence_modulation": 0.1, "arousal_modulation": 0.05}},
         ]
@@ -604,8 +556,8 @@ class TestMoodSpeedProportionalReduction:
 class TestIntegrationScenarios:
     """統合的なシナリオテスト。"""
 
-    def test_5_pathway_simultaneous_firing(self) -> None:
-        """5経路同時発火で感情帯域が上限超過するシナリオ。"""
+    def test_5_pathway_simultaneous_firing_record_only(self) -> None:
+        """5経路同時発火で感情帯域が上限超過: 記録のみ、値は不変。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         # 3つの感情経路が同時発火
         e_delta = _AGGREGATE_CAP_EMOTION * 0.5
@@ -627,17 +579,24 @@ class TestIntegrationScenarios:
             monitor=monitor,
         )
 
+        pre_joy = orch._psyche.emotions.joy
+        pre_sorrow = orch._psyche.emotions.sorrow
+        pre_love = orch._psyche.emotions.love
+
         apply_return_aggregate_cap(orch)
 
-        # 感情帯域のみ上限超過（合算 = 1.5 * cap > cap）
+        # 感情帯域のみ上限超過の記録（合算 = 1.5 * cap > cap）
         assert monitor.aggregate_cap_hit_counts["emotion"] == 1
         assert monitor.aggregate_cap_hit_counts["drive"] == 0
         assert monitor.aggregate_cap_hit_counts["mood_speed"] == 0
+        # 値は不変
+        assert orch._psyche.emotions.joy == pre_joy
+        assert orch._psyche.emotions.sorrow == pre_sorrow
+        assert orch._psyche.emotions.love == pre_love
 
-    def test_no_direction_bias(self) -> None:
-        """正方向と負方向の変動が混在しても方向選択的制限をしない。"""
+    def test_no_direction_bias_record_only(self) -> None:
+        """正方向と負方向の変動混在: 記録のみ、値は不変。"""
         monitor = ReturnPathwayMonitor(enabled=True)
-        # 正方向と負方向の混在（合算絶対値で上限超過）
         pos_delta = _AGGREGATE_CAP_EMOTION * 0.8
         neg_delta = -_AGGREGATE_CAP_EMOTION * 0.8
         monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": pos_delta})
@@ -653,16 +612,18 @@ class TestIntegrationScenarios:
             monitor=monitor,
         )
 
+        pre_joy = orch._psyche.emotions.joy
+        pre_sorrow = orch._psyche.emotions.sorrow
         apply_return_aggregate_cap(orch)
 
-        # 合算絶対値 = 1.6 * cap > cap なので縮小発動
+        # 合算絶対値 = 1.6 * cap > cap なので記録発動
         assert monitor.aggregate_cap_hit_counts["emotion"] == 1
+        # 値は不変
+        assert orch._psyche.emotions.joy == pre_joy
+        assert orch._psyche.emotions.sorrow == pre_sorrow
 
     def test_enrichment_non_exposure(self) -> None:
-        """合算上限の到達事実がenrichmentに含まれないことの構造的確認。
-
-        apply_return_aggregate_capがenrichment関連のメソッドを呼び出さないことを確認。
-        """
+        """合算上限の到達事実がenrichmentに含まれないことの構造的確認。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         large = _AGGREGATE_CAP_EMOTION * 3
         monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": large})
@@ -672,25 +633,17 @@ class TestIntegrationScenarios:
             monitor=monitor,
         )
 
-        # enrichment関連属性へのアクセスがないことを確認
-        # （apply_return_aggregate_capがenrichment系メソッドを呼ばない）
         apply_return_aggregate_cap(orch)
 
         # monitor.record_aggregate_cap_hitのみが呼ばれる
-        # enrichment系の変更は一切行われない
         assert monitor.aggregate_cap_hit_counts["emotion"] == 1
 
     def test_no_persistence(self) -> None:
-        """永続化非対象: 合算上限状態がsave/loadに影響しない。
-
-        モニターの合算上限カウンタはセッション消失であり、
-        orchestratorのsave_state/load_stateに影響しない。
-        """
+        """永続化非対象: 合算上限状態がsave/loadに影響しない。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         monitor.record_aggregate_cap_hit("emotion")
         monitor.record_aggregate_cap_hit("drive")
 
-        # カウンタは存在する
         assert monitor.aggregate_cap_hit_counts["emotion"] == 1
         assert monitor.aggregate_cap_hit_counts["drive"] == 1
 
@@ -700,11 +653,7 @@ class TestIntegrationScenarios:
         assert new_monitor.aggregate_cap_hit_counts["drive"] == 0
 
     def test_no_feedback_to_individual_caps(self) -> None:
-        """帰還経路への逆流なし: 合算上限が個別安全弁に影響しない。
-
-        合算上限の判定結果が、次ティック以降の各帰還経路の個別安全弁の
-        閾値を変更しないことを確認（構造的にそのような経路が存在しない）。
-        """
+        """帰還経路への逆流なし: 合算上限が個別安全弁に影響しない。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         large = _AGGREGATE_CAP_EMOTION * 3
         monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": large})
@@ -715,13 +664,10 @@ class TestIntegrationScenarios:
         )
         apply_return_aggregate_cap(orch)
 
-        # 合算上限の適用はorch._psyche（感情/ドライブ/ムード）のみに影響し、
-        # モニターの設定やその他の構造体には書き込まない
-        # （record_aggregate_cap_hitは読み取り専用ログのみ）
         assert monitor.aggregate_cap_hit_counts["emotion"] == 1
 
-    def test_multiple_emotion_pathways_same_dimension(self) -> None:
-        """複数の感情経路が同一次元に変動を与える場合の比例縮小。"""
+    def test_multiple_emotion_pathways_same_dimension_record_only(self) -> None:
+        """複数の感情経路が同一次元に変動: 記録のみ、値は不変。"""
         monitor = ReturnPathwayMonitor(enabled=True)
         d = _AGGREGATE_CAP_EMOTION * 0.4
         monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": d})
@@ -730,18 +676,56 @@ class TestIntegrationScenarios:
         # 合算 = 1.2 * cap > cap
 
         base = 0.2
+        applied = base + 3 * d
         orch = _make_mock_orch(
-            emotions={"joy": base + 3 * d},
+            emotions={"joy": applied},
             monitor=monitor,
         )
 
         apply_return_aggregate_cap(orch)
 
-        # 縮小が適用される
-        assert orch._psyche.emotions.joy < base + 3 * d
-        # 比率チェック
-        total_abs = 3 * d
-        ratio = _AGGREGATE_CAP_EMOTION / total_abs
-        correction = 3 * d * (1.0 - ratio)
-        expected = base + 3 * d - correction
-        assert abs(orch._psyche.emotions.joy - expected) < 1e-6
+        # 値は不変
+        assert abs(orch._psyche.emotions.joy - applied) < 1e-9
+        # 記録はされる
+        assert monitor.aggregate_cap_hit_counts["emotion"] == 1
+
+    def test_monitor_only_no_state_mutation(self) -> None:
+        """監視モードの核心テスト: 上限超過時にPsycheStateが一切変更されない。"""
+        monitor = ReturnPathwayMonitor(enabled=True)
+        # 全種類で上限を大幅に超過
+        monitor.record_firing(PATHWAY_A, 1, emotion_deltas={"joy": 0.5, "sorrow": 0.3})
+        monitor.record_firing(PATHWAY_D, 1, drive_deltas={"social": 0.4, "curiosity": 0.3})
+        monitor.record_firing(PATHWAY_E, 1, mood_speed_deltas={
+            "valence_modulation": 0.2, "arousal_modulation": 0.1,
+        })
+
+        orch = _make_mock_orch(
+            emotions={"joy": 0.8, "sorrow": 0.6},
+            drives={"social": 0.9, "curiosity": 0.8, "expression": 0.5},
+            mood_valence=0.5,
+            mood_arousal=0.6,
+            monitor=monitor,
+        )
+
+        # 全状態のスナップショット
+        pre_emotions = orch._psyche.emotions.as_dict()
+        pre_drives = orch._psyche.drives.as_dict()
+        pre_valence = orch._psyche.mood.valence
+        pre_arousal = orch._psyche.mood.arousal
+
+        apply_return_aggregate_cap(orch)
+
+        # 全状態が完全に不変
+        post_emotions = orch._psyche.emotions.as_dict()
+        post_drives = orch._psyche.drives.as_dict()
+        for dim in pre_emotions:
+            assert pre_emotions[dim] == post_emotions[dim], f"emotion {dim} changed"
+        for dim in pre_drives:
+            assert pre_drives[dim] == post_drives[dim], f"drive {dim} changed"
+        assert orch._psyche.mood.valence == pre_valence
+        assert orch._psyche.mood.arousal == pre_arousal
+
+        # 記録は全種類でされている
+        assert monitor.aggregate_cap_hit_counts["emotion"] == 1
+        assert monitor.aggregate_cap_hit_counts["drive"] == 1
+        assert monitor.aggregate_cap_hit_counts["mood_speed"] == 1

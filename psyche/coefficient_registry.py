@@ -106,6 +106,12 @@ _DEFAULTS: dict[str, Any] = {
         "cooldown_min_ticks": 2,
         "drive_limit_multiplier_max": 1.3,
         "score_band_addition_max": 0.5,
+        # ── Cumulative safety valve constants ──
+        "cumulative_limit_ratio": 2.5,
+        "consecutive_firing_threshold": 3,
+        "consecutive_firing_decay_base": 0.85,
+        "consecutive_firing_min_factor": 0.3,
+        "firing_window_size": 10,
     },
 
     # ── Category G: Emotion processing constants ──

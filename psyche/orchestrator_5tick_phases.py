@@ -1292,6 +1292,23 @@ _EXP_DRIVE_LIMIT_MULTIPLIER_MAX: float = _exp_coeffs["drive_limit_multiplier_max
 # _SCORE_SECTION_BAND=1.5 に対して最大+0.5 (=2.0) で圧縮が引き続き有効。
 _EXP_SCORE_BAND_ADDITION_MAX: float = _exp_coeffs["score_band_addition_max"]
 
+# ── 累積安全弁の定数 ──
+# 累積上限比率: 個別安全弁の正規化比率合計がこの値を超えた場合にスケールダウン。
+# 3.0（個別上限の合算）より小さく設定し、単一効果発動では作動しない。
+_EXP_CUMULATIVE_LIMIT_RATIO: float = _exp_coeffs["cumulative_limit_ratio"]
+
+# 連続発動の閾値: ウィンドウ内でこの回数を超えた場合に追加減衰を適用
+_EXP_CONSECUTIVE_FIRING_THRESHOLD: int = _exp_coeffs["consecutive_firing_threshold"]
+
+# 連続発動の減衰ベース: 閾値超過1回あたりの減衰係数
+_EXP_CONSECUTIVE_FIRING_DECAY_BASE: float = _exp_coeffs["consecutive_firing_decay_base"]
+
+# 連続発動の最低維持係数: これ以下には減衰しない（完全無効化防止）
+_EXP_CONSECUTIVE_FIRING_MIN_FACTOR: float = _exp_coeffs["consecutive_firing_min_factor"]
+
+# 発動ティック履歴のウィンドウサイズ
+_EXP_FIRING_WINDOW_SIZE: int = _exp_coeffs["firing_window_size"]
+
 
 def _derive_dynamic_cooldown(
     arousal: float,
@@ -1594,5 +1611,171 @@ def _apply_experience_driven_value_update(orch: "PsycheOrchestrator") -> None:
 
     orch._value_orientation = new_orientation
 
+    # ── 対象Cの次元変動量を算出 ──
+    # Phase 26-EXP内の価値指向更新前後の次元値差分
+    c_dim_delta_max = 0.0
+    for dim_key in old_dims:
+        delta = abs(
+            orch._value_orientation.get_all_dimensions().get(dim_key, 0.0)
+            - old_dims.get(dim_key, 0.0)
+        )
+        c_dim_delta_max = max(c_dim_delta_max, delta)
+
+    # ── 累積安全弁の適用 ──
+    _apply_cumulative_safety_valve(
+        orch,
+        c_dim_delta_max=c_dim_delta_max,
+        old_vo_dims=old_dims,
+        decision_signal=decision_signal,
+        vo_config=vo_config,
+        expansion_coeff=expansion_coeff,
+    )
+
     # 冷却期間の記録（非永続）
     orch._exp_bandwidth_last_tick = orch._tick_count
+
+    # ── 発動ティック履歴の記録（累積安全弁用、非永続） ──
+    if not hasattr(orch, '_exp_firing_tick_history'):
+        orch._exp_firing_tick_history: list[int] = []
+    orch._exp_firing_tick_history.append(orch._tick_count)
+    # ウィンドウ外の古いエントリを消失させる
+    orch._exp_firing_tick_history = [
+        t for t in orch._exp_firing_tick_history
+        if orch._tick_count - t < _EXP_FIRING_WINDOW_SIZE
+    ]
+
+
+def _apply_cumulative_safety_valve(
+    orch: "PsycheOrchestrator",
+    c_dim_delta_max: float,
+    old_vo_dims: dict,
+    decision_signal: dict,
+    vo_config: "ValueOrientationConfig",
+    expansion_coeff: float,
+) -> None:
+    """
+    Phase 26-EXP 累積安全弁。
+
+    設計書: design_exp_cumulative_safety.md
+
+    3つの効果（対象A/B/C）が同時発動した場合の累積的影響量を制約する。
+    個別安全弁の閾値は変更しない。帯域拡大の発動条件は変更しない。
+    特定の効果を選択的に抑制しない（全効果に均等なスケールダウン）。
+
+    また、ウィンドウ期間内の連続発動回数に基づく追加減衰を適用する。
+    減衰は帯域拡大を完全に無効化しない（最低限の拡大効果を維持）。
+
+    非永続: 累積安全弁の内部状態はセッション間で引き継がない。
+    enrichment非露出: 累積安全弁の発動事実はenrichmentに露出しない。
+    """
+    # ── 手順1: 同時発動の検出 ──
+    # 対象Aの乗数が基準値(1.0)を超えているか
+    a_multiplier = getattr(orch, '_exp_drive_total_limit_multiplier', None)
+    a_active = a_multiplier is not None and a_multiplier > 1.0
+
+    # 対象Bの加算量がゼロより大きいか
+    b_addition = getattr(orch, '_exp_score_band_addition', None)
+    b_active = b_addition is not None and b_addition > 0.0
+
+    # 対象Cの次元変動量がゼロより大きいか
+    c_active = c_dim_delta_max > 0.0
+
+    # 3つのうち2つ以上が有効な場合を「同時発動」と見なす
+    active_count = sum([a_active, b_active, c_active])
+    if active_count < 2:
+        # 同時発動でない場合、連続発動減衰のみ適用可能性を確認
+        _apply_consecutive_firing_decay(orch)
+        return
+
+    # ── 手順2: 累積影響量の算出 ──
+    # 対象Aの正規化: 乗数が個別上限の何割に達しているかの比率
+    a_ratio = 0.0
+    if a_active and _EXP_DRIVE_LIMIT_MULTIPLIER_MAX > 1.0:
+        a_ratio = (a_multiplier - 1.0) / (_EXP_DRIVE_LIMIT_MULTIPLIER_MAX - 1.0)
+
+    # 対象Bの正規化: 加算量が個別上限の何割に達しているかの比率
+    b_ratio = 0.0
+    if b_active and _EXP_SCORE_BAND_ADDITION_MAX > 0.0:
+        b_ratio = b_addition / _EXP_SCORE_BAND_ADDITION_MAX
+
+    # 対象Cの正規化: 次元変動量が個別上限の何割に達しているかの比率
+    c_ratio = 0.0
+    if c_active and _EXP_BANDWIDTH_MAX_DELTA_PER_DIM > 0.0:
+        c_ratio = c_dim_delta_max / _EXP_BANDWIDTH_MAX_DELTA_PER_DIM
+
+    cumulative_impact = a_ratio + b_ratio + c_ratio
+
+    # ── 手順3: 累積上限との比較 ──
+    if cumulative_impact <= _EXP_CUMULATIVE_LIMIT_RATIO:
+        # 累積上限以内、スケールダウン不要
+        _apply_consecutive_firing_decay(orch)
+        return
+
+    # 全効果に同一の係数でスケールダウン
+    scale = _EXP_CUMULATIVE_LIMIT_RATIO / cumulative_impact
+
+    # 対象Aのスケールダウン
+    if a_active:
+        scaled_a = 1.0 + (a_multiplier - 1.0) * scale
+        orch._exp_drive_total_limit_multiplier = scaled_a
+
+    # 対象Bのスケールダウン
+    if b_active:
+        scaled_b = b_addition * scale
+        orch._exp_score_band_addition = scaled_b
+
+    # 対象Cのスケールダウン: 価値指向の次元変動量をold_vo_dimsからのdeltaをscale倍にする
+    if c_active and scale < 1.0:
+        current_dims = orch._value_orientation.get_all_dimensions()
+        # old_vo_dimsからの差分をscale倍に縮小
+        _dim_attr_map = {"a": "dim_a", "b": "dim_b", "c": "dim_c", "d": "dim_d", "e": "dim_e"}
+        for dim_key in old_vo_dims:
+            old_val = old_vo_dims.get(dim_key, 0.0)
+            cur_val = current_dims.get(dim_key, 0.0)
+            delta = cur_val - old_val
+            if abs(delta) > 1e-12:
+                target_val = old_val + delta * scale
+                attr_name = _dim_attr_map.get(dim_key)
+                if attr_name is not None:
+                    setattr(orch._value_orientation, attr_name, target_val)
+
+    # 連続発動減衰の適用
+    _apply_consecutive_firing_decay(orch)
+
+
+def _apply_consecutive_firing_decay(
+    orch: "PsycheOrchestrator",
+) -> None:
+    """
+    連続発動時の追加減衰を適用する。
+
+    設計書 手順5: ウィンドウ期間内の発動回数が閾値を超えた場合、
+    帯域拡大係数自体に追加の減衰を適用する。
+    減衰は発動回数に応じて段階的に増加するが、
+    帯域拡大を完全に無効化はしない（最低限の拡大効果は維持される）。
+    """
+    if not hasattr(orch, '_exp_firing_tick_history'):
+        return
+
+    firing_count = len(orch._exp_firing_tick_history)
+
+    if firing_count <= _EXP_CONSECUTIVE_FIRING_THRESHOLD:
+        return  # 閾値以下、減衰不要
+
+    # 超過回数に応じた段階的減衰
+    excess = firing_count - _EXP_CONSECUTIVE_FIRING_THRESHOLD
+    decay_factor = _EXP_CONSECUTIVE_FIRING_DECAY_BASE ** excess
+
+    # 最低限の拡大効果を維持（完全無効化防止）
+    decay_factor = max(decay_factor, _EXP_CONSECUTIVE_FIRING_MIN_FACTOR)
+
+    # 対象Aに減衰適用
+    a_multiplier = getattr(orch, '_exp_drive_total_limit_multiplier', None)
+    if a_multiplier is not None and a_multiplier > 1.0:
+        decayed_a = 1.0 + (a_multiplier - 1.0) * decay_factor
+        orch._exp_drive_total_limit_multiplier = decayed_a
+
+    # 対象Bに減衰適用
+    b_addition = getattr(orch, '_exp_score_band_addition', None)
+    if b_addition is not None and b_addition > 0.0:
+        orch._exp_score_band_addition = b_addition * decay_factor

@@ -451,11 +451,10 @@ class TestSafetyValves:
 
     def test_no_persistent_state(self):
         """安全弁7: 帯域拡大係数・適用履歴は永続化されない。"""
-        # 実装コード内で履歴蓄積やログ記録が行われていないことをソースコード検査で確認
+        # 実装コード内でログ記録や永続化が行われていないことをソースコード検査で確認
         import inspect
         source = inspect.getsource(_apply_experience_driven_value_update)
-        # 履歴・ログ・永続化の蓄積パターンが存在しない
-        assert "_history" not in source
+        # 永続化用のログ蓄積パターンが存在しない
         assert "_coefficient_log" not in source
         # コメント行を除外してから検索（コメント中の "save" 誤検出を防止）
         source_no_comments = "\n".join(
@@ -464,8 +463,10 @@ class TestSafetyValves:
         )
         assert "save" not in source_no_comments.lower()
         assert "persist" not in source_no_comments.lower()
-        # _exp_bandwidth_last_tick のみが設定される（冷却管理用、非永続）
+        # _exp_bandwidth_last_tick が設定される（冷却管理用、非永続）
         assert "_exp_bandwidth_last_tick" in source
+        # _exp_firing_tick_history は非永続の発動ティック履歴（累積安全弁用）
+        # save/load対象外であることが設計上保証されている
 
 
 # =============================================================================

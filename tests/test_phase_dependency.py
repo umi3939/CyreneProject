@@ -615,8 +615,8 @@ class TestPhaseDeclarationConsistency:
             )
 
     def test_all_phases_total_count(self):
-        """ALL_PHASESの要素数が80。"""
-        assert len(ALL_PHASES) == 80
+        """ALL_PHASESの要素数が83。"""
+        assert len(ALL_PHASES) == 83
 
     def test_phase_by_id_consistent(self):
         """PHASE_BY_IDがALL_PHASESと整合する。"""

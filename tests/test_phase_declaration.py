@@ -33,9 +33,9 @@ class TestPhaseDefinitionBasics:
 
     def test_all_phases_count(self):
         """設計書§3.3に記載された全Phaseが定義されていること。"""
-        # EVERY_TICK: 16, EVERY_3_TICKS: 17, EVERY_5_TICKS: 32,
+        # EVERY_TICK: 16, EVERY_3_TICKS: 17, EVERY_5_TICKS: 35,
         # EVERY_10_TICKS: 3, CANDIDATE_GENERATION: 10, POST_SELECTION: 2
-        assert len(ALL_PHASES) == 80
+        assert len(ALL_PHASES) == 83
 
     def test_phase_ids_unique(self):
         """全Phase IDが一意であること。"""
@@ -117,7 +117,7 @@ class TestBandOrderConsistency:
 
     def test_every_5_ticks_phase_count(self, phases_by_band):
         """EVERY_5_TICKS帯域のPhase数が設計書と一致すること。"""
-        assert len(phases_by_band[Band.EVERY_5_TICKS]) == 32
+        assert len(phases_by_band[Band.EVERY_5_TICKS]) == 35
 
     def test_every_10_ticks_phase_count(self, phases_by_band):
         """EVERY_10_TICKS帯域のPhase数が設計書と一致すること。"""

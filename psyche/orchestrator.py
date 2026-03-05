@@ -678,6 +678,7 @@ from .phase_execution_engine import PhaseExecutionEngine, Band
 
 # 1-tick band phases (物理的分離: Phase 1-7)
 from .orchestrator_1tick_phases import run_every_tick as _run_1tick_phases
+from .orchestrator_1tick_phases import apply_return_aggregate_cap as _apply_return_aggregate_cap
 
 # 5-tick band phases (物理的分離: Phase 15-26)
 from .orchestrator_5tick_phases import run_every_5_ticks as _run_5tick_phases
@@ -2644,6 +2645,16 @@ class PsycheOrchestrator:
                 self._tick_count,
                 lambda: read_orchestrator_fields(self),
             )
+        except Exception:
+            pass
+
+        # ── Return pathway: 合算帯域上限 ──
+        # 全帰還経路の変動が内部状態に適用された後、finalize_tickの直前に配置。
+        # 種類別(感情/ドライブ/ムード追従速度)に独立した合算上限を判定し、
+        # 超過時は全経路に等比率の比例縮小を適用する。
+        # 計測失敗時は帰還量をそのまま保持する(安全弁パターン踏襲)。
+        try:
+            _apply_return_aggregate_cap(self)
         except Exception:
             pass
 

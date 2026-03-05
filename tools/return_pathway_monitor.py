@@ -125,6 +125,14 @@ class ReturnPathwayMonitor:
         self._concurrent_4plus_count: int = 0
         self._concurrent_5_count: int = 0
 
+        # ── 合算帯域上限到達カウンタ(セッション消失) ──
+        # 種類ごとの合算上限到達回数(事後分析用。永続化対象外)
+        self._aggregate_cap_hit_counts: dict[str, int] = {
+            "emotion": 0,
+            "drive": 0,
+            "mood_speed": 0,
+        }
+
         # ── 直近の発火情報(1ティック分のみ保持) ──
         self._last_tick_record: Optional[dict[str, Any]] = None
 
@@ -246,6 +254,58 @@ class ReturnPathwayMonitor:
         except Exception:
             # 安全弁1: 計測失敗時の安全な無視
             pass
+
+    # ── 合算帯域上限の記録 ─────────────────────────────────────────
+
+    @property
+    def aggregate_cap_hit_counts(self) -> dict[str, int]:
+        """種類ごとの合算上限到達回数(読み取り専用コピー)。
+
+        キー: "emotion", "drive", "mood_speed"
+        値: セッション内の到達回数
+        永続化対象外(セッション境界で消失)。
+        """
+        return dict(self._aggregate_cap_hit_counts)
+
+    def record_aggregate_cap_hit(self, kind: str) -> None:
+        """合算帯域上限に到達した事実を記録する。
+
+        帰還先種類(emotion/drive/mood_speed)ごとに独立してカウントする。
+        通知失敗時は例外を捕捉してスキップする(安全弁パターン踏襲)。
+
+        Args:
+            kind: 帰還先種類("emotion", "drive", "mood_speed"のいずれか)
+        """
+        try:
+            if kind in self._aggregate_cap_hit_counts:
+                self._aggregate_cap_hit_counts[kind] += 1
+
+                # ログ出力
+                record: dict[str, Any] = {
+                    "type": "return_pathway_aggregate_cap_hit",
+                    "timestamp": time.time(),
+                    "kind": kind,
+                    "cumulative_count": self._aggregate_cap_hit_counts[kind],
+                }
+                self._emit_json(record)
+        except Exception:
+            # 安全弁1: 計測失敗時の安全な無視
+            pass
+
+    def get_tick_buffer(self) -> list[dict[str, Any]]:
+        """現在のティック内バッファを読み取り専用で返す。
+
+        合算帯域上限の算出に使用する。
+        バッファの内容を変更しない。
+
+        Returns:
+            ティック内発火記録のリスト(コピー)。
+        """
+        return [dict(r) for r in self._tick_buffer]
+
+    def get_current_tick(self) -> int:
+        """現在処理中のティック番号を返す。"""
+        return self._current_tick
 
     # ── 段階2: 同一ティック内の合算記述 ──────────────────────────────
 
@@ -378,6 +438,7 @@ class ReturnPathwayMonitor:
                 "concurrent_3plus_count": self._concurrent_3plus_count,
                 "concurrent_4plus_count": self._concurrent_4plus_count,
                 "concurrent_5_count": self._concurrent_5_count,
+                "aggregate_cap_hit_counts": dict(self._aggregate_cap_hit_counts),
             }
 
             # ログ出力
@@ -407,6 +468,7 @@ class ReturnPathwayMonitor:
             "concurrent_4plus_count": self._concurrent_4plus_count,
             "concurrent_5_count": self._concurrent_5_count,
             "last_tick_record": dict(self._last_tick_record) if self._last_tick_record else None,
+            "aggregate_cap_hit_counts": dict(self._aggregate_cap_hit_counts),
         }
 
     # ── 内部: JSON構造化ログ出力 ─────────────────────────────────────

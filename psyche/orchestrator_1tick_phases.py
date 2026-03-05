@@ -593,3 +593,232 @@ def _run_1t_fear_observation_description(
         )
     except Exception as e:
         logger.debug("Attention distribution description skipped: %s", e)
+
+
+# ── 合算帯域上限 ─────────────────────────────────────────────────
+
+# 帰還先種類ごとの合算上限（1ティックあたりの絶対値合算の上限）
+# 感情帯域: 7次元の各次元変動量の絶対値合算
+_AGGREGATE_CAP_EMOTION = 0.15
+# ドライブ帯域: 3軸の各軸変動量の絶対値合算
+_AGGREGATE_CAP_DRIVE = 0.10
+# ムード追従速度: valence/arousal変調量の絶対値合算
+_AGGREGATE_CAP_MOOD_SPEED = 0.05
+
+
+def apply_return_aggregate_cap(
+    orch: PsycheOrchestrator,
+) -> None:
+    """帰還経路5本の合算帯域上限を適用する。
+
+    全帰還経路の変動が内部状態に適用された後、帰還経路モニターのティック終了処理
+    (finalize_tick)の直前に呼び出される。
+
+    帰還先種類(感情帯域・ドライブ帯域・ムード追従速度)ごとに独立して合算上限を
+    判定し、超過した種類についてのみ比例縮小を適用する。
+
+    安全弁:
+    - 種類別独立合算（3種を横断的に合算しない）
+    - 全経路等価の比例縮小（特定経路の選択的抑制を行わない）
+    - 計測失敗時の安全な無視（例外時は帰還量をそのまま保持）
+    - 帰還経路モニター非接続（到達記録は読み取り専用ログのみ）
+    - enrichment非露出
+    - 永続化非対象
+    """
+    try:
+        monitor = orch._return_pathway_monitor
+        tick_buffer = monitor.get_tick_buffer()
+
+        if not tick_buffer:
+            return
+
+        # ── 段階1: 種類別合算の算出 ──
+        # 感情帯域の合算（経路A/B/C）
+        emotion_aggregate = 0.0
+        for record in tick_buffer:
+            for delta in record.get("emotion_deltas", {}).values():
+                if isinstance(delta, (int, float)):
+                    emotion_aggregate += abs(delta)
+
+        # ドライブ帯域の合算（経路D）
+        drive_aggregate = 0.0
+        for record in tick_buffer:
+            for delta in record.get("drive_deltas", {}).values():
+                if isinstance(delta, (int, float)):
+                    drive_aggregate += abs(delta)
+
+        # ムード追従速度の合算（経路E）
+        mood_speed_aggregate = 0.0
+        for record in tick_buffer:
+            for delta in record.get("mood_speed_deltas", {}).values():
+                if isinstance(delta, (int, float)):
+                    mood_speed_aggregate += abs(delta)
+
+        # ── 段階2: 合算上限の判定と比例縮小 ──
+
+        # 感情帯域の合算上限チェック
+        if emotion_aggregate > _AGGREGATE_CAP_EMOTION and emotion_aggregate > 1e-9:
+            ratio = _AGGREGATE_CAP_EMOTION / emotion_aggregate
+            _apply_emotion_proportional_reduction(orch, tick_buffer, ratio)
+            try:
+                monitor.record_aggregate_cap_hit("emotion")
+            except Exception:
+                pass
+
+        # ドライブ帯域の合算上限チェック
+        if drive_aggregate > _AGGREGATE_CAP_DRIVE and drive_aggregate > 1e-9:
+            ratio = _AGGREGATE_CAP_DRIVE / drive_aggregate
+            _apply_drive_proportional_reduction(orch, tick_buffer, ratio)
+            try:
+                monitor.record_aggregate_cap_hit("drive")
+            except Exception:
+                pass
+
+        # ムード追従速度の合算上限チェック
+        if mood_speed_aggregate > _AGGREGATE_CAP_MOOD_SPEED and mood_speed_aggregate > 1e-9:
+            ratio = _AGGREGATE_CAP_MOOD_SPEED / mood_speed_aggregate
+            _apply_mood_speed_proportional_reduction(orch, tick_buffer, ratio)
+            try:
+                monitor.record_aggregate_cap_hit("mood_speed")
+            except Exception:
+                pass
+
+    except Exception:
+        # 安全弁3: 計測失敗時の安全な無視
+        # 合算上限の判定・適用で例外が発生した場合、帰還量はそのまま保持される
+        pass
+
+
+def _apply_emotion_proportional_reduction(
+    orch: PsycheOrchestrator,
+    tick_buffer: list[dict[str, Any]],
+    ratio: float,
+) -> None:
+    """感情帯域の帰還量を比例縮小する。
+
+    全経路に対して同一のratio(0.0〜1.0)を適用し、特定経路の選択的抑制を行わない。
+    比例縮小は、各経路が適用した変動量の(1-ratio)分を逆方向に補正する形で実現する。
+
+    Args:
+        orch: 統合管理構造インスタンス
+        tick_buffer: ティック内発火記録のリスト
+        ratio: 縮小比率（合算上限 / 合算変動量）
+    """
+    # 全経路の感情変動量を集計し、(1 - ratio)分を逆補正する
+    total_deltas: dict[str, float] = {}
+    for record in tick_buffer:
+        for dim, delta in record.get("emotion_deltas", {}).items():
+            if isinstance(delta, (int, float)):
+                total_deltas[dim] = total_deltas.get(dim, 0.0) + delta
+
+    # 逆補正量の算出（変動量の超過分を削る）
+    correction: dict[str, float] = {}
+    for dim, total in total_deltas.items():
+        correction[dim] = total * (1.0 - ratio)
+
+    if not correction:
+        return
+
+    # 感情ベクトルへの補正適用
+    emo_dict = orch._psyche.emotions.as_dict()
+    for dim, corr in correction.items():
+        if dim in emo_dict:
+            emo_dict[dim] = max(0.0, min(1.0, emo_dict[dim] - corr))
+    from .state import EmotionVector
+    orch._psyche = orch._psyche.model_copy(
+        update={"emotions": EmotionVector(**emo_dict)}
+    )
+
+
+def _apply_drive_proportional_reduction(
+    orch: PsycheOrchestrator,
+    tick_buffer: list[dict[str, Any]],
+    ratio: float,
+) -> None:
+    """ドライブ帯域の帰還量を比例縮小する。
+
+    全経路に対して同一のratio(0.0〜1.0)を適用する。
+
+    Args:
+        orch: 統合管理構造インスタンス
+        tick_buffer: ティック内発火記録のリスト
+        ratio: 縮小比率（合算上限 / 合算変動量）
+    """
+    total_deltas: dict[str, float] = {}
+    for record in tick_buffer:
+        for dim, delta in record.get("drive_deltas", {}).items():
+            if isinstance(delta, (int, float)):
+                total_deltas[dim] = total_deltas.get(dim, 0.0) + delta
+
+    correction: dict[str, float] = {}
+    for dim, total in total_deltas.items():
+        correction[dim] = total * (1.0 - ratio)
+
+    if not correction:
+        return
+
+    # ドライブベクトルへの補正適用
+    drive_dict = orch._psyche.drives.as_dict()
+    for dim, corr in correction.items():
+        if dim in drive_dict:
+            drive_dict[dim] = max(0.0, min(1.0, drive_dict[dim] - corr))
+    from .state import DriveVector
+    orch._psyche = orch._psyche.model_copy(
+        update={"drives": DriveVector(**drive_dict)}
+    )
+
+
+def _apply_mood_speed_proportional_reduction(
+    orch: PsycheOrchestrator,
+    tick_buffer: list[dict[str, Any]],
+    ratio: float,
+) -> None:
+    """ムード追従速度の帰還量を比例縮小する。
+
+    ムード追従速度は直接状態ベクトルに反映されるのではなく、
+    追従速度の変調量として間接的に適用されている。
+    追従速度変調は既にムード更新で消費されているため、
+    ムードのvalence/arousalに対する間接的な補正を行う。
+
+    全経路に対して同一のratio(0.0〜1.0)を適用する。
+
+    Args:
+        orch: 統合管理構造インスタンス
+        tick_buffer: ティック内発火記録のリスト
+        ratio: 縮小比率（合算上限 / 合算変動量）
+    """
+    total_deltas: dict[str, float] = {}
+    for record in tick_buffer:
+        for dim, delta in record.get("mood_speed_deltas", {}).items():
+            if isinstance(delta, (int, float)):
+                total_deltas[dim] = total_deltas.get(dim, 0.0) + delta
+
+    # ムード追従速度の変調量は既にムード更新で適用済みのため、
+    # 超過分に対応するムード変化量を逆補正する。
+    # 変調量はvalence_modulation/arousal_modulation形式。
+    # 追従速度変調がムードに与える影響は小さいため、
+    # 変調量自体の超過分を次ティックの変調量に持ち越さない。
+    # ここではセッション内カウンタの記録のみを主目的とする。
+    # ムード値自体への逆補正は、追従速度変調の間接性を考慮し、
+    # 変調量の超過比率分をムード変化として近似的に逆補正する。
+    if not total_deltas:
+        return
+
+    # 近似逆補正: 変調量の超過分をムード値から差し引く
+    valence_mod = total_deltas.get("valence_modulation", 0.0)
+    arousal_mod = total_deltas.get("arousal_modulation", 0.0)
+
+    valence_correction = valence_mod * (1.0 - ratio)
+    arousal_correction = arousal_mod * (1.0 - ratio)
+
+    if abs(valence_correction) < 1e-9 and abs(arousal_correction) < 1e-9:
+        return
+
+    current_valence = orch._psyche.mood.valence
+    current_arousal = orch._psyche.mood.arousal
+    from .state import Mood
+    new_mood = Mood(
+        valence=max(-1.0, min(1.0, current_valence - valence_correction)),
+        arousal=max(0.0, min(1.0, current_arousal - arousal_correction)),
+    )
+    orch._psyche = orch._psyche.model_copy(update={"mood": new_mood})

@@ -70,6 +70,14 @@ EXTERNAL_INPUT_VARIABLES: frozenset[str] = frozenset({
     "_meta_emotion_processor",
     "_introspection_cross_section",
     "_temporal_cognition",
+    # Cycle 9-10: 新規追加モジュールインスタンス参照
+    "_memory_emotion_return",
+    "_other_hypothesis_emotion_return",
+    "_other_model_sys",
+    "_behavioral_diversity_state",
+    "_contradiction_processor",
+    "_return_pathway_monitor",
+    "_selection_attribution_recorder",
     # 選択結果として設定される変数
     "_last_selected_policy_label",
     "_last_selected_policy_axis",

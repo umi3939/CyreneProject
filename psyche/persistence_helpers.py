@@ -409,7 +409,17 @@ def load_field(orchestrator: Any, fdef: FieldDef, data: dict) -> bool:
     Returns:
         True if the field was found and loaded, False otherwise.
     """
-    if not data.get(fdef.key):
+    if fdef.key not in data:
+        return False
+
+    raw_value = data[fdef.key]
+    # Noneは「データなし」として扱う
+    if raw_value is None:
+        return False
+    # dict系ロードインターフェースでは空dictは「未初期化状態」を意味するためスキップ
+    # (RAWインターフェースでは空dictも有効なデータとして復元)
+    if (isinstance(raw_value, dict) and not raw_value
+            and fdef.load_interface != LoadInterface.RAW):
         return False
 
     try:

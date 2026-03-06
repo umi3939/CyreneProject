@@ -224,6 +224,7 @@ async def llm_call_streaming(
 
     last_error = None
     total_wait = 0.0
+    attempt = 0
 
     for attempt in range(cfg.max_retries + 1):
         received_any = False
@@ -296,7 +297,7 @@ async def llm_call_streaming(
     _error_stats.record_error(
         category=classify_error(last_error) if last_error else ErrorCategory.UNKNOWN,
         error_message=str(last_error) if last_error else "",
-        retry_count=min(attempt, cfg.max_retries) if 'attempt' in dir() else 0,
+        retry_count=min(attempt, cfg.max_retries),
         total_wait_time=total_wait,
         final_result="fallback",
         call_type="streaming",

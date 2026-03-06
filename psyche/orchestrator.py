@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -4385,10 +4386,13 @@ class PsycheOrchestrator:
                 logger.debug("Session diff computation failed: %s", e)
         # 差分フィールドが不明の場合は含めない（設計書の仕様）
 
-        save_path.write_text(
+        # Atomic write: tmp file + os.replace() to prevent corruption on crash
+        tmp_path = save_path.with_suffix(".json.tmp")
+        tmp_path.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        os.replace(str(tmp_path), str(save_path))
         logger.info("Psyche state saved to %s", save_path)
 
     def load(self, path: Optional[Path] = None) -> bool:

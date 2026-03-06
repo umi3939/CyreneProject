@@ -39,6 +39,7 @@ Usage::
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Optional
 from enum import Enum
@@ -444,10 +445,12 @@ class IntrospectionSystem:
     It does NOT modify emotions, decisions, or any other state.
     """
 
+    _TRACE_HISTORY_LIMIT: int = 200
+
     def __init__(self, config: Optional[IntrospectionConfig] = None):
         self.config = config or IntrospectionConfig()
         self._generation_counter = 0
-        self._trace_history: list[TraceLog] = []
+        self._trace_history: deque[TraceLog] = deque(maxlen=self._TRACE_HISTORY_LIMIT)
 
     def generate_trace(
         self,
@@ -782,7 +785,8 @@ class IntrospectionSystem:
 
     def get_recent_traces(self, n: int = 5) -> list[TraceLog]:
         """Get N most recent traces."""
-        return self._trace_history[-n:]
+        history = list(self._trace_history)
+        return history[-n:]
 
     def clear_history(self) -> None:
         """Clear trace history."""

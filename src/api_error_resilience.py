@@ -401,6 +401,7 @@ async def resilient_call(
     cfg = config or RetryConfig()
     last_error: Optional[Exception] = None
     total_wait = 0.0
+    attempt = 0
 
     for attempt in range(cfg.max_retries + 1):  # initial + retries
         try:
@@ -470,7 +471,7 @@ async def resilient_call(
         stats.record_error(
             category=classify_error(last_error),
             error_message=str(last_error),
-            retry_count=min(attempt, cfg.max_retries) if 'attempt' in dir() else 0,
+            retry_count=min(attempt, cfg.max_retries),
             total_wait_time=total_wait,
             final_result="fallback",
             call_type=call_type,

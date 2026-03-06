@@ -377,7 +377,7 @@ def _run_5t_narrative_memory(orch: PsycheOrchestrator, user_id: str) -> None:
                     dominant_label = emo_name
             emo_snap = RecallEmotionSnapshot(
                 emotions={name: val for name, val in active_emos},
-                mood_valence=orch._psyche.emotions.mood,
+                mood_valence=orch._psyche.mood.valence,
                 dominant_emotion=dominant_label,
             )
         except Exception:
@@ -446,7 +446,7 @@ def _run_5t_narrative_memory(orch: PsycheOrchestrator, user_id: str) -> None:
                     sr_dominant_label = emo_name
             sr_emo_snap = SpontaneousRecallEmotionSnapshot(
                 emotions={name: val for name, val in sr_active_emos},
-                mood_valence=orch._psyche.emotions.mood,
+                mood_valence=orch._psyche.mood.valence,
                 dominant_emotion=sr_dominant_label,
             )
         except Exception:

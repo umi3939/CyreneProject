@@ -118,7 +118,7 @@ class DynamicsState:
 
         return cls(
             phase=phase,
-            phase_entered_at=data.get("phase_entered_at", time.time()),
+            phase_entered_at=data.get("phase_entered_at", 0.0),
             phase_turn_count=data.get("phase_turn_count", 0),
             peak_emotion=data.get("peak_emotion", ""),
             peak_intensity=data.get("peak_intensity", 0.0),

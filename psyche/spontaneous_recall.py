@@ -825,16 +825,10 @@ class SpontaneousRecallProcessor:
         effective_prev = prev_emotion_snapshot
         if effective_prev is None:
             # prev_emotion_snapshotが渡されなかった場合、
-            # 保存された前回断面を使用する
-            effective_prev = InternalEmotionSnapshot.from_dict(
-                {
-                    "emotions": self._state.prev_cross_sections.emotion_delta_labels,
-                    "mood_valence": 0.0,
-                    "dominant_emotion": "",
-                }
-            )
-            # 実際には前回の感情スナップショット自体は保存していないので、
-            # prev_cross_sections に保存された前回の断面値を通じて差分が計算済み
+            # 現在のスナップショットをprevとして使用し差分ゼロとする。
+            # emotion_delta_labelsはデルタ値であり絶対値ではないため、
+            # それをemotionsとして使うと二重差分になる問題を回避する。
+            effective_prev = emotion_snapshot
 
         # === 段階1: 内部状態断面の抽出 ===
         cross_sections = extract_cross_sections(

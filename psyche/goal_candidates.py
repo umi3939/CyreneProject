@@ -42,6 +42,19 @@ class CandidateCategory(Enum):
     ABSORPTION = "absorption"   # Tendency to receive/learn
 
 
+# Shared affinity mapping: CandidateCategory -> policy labels (thought.py POLICIES)
+CATEGORY_POLICY_AFFINITY: dict[CandidateCategory, list[str]] = {
+    CandidateCategory.APPROACH: ["共感する", "励ます", "質問で会話を広げる", "提案する"],
+    CandidateCategory.AVOIDANCE: ["黙って聞く", "見守る", "話題を変える", "確認する"],
+    CandidateCategory.CONNECTION: ["共感する", "励ます", "質問で会話を広げる", "同意する"],
+    CandidateCategory.ISOLATION: ["黙って聞く", "見守る", "話題を変える"],
+    CandidateCategory.EXPRESSION: ["感想を述べる", "冗談を言う", "からかう", "自分の経験を話す"],
+    CandidateCategory.ABSORPTION: ["黙って聞く", "見守る", "確認する"],
+    CandidateCategory.EXPLORATION: ["質問で会話を広げる", "確認する", "提案する"],
+    CandidateCategory.MAINTENANCE: ["同意する", "感想を述べる", "確認する"],
+}
+
+
 @dataclass
 class CandidateSource:
     """

@@ -212,7 +212,7 @@ class AccumulationEntry:
             emotion_tone=data.get("emotion_tone", ""),
             emotion_value=data.get("emotion_value", 0.0),
             creation_tick=data.get("creation_tick", 0),
-            creation_time=data.get("creation_time", time.time()),
+            creation_time=data.get("creation_time", 0.0),
             freshness=data.get("freshness", 1.0),
             freshness_stage=data.get("freshness_stage", FreshnessStage.ACTIVE.value),
             status=data.get("status", EntryStatus.ACTIVE.value),
@@ -267,7 +267,7 @@ class PatternRecord:
             last_seen_tick=data.get("last_seen_tick", 0),
             freshness=data.get("freshness", 1.0),
             freshness_stage=data.get("freshness_stage", FreshnessStage.ACTIVE.value),
-            creation_time=data.get("creation_time", time.time()),
+            creation_time=data.get("creation_time", 0.0),
         )
 
 
@@ -315,7 +315,7 @@ class HypothesisMaterial:
             pattern_type=data.get("pattern_type", ""),
             supporting_count=data.get("supporting_count", 0),
             freshness=data.get("freshness", 1.0),
-            creation_time=data.get("creation_time", time.time()),
+            creation_time=data.get("creation_time", 0.0),
         )
 
 
@@ -350,7 +350,7 @@ class ConvergenceRecord:
             direction_diversity=data.get("direction_diversity", 1.0),
             user_diversity=data.get("user_diversity", 1.0),
             cycle=data.get("cycle", 0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 

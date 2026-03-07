@@ -12,6 +12,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from .state import Percept, PsycheState
@@ -22,21 +23,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Keywords associated with positive/negative valence for scoring
-_POSITIVE_KEYWORDS = frozenset([
-    "嬉しい", "楽しい", "好き", "幸せ", "笑", "感謝", "素敵",
-    "happy", "joy", "love", "fun", "good", "great", "thank",
-])
-_NEGATIVE_KEYWORDS = frozenset([
-    "悲しい", "怒り", "辛い", "寂しい", "怖い", "不安", "嫌",
-    "sad", "angry", "fear", "bad", "hate", "worry", "pain",
-])
+# English keywords use word-boundary matching to avoid false positives
+# (e.g., "fun" matching "function"). Japanese keywords use substring matching
+# since Japanese text doesn't have word boundaries.
+_POSITIVE_KEYWORDS_JA = ["嬉しい", "楽しい", "好き", "幸せ", "笑", "感謝", "素敵"]
+_NEGATIVE_KEYWORDS_JA = ["悲しい", "怒り", "辛い", "寂しい", "怖い", "不安", "嫌"]
+_POSITIVE_RE = re.compile(
+    "|".join(_POSITIVE_KEYWORDS_JA)
+    + r"|\bhappy\b|\bjoy\b|\blove\b|\bfun\b|\bgood\b|\bgreat\b|\bthank\b",
+    re.IGNORECASE,
+)
+_NEGATIVE_RE = re.compile(
+    "|".join(_NEGATIVE_KEYWORDS_JA)
+    + r"|\bsad\b|\bangry\b|\bfear\b|\bbad\b|\bhate\b|\bworry\b|\bpain\b",
+    re.IGNORECASE,
+)
 
 
 def _estimate_memory_valence(mem: dict) -> float:
     """Estimate a memory's emotional valence from text content.  Returns -1.0 to 1.0."""
     text = (mem.get("summary", "") + " " + " ".join(mem.get("keywords", []))).lower()
-    pos_hits = sum(1 for w in _POSITIVE_KEYWORDS if w in text)
-    neg_hits = sum(1 for w in _NEGATIVE_KEYWORDS if w in text)
+    pos_hits = len(_POSITIVE_RE.findall(text))
+    neg_hits = len(_NEGATIVE_RE.findall(text))
     total = pos_hits + neg_hits
     if total == 0:
         return 0.0

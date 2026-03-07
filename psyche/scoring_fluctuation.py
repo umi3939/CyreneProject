@@ -235,8 +235,6 @@ def extract_elapsed_variability(
         return 0.0
 
     capped = min(elapsed_seconds, config.max_elapsed_seconds)
-    # 対数的に増加（急激に上がりすぎない）
-    import math
     ratio = capped / config.max_elapsed_seconds
     variability = ratio * config.elapsed_scale
 

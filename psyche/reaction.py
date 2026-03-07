@@ -228,7 +228,8 @@ def react(
     # --- 4.5 Responsibility affects mood ---
     # 責任の重みがムードのvalenceを少し下げる（重荷として）
     if responsibility_influence is not None:
-        mood_penalty = responsibility_influence.anxiety_baseline * 0.3
+        _resp_mood_scale = _emo_coeffs.get("responsibility_mood_penalty_scale", 0.3)
+        mood_penalty = responsibility_influence.anxiety_baseline * _resp_mood_scale
         new_valence = new_valence - mood_penalty
 
     new_mood = Mood(

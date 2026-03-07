@@ -31,6 +31,7 @@ Usage::
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import logging
 import time
@@ -424,7 +425,7 @@ class IntegrationResult:
 def _make_unit_id(source: str, source_id: str) -> str:
     """一意IDを生成する。"""
     raw = f"{source}:{source_id}"
-    return hashlib.md5(raw.encode()).hexdigest()[:12]
+    return hashlib.md5(raw.encode()).hexdigest()[:16]
 
 
 def _determine_temporal_phase(
@@ -543,7 +544,6 @@ def normalize_long_term(
             try:
                 ts = float(date_str)
             except (ValueError, TypeError):
-                import datetime
                 try:
                     dt = datetime.datetime.fromisoformat(str(date_str))
                     ts = dt.timestamp()
@@ -625,7 +625,6 @@ def normalize_bindings(
         ts = 0.0
         if ts_str:
             try:
-                import datetime
                 dt = datetime.datetime.fromisoformat(str(ts_str))
                 ts = dt.timestamp()
             except (ValueError, TypeError):

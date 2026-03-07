@@ -147,7 +147,7 @@ class SectionDescription:
             description=data.get("description", ""),
             value=data.get("value", 0.0),
             confidence=data.get("confidence", 1.0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 
@@ -176,7 +176,7 @@ class ActionDescription:
             policy_axis=data.get("policy_axis", ""),
             selection_context=data.get("selection_context", ""),
             tick_at_action=data.get("tick_at_action", 0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 
@@ -202,7 +202,7 @@ class ResultDescription:
                 for s in data.get("sections", [])
             ],
             tick_at_result=data.get("tick_at_result", 0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 
@@ -231,7 +231,7 @@ class ContextAttribution:
             dialogue_state=data.get("dialogue_state", ""),
             environment_tags=list(data.get("environment_tags", [])),
             tick_at_context=data.get("tick_at_context", 0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 
@@ -284,7 +284,7 @@ class ActionResultPair:
             reference_count=data.get("reference_count", 0),
             reactivation_count=data.get("reactivation_count", 0),
             creation_tick=data.get("creation_tick", 0),
-            creation_time=data.get("creation_time", time.time()),
+            creation_time=data.get("creation_time", 0.0),
             last_reference_time=data.get("last_reference_time", 0.0),
             pattern_key=data.get("pattern_key", ""),
             input_pathway_label=data.get("input_pathway_label", ""),
@@ -313,7 +313,7 @@ class SectionWeightRecord:
             section=data.get("section", ""),
             weight=data.get("weight", 0.0),
             cycle=data.get("cycle", 0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 
@@ -351,7 +351,7 @@ class ConvergenceRecord:
             pattern_diversity=data.get("pattern_diversity", 1.0),
             section_diversity=data.get("section_diversity", 1.0),
             cycle=data.get("cycle", 0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 
@@ -922,14 +922,14 @@ class ActionResultObservationProcessor:
         for buffered in self._state.composition_buffer:
             ticks_elapsed = inputs.current_tick - buffered.action.tick_at_action
 
-            if ticks_elapsed >= cfg.min_buffer_ticks:
-                # 十分なティックが経過 → 結果と結合
-                buffered.status = PairStatus.COMPOSED.value
-                newly_composed.append(buffered)
-            elif ticks_elapsed >= cfg.max_buffer_ticks:
+            if ticks_elapsed >= cfg.max_buffer_ticks:
                 # 長期滞留 → 結果未観測として保留
                 buffered.status = PairStatus.PENDING.value
                 self._state.total_pairs_pending += 1
+            elif ticks_elapsed >= cfg.min_buffer_ticks:
+                # 十分なティックが経過 → 結果と結合
+                buffered.status = PairStatus.COMPOSED.value
+                newly_composed.append(buffered)
             else:
                 # まだバッファ待機中
                 remaining_buffer.append(buffered)
@@ -1052,7 +1052,7 @@ class ActionResultObservationProcessor:
         after: dict[str, float],
     ) -> float:
         """感情状態の前後差分を計算する。"""
-        all_keys = set(list(before.keys()) + list(after.keys()))
+        all_keys = before.keys() | after.keys()
         if not all_keys:
             return 0.0
         total_diff = 0.0
@@ -1060,7 +1060,7 @@ class ActionResultObservationProcessor:
             b = before.get(key, 0.0)
             a = after.get(key, 0.0)
             total_diff += abs(a - b)
-        return total_diff / len(all_keys) if all_keys else 0.0
+        return total_diff / len(all_keys)
 
     # ─── Stage 3: 文脈帰属付与 ──────────────────────────────────
 

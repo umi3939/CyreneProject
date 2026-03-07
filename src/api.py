@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -49,7 +50,17 @@ from src.state_manager import StateManager
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Cyrene AI Chatbot", version="3.0.0")
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    yield
+    try:
+        _orchestrator.save()
+        logger.info("Orchestrator state saved on shutdown")
+    except Exception as e:
+        logger.error("Failed to save orchestrator state: %s", e)
+
+
+app = FastAPI(title="Cyrene AI Chatbot", version="3.0.0", lifespan=_lifespan)
 
 # ── Singletons (initialised at import time) ────────────────────
 memory_mgr = MemoryManager(llm_call=llm_call)
@@ -220,18 +231,6 @@ async def respond(req: RespondRequest):
     filtered_state = _filter_state_for_production(updated_state)
 
     return RespondResponse(text=response_text, meta=filtered_meta, updated_state=filtered_state)
-
-
-# ── Lifecycle events ──────────────────────────────────────────
-
-@app.on_event("shutdown")
-async def _on_shutdown():
-    """Persist orchestrator state on server shutdown."""
-    try:
-        _orchestrator.save()
-        logger.info("Orchestrator state saved on shutdown")
-    except Exception as e:
-        logger.error("Failed to save orchestrator state: %s", e)
 
 
 # ── Management endpoints ───────────────────────────────────────

@@ -252,7 +252,8 @@ class HypothesisObservationPairingState:
 
     # 処理統計（等価な事実記述のみ）
     total_pairs_created: int = 0
-    total_pairs_pushed_out: int = 0
+    total_pairs_pushed_out: int = 0      # FIFO overflow による除去数
+    total_pairs_decayed_out: int = 0     # 鮮度消失による除去数
     cycle_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -266,6 +267,7 @@ class HypothesisObservationPairingState:
             "enrichment_consecutive": dict(self.enrichment_consecutive),
             "total_pairs_created": self.total_pairs_created,
             "total_pairs_pushed_out": self.total_pairs_pushed_out,
+            "total_pairs_decayed_out": self.total_pairs_decayed_out,
             "cycle_count": self.cycle_count,
         }
 
@@ -289,6 +291,7 @@ class HypothesisObservationPairingState:
             enrichment_consecutive=dict(data.get("enrichment_consecutive", {})),
             total_pairs_created=data.get("total_pairs_created", 0),
             total_pairs_pushed_out=data.get("total_pairs_pushed_out", 0),
+            total_pairs_decayed_out=data.get("total_pairs_decayed_out", 0),
             cycle_count=data.get("cycle_count", 0),
         )
 
@@ -614,7 +617,7 @@ def apply_freshness_decay(
     for pair in state.all_pairs:
         if pair.freshness <= config.freshness_invisible_threshold:
             invisible_ids.add(pair.pair_id)
-            state.total_pairs_pushed_out += 1
+            state.total_pairs_decayed_out += 1
         else:
             visible_pairs.append(pair)
     state.all_pairs = visible_pairs

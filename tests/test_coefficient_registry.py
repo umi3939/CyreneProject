@@ -441,7 +441,12 @@ class TestModuleIntegration:
         assert config.neutral_decay_rate == 0.0001
 
     def test_perception_constants_accessible(self):
-        """perception.py should have its constants from the registry."""
+        """perception.py should have its constants from the registry (deferred load)."""
         from psyche import perception
+        # Constants are lazily loaded; trigger via accessor
+        bandwidth, coeff = perception._get_perception_coeffs()
+        assert bandwidth == 0.04
+        assert coeff == 0.1
+        # After first call, module-level cache is populated
         assert perception._BIAS_BANDWIDTH == 0.04
         assert perception._BIAS_COEFFICIENT == 0.1

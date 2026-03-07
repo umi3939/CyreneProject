@@ -269,10 +269,19 @@ def execute_loop_phase5_decay(
             except OverflowError:
                 return 0.0
 
-    # Update memory scale factors for decay
+    # Update memory scale factors for decay (immutable: create new memory with updated factors)
     memory = loop_state.memory
-    memory.scale_factors["decay_base"] = loop_state.config.decay_rate
-    memory.scale_factors["min_residue_weight"] = loop_state.config.min_residue_weight
+    updated_scale_factors = dict(memory.scale_factors)
+    updated_scale_factors["decay_base"] = loop_state.config.decay_rate
+    updated_scale_factors["min_residue_weight"] = loop_state.config.min_residue_weight
+    memory = ShortTermMemory(
+        entries=memory.entries,
+        max_entries=memory.max_entries,
+        current_context_topics=memory.current_context_topics,
+        context_continuity_score=memory.context_continuity_score,
+        last_update_time=memory.last_update_time,
+        scale_factors=updated_scale_factors,
+    )
 
     # Apply decay
     decayed_memory = memory.apply_decay(

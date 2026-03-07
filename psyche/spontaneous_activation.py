@@ -992,6 +992,9 @@ def align_conditions(
         rationales.append(ActivationRationale(
             candidate_id=candidate.candidate_id,
             contributing_sources=list(candidate.source_types),
+            # strength_breakdown is structurally present for diagnostic use but
+            # initialized to zero; per-source strength values are not propagated
+            # in the alignment stage (the candidate's aggregate strength is used instead).
             strength_breakdown={
                 st: 0.0 for st in candidate.source_types
             },

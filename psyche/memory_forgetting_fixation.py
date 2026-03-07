@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
@@ -477,6 +478,7 @@ class MemoryForgettingFixationProcessor:
     def __init__(self, config: Optional[ForgettingFixationConfig] = None):
         self._config = config or ForgettingFixationConfig()
         self._state = ForgettingFixationState()
+        self._cycle_recovered_count = 0
 
     @property
     def state(self) -> ForgettingFixationState:
@@ -494,6 +496,7 @@ class MemoryForgettingFixationProcessor:
         判断・評価・行動決定を直接起動しない。
         """
         self._state.cycle_count += 1
+        self._cycle_recovered_count = 0
         now = time.time()
 
         # 系列索引の更新（入力から新規系列を登録、参照を記録）
@@ -512,14 +515,14 @@ class MemoryForgettingFixationProcessor:
         self._retain_competition(now)
 
         # Stage 5: 段階忘却情報化
-        newly_forgotten, newly_recovered = self._apply_staged_forgetting(
+        newly_forgotten, _ = self._apply_staged_forgetting(
             forget_candidates, now
         )
 
         # Stage 6: 受け渡し準備（安全弁チェック）
         result = self._prepare_handoff(
             forget_candidates, fix_signs,
-            newly_forgotten, newly_recovered, now,
+            newly_forgotten, self._cycle_recovered_count, now,
         )
 
         return result
@@ -618,6 +621,7 @@ class MemoryForgettingFixationProcessor:
                 if rec.status == SeriesStatus.FORGETTING.value:
                     rec.status = SeriesStatus.RECOVERED.value
                     self._state.total_recovered += 1
+                    self._cycle_recovered_count += 1
                     if rec.source_id not in self._state.recovery_candidates:
                         self._state.recovery_candidates.append(rec.source_id)
                 # 再利用履歴
@@ -987,7 +991,6 @@ class MemoryForgettingFixationProcessor:
         # 単一IDが支配的かチェック
         if not ref_ids:
             return
-        from collections import Counter
         counts = Counter(ref_ids)
         most_common_id, most_common_count = counts.most_common(1)[0]
         if most_common_count / len(ref_ids) > 0.6:

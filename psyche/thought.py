@@ -450,7 +450,13 @@ def _score_candidate(
     # 8. Memory context: if recalled memories relate, slight boost to empathy
     memory_contrib = 0.0
     if recalled:
-        memory_contrib = 0.3
+        count = len(recalled)
+        if count >= 3:
+            memory_contrib = 0.5
+        elif count == 2:
+            memory_contrib = 0.4
+        else:
+            memory_contrib = 0.3
     score += memory_contrib
     if collect_breakdown:
         bd["memory_context"] = memory_contrib

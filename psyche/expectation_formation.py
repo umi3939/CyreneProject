@@ -20,7 +20,7 @@ CRITICAL DESIGN PRINCIPLES:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any, Optional
 import json
@@ -175,89 +175,31 @@ class ExpectationCandidate:
 
     def with_freshness(self, new_freshness: float) -> ExpectationCandidate:
         """Create a copy with updated freshness."""
-        return ExpectationCandidate(
-            expectation_id=self.expectation_id,
-            source_type=self.source_type,
-            basis=self.basis,
-            description=self.description,
-            timestamp=self.timestamp,
-            freshness=max(0.0, min(1.0, new_freshness)),
-            strength=self.strength,
-            reference_count=self.reference_count,
-            evidence_ids=self.evidence_ids,
-            competing_ids=self.competing_ids,
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
-        )
+        return replace(self, freshness=max(0.0, min(1.0, new_freshness)))
 
     def with_strength(self, new_strength: float) -> ExpectationCandidate:
         """Create a copy with updated strength."""
-        return ExpectationCandidate(
-            expectation_id=self.expectation_id,
-            source_type=self.source_type,
-            basis=self.basis,
-            description=self.description,
-            timestamp=self.timestamp,
-            freshness=self.freshness,
-            strength=max(0.0, min(1.0, new_strength)),
-            reference_count=self.reference_count,
-            evidence_ids=self.evidence_ids,
-            competing_ids=self.competing_ids,
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
-        )
+        return replace(self, strength=max(0.0, min(1.0, new_strength)))
 
     def with_reference(self) -> ExpectationCandidate:
         """Create a copy with incremented reference count."""
-        return ExpectationCandidate(
-            expectation_id=self.expectation_id,
-            source_type=self.source_type,
-            basis=self.basis,
-            description=self.description,
-            timestamp=self.timestamp,
-            freshness=self.freshness,
-            strength=self.strength,
-            reference_count=self.reference_count + 1,
-            evidence_ids=self.evidence_ids,
-            competing_ids=self.competing_ids,
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
-        )
+        return replace(self, reference_count=self.reference_count + 1)
 
     def revise(self, new_description: str) -> ExpectationCandidate:
         """Create a revised copy (予期は固定しない、修正可能)."""
-        return ExpectationCandidate(
-            expectation_id=self.expectation_id,
-            source_type=self.source_type,
-            basis=self.basis,
+        return replace(
+            self,
             description=new_description,
-            timestamp=self.timestamp,
-            freshness=self.freshness,
-            strength=self.strength,
-            reference_count=self.reference_count,
-            evidence_ids=self.evidence_ids,
-            competing_ids=self.competing_ids,
             revision_count=self.revision_count + 1,
-            undetermined_aspects=self.undetermined_aspects,
         )
 
     def with_competing(self, competing_id: str) -> ExpectationCandidate:
         """Create a copy with an additional competing expectation ID."""
         if competing_id in self.competing_ids:
             return self
-        return ExpectationCandidate(
-            expectation_id=self.expectation_id,
-            source_type=self.source_type,
-            basis=self.basis,
-            description=self.description,
-            timestamp=self.timestamp,
-            freshness=self.freshness,
-            strength=self.strength,
-            reference_count=self.reference_count,
-            evidence_ids=self.evidence_ids,
+        return replace(
+            self,
             competing_ids=self.competing_ids + (competing_id,),
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
         )
 
 

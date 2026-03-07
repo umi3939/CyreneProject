@@ -371,8 +371,13 @@ def supply_reaction_log(state: InputSupplyState) -> Optional[_ReactionLogProxy]:
     供給済み要素は supplied=True にするが削除しない。
     supply_cursor 以降の未供給要素を中心に供給する。
 
+    Note: この関数は state を in-place で変更する（supply_cursor,
+    last_supply_time, 各エントリの supplied フラグ）。他の関数
+    (update_from_percept, decay_buffer) が新規 state を返すのとは異なる。
+    供給操作の性質上、状態のマーキングをその場で行う設計である。
+
     Args:
-        state: 現在の InputSupplyState
+        state: 現在の InputSupplyState (in-place変更される)
 
     Returns:
         ShortTermMemory 互換オブジェクト (entries属性を持つ)。

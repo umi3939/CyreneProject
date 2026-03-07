@@ -316,6 +316,9 @@ class ValidationState:
     convergence_warning: bool = False
     gap_warning: bool = False
 
+    # 断面別連続欠落カウンタ（永続化用）
+    gap_counters: dict[str, int] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "observation_records": [r.to_dict() for r in self.observation_records],
@@ -331,6 +334,7 @@ class ValidationState:
             "last_observation_time": self.last_observation_time,
             "convergence_warning": self.convergence_warning,
             "gap_warning": self.gap_warning,
+            "gap_counters": dict(self.gap_counters),
         }
 
     @classmethod
@@ -367,6 +371,7 @@ class ValidationState:
             last_observation_time=data.get("last_observation_time", 0.0),
             convergence_warning=data.get("convergence_warning", False),
             gap_warning=data.get("gap_warning", False),
+            gap_counters=dict(data.get("gap_counters", {})),
         )
 
 
@@ -497,6 +502,10 @@ class ValueOrientationValidator:
     @state.setter
     def state(self, value: ValidationState) -> None:
         self._state = value
+        # Restore gap_counters from persisted state
+        if value.gap_counters:
+            for key, count in value.gap_counters.items():
+                self._gap_counters[key] = count
 
     def process(self, inputs: ValidationInputs) -> ValidationResult:
         """
@@ -957,6 +966,9 @@ class ValueOrientationValidator:
 
         # 長期トレンド（直近M観測の平均差分）
         long_term = self._compute_trend(cfg.long_term_window, now)
+
+        # Sync gap_counters back to state for persistence
+        self._state.gap_counters = dict(self._gap_counters)
 
         return ValidationResult(
             differentials=new_diffs,

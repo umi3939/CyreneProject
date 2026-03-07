@@ -284,7 +284,7 @@ class TestMakeUnitId:
 
     def test_length(self):
         uid = _make_unit_id("test", "abc")
-        assert len(uid) == 12
+        assert len(uid) == 16
 
 
 class TestDetermineTemporalPhase:

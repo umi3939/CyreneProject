@@ -65,12 +65,14 @@ class ResponsibilityManager:
             return {}
 
     def _save(self):
-        """ファイルに保存する。"""
+        """ファイルに保存する（アトミック書き込み）。"""
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        self.filepath.write_text(
+        tmp_path = self.filepath.with_suffix(".tmp")
+        tmp_path.write_text(
             json.dumps(self._data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        tmp_path.replace(self.filepath)
 
     def _get_raw_state(self, user_id: str) -> ResponsibilityState:
         """内部用: 生の状態を取得（減衰適用前）"""

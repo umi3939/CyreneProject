@@ -20,7 +20,7 @@ CRITICAL DESIGN PRINCIPLES:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Optional
 import json
@@ -59,6 +59,16 @@ class ImportanceLevel(Enum):
     MODERATE = "moderate"        # 中程度
     NOTABLE = "notable"          # 注目
     SIGNIFICANT = "significant"  # 顕著
+
+
+# Explicit ordering for ImportanceLevel (independent of enum declaration order)
+_IMPORTANCE_ORDER: dict[ImportanceLevel, int] = {
+    ImportanceLevel.TRIVIAL: 0,
+    ImportanceLevel.MINOR: 1,
+    ImportanceLevel.MODERATE: 2,
+    ImportanceLevel.NOTABLE: 3,
+    ImportanceLevel.SIGNIFICANT: 4,
+}
 
 
 class DecayState(Enum):
@@ -173,45 +183,11 @@ class EpisodeEntry:
 
     def with_vividness(self, new_vividness: float) -> EpisodeEntry:
         """Create a copy with updated vividness."""
-        return EpisodeEntry(
-            episode_id=self.episode_id,
-            episode_type=self.episode_type,
-            summary=self.summary,
-            topics=self.topics,
-            source_texts=self.source_texts,
-            timestamp=self.timestamp,
-            duration_estimate=self.duration_estimate,
-            emotional_companion=self.emotional_companion,
-            self_observation_companion=self.self_observation_companion,
-            context_summary=self.context_summary,
-            importance=self.importance,
-            vividness=max(0.0, min(1.0, new_vividness)),
-            reference_count=self.reference_count,
-            reinterpretation_count=self.reinterpretation_count,
-            is_compressed=self.is_compressed,
-            compressed_episode_ids=self.compressed_episode_ids,
-        )
+        return replace(self, vividness=max(0.0, min(1.0, new_vividness)))
 
     def with_reference(self) -> EpisodeEntry:
         """Create a copy with incremented reference count."""
-        return EpisodeEntry(
-            episode_id=self.episode_id,
-            episode_type=self.episode_type,
-            summary=self.summary,
-            topics=self.topics,
-            source_texts=self.source_texts,
-            timestamp=self.timestamp,
-            duration_estimate=self.duration_estimate,
-            emotional_companion=self.emotional_companion,
-            self_observation_companion=self.self_observation_companion,
-            context_summary=self.context_summary,
-            importance=self.importance,
-            vividness=self.vividness,
-            reference_count=self.reference_count + 1,
-            reinterpretation_count=self.reinterpretation_count,
-            is_compressed=self.is_compressed,
-            compressed_episode_ids=self.compressed_episode_ids,
-        )
+        return replace(self, reference_count=self.reference_count + 1)
 
     def reinterpret(
         self,
@@ -219,24 +195,13 @@ class EpisodeEntry:
         new_type: Optional[EpisodeType] = None,
     ) -> EpisodeEntry:
         """Create a reinterpreted copy (解釈は固定しない)."""
-        return EpisodeEntry(
-            episode_id=self.episode_id,
-            episode_type=new_type if new_type is not None else self.episode_type,
-            summary=new_summary,
-            topics=self.topics,
-            source_texts=self.source_texts,
-            timestamp=self.timestamp,
-            duration_estimate=self.duration_estimate,
-            emotional_companion=self.emotional_companion,
-            self_observation_companion=self.self_observation_companion,
-            context_summary=self.context_summary,
-            importance=self.importance,
-            vividness=self.vividness,
-            reference_count=self.reference_count,
-            reinterpretation_count=self.reinterpretation_count + 1,
-            is_compressed=self.is_compressed,
-            compressed_episode_ids=self.compressed_episode_ids,
-        )
+        kwargs: dict[str, Any] = {
+            "summary": new_summary,
+            "reinterpretation_count": self.reinterpretation_count + 1,
+        }
+        if new_type is not None:
+            kwargs["episode_type"] = new_type
+        return replace(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -759,7 +724,6 @@ def _build_emotional_companion(
         intensity = intensity_map.get(intensity_val, 0.5)
 
     valence = 0.0
-    spread = getattr(emotional_state, "spread", None)
     harmony_attr = getattr(emotional_state, "harmony", None)
 
     harmony = 0.5
@@ -1087,7 +1051,7 @@ class EpisodicMemorySystem:
                 context_summary=f"Composite of {len(group)} episodes",
                 importance=max(
                     (ep.importance for ep in group),
-                    key=lambda x: list(ImportanceLevel).index(x),
+                    key=lambda x: _IMPORTANCE_ORDER.get(x, 0),
                 ),
                 vividness=self._config.compression_result_vividness,
                 reference_count=0,
@@ -1315,11 +1279,10 @@ class EpisodicMemorySystem:
         min_importance: ImportanceLevel,
     ) -> list[EpisodeEntry]:
         """Filter episodes by minimum importance level."""
-        levels = list(ImportanceLevel)
-        min_idx = levels.index(min_importance)
+        min_order = _IMPORTANCE_ORDER.get(min_importance, 0)
         return [
             ep for ep in candidates
-            if levels.index(ep.importance) >= min_idx
+            if _IMPORTANCE_ORDER.get(ep.importance, 0) >= min_order
         ]
 
     def _build_store(self, current_time: float) -> EpisodeStore:

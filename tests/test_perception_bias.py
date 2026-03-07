@@ -31,7 +31,16 @@ from psyche.perception import (
     _compute_valence_bias,
     _heuristic_parse,
     parse_percept,
+    _get_perception_coeffs,
 )
+
+# Initialize lazy-loaded coefficients and rebind from the module
+# (direct import binds to the initial None values)
+_get_perception_coeffs()
+import psyche.perception as _perc_mod
+_BIAS_BANDWIDTH = _perc_mod._BIAS_BANDWIDTH
+_BIAS_COEFFICIENT = _perc_mod._BIAS_COEFFICIENT
+
 from psyche.state import EmotionVector, Mood, Percept, PsycheState
 
 

@@ -360,7 +360,7 @@ class OtherModelStore:
         )
         observation_links = tuple(
             ObservationLink(
-                link_id=ol["link_id"],
+                link_id=ol.get("link_id", ""),
                 hypothesis_id=ol.get("hypothesis_id", ""),
                 source_type=ObservationSourceType(ol.get("source_type", "mixed")),
                 source_description=ol.get("source_description", ""),
@@ -370,7 +370,7 @@ class OtherModelStore:
         )
         boundaries = tuple(
             SelfOtherBoundary(
-                boundary_id=b["boundary_id"],
+                boundary_id=b.get("boundary_id", ""),
                 self_description=b.get("self_description", ""),
                 other_description=b.get("other_description", ""),
                 divergence=b.get("divergence", 0.0),
@@ -898,6 +898,7 @@ class OtherAgentModelSystem:
         self._total_revisions: int = 0
         self._total_expirations: int = 0
         self._last_store: Optional[OtherModelStore] = None
+        self._cached_competition_pairs: Optional[list[tuple[str, str]]] = None
 
     def observe_other(
         self,
@@ -959,8 +960,9 @@ class OtherAgentModelSystem:
             self._hypotheses.append(hypothesis)
             self._total_created += 1
 
-        # Detect competitions among all hypotheses
+        # Detect competitions among all hypotheses (cache for _build_store reuse)
         competition_pairs = detect_hypothesis_competitions(self._hypotheses)
+        self._cached_competition_pairs = competition_pairs
         for id_a, id_b in competition_pairs:
             for i, hyp in enumerate(self._hypotheses):
                 if hyp.hypothesis_id == id_a:
@@ -1128,7 +1130,12 @@ class OtherAgentModelSystem:
             if self._hypotheses else 0.0
         )
 
-        competition_pairs = detect_hypothesis_competitions(self._hypotheses)
+        # Reuse cached competition pairs if available; recompute only if cache invalidated
+        if self._cached_competition_pairs is not None:
+            competition_pairs = self._cached_competition_pairs
+            self._cached_competition_pairs = None
+        else:
+            competition_pairs = detect_hypothesis_competitions(self._hypotheses)
 
         description = _generate_store_description(
             len(self._hypotheses),

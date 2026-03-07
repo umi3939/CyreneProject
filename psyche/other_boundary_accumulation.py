@@ -729,7 +729,7 @@ class OtherBoundaryAccumulationProcessor:
         cfg = self._config
         has_fixed = False
 
-        for uid, record_ids in self._state.user_index.items():
+        for uid in self._state.user_index:
             user_records = [
                 r for r in visible_records
                 if r.user_id == uid

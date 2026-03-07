@@ -59,10 +59,12 @@ class StateManager:
 
     def _save(self):
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        self.filepath.write_text(
+        tmp_path = self.filepath.with_suffix(".tmp")
+        tmp_path.write_text(
             json.dumps(self._data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        tmp_path.replace(self.filepath)
 
     # ── public API ─────────────────────────────────────────────
 

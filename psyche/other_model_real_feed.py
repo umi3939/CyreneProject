@@ -1374,7 +1374,10 @@ def enhance_context_with_feed(
     ctx: Any,
     feed: FeedResult,
 ) -> Any:
-    """既存の ContextSnapshot を上書きせず差分で調整する純粋関数。
+    """既存の ContextSnapshot を差分で調整する。
+
+    注意: この関数は ctx の属性を直接変更する（in-place mutation）。
+    呼び出し元は変更される前提で使用すること。
 
     - CONTINUED_ENGAGEMENT → responsiveness 上方修正
     - EMOTIONAL_TONE → weight 上方修正
@@ -1383,11 +1386,11 @@ def enhance_context_with_feed(
     - 既存値を 0.0-1.0 にclamp
 
     Args:
-        ctx: ContextSnapshot オブジェクト (duck typing)
+        ctx: ContextSnapshot オブジェクト (duck typing, in-place変更される)
         feed: FeedResult
 
     Returns:
-        調整後の ContextSnapshot (同じオブジェクトを変更して返す)
+        調整後の ContextSnapshot (入力と同じオブジェクト)
     """
     if not feed or not feed.units:
         return ctx

@@ -97,7 +97,7 @@ class ElapsedRecord:
         return cls(
             tick=data.get("tick", 0),
             delta_time=data.get("delta_time", 0.0),
-            timestamp=data.get("timestamp", time.time()),
+            timestamp=data.get("timestamp", 0.0),
         )
 
 
@@ -264,9 +264,6 @@ def _classify_interval_density(intervals: list[float], min_count: int = 3) -> De
     判断・評価は含まない。段階的記述のみ。
     """
     if len(intervals) < min_count:
-        return DensityLevel.NORMAL
-
-    if not intervals:
         return DensityLevel.NORMAL
 
     avg = sum(intervals) / len(intervals)

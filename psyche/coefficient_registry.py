@@ -120,6 +120,7 @@ _DEFAULTS: dict[str, Any] = {
         "stimulus_base_delta": 0.2,
         "valence_positive": {"joy": 0.15, "love": 0.05, "fun": 0.05},
         "valence_negative": {"sorrow": 0.10, "anger": 0.05, "fear": 0.05},
+        "responsibility_mood_penalty_scale": 0.3,
     },
 
     # ── Category H: Perception processing constants ──
@@ -152,6 +153,15 @@ _DEFAULTS: dict[str, Any] = {
         "low_arousal_scale": 0.3,
         "convergence_scale": 0.5,
         "combined_max_delta": 0.15,
+    },
+
+    # ── Category L: Responsibility constants ──
+    "responsibility": {
+        "decay_rate_per_hour": 0.02,
+        "fear_amplification_factor": 0.4,
+        "caution_bias_factor": 0.3,
+        "anxiety_baseline_factor": 0.2,
+        "empathy_bias_factor": 0.35,
     },
 
     # ── Category K: Description layer common constants ──

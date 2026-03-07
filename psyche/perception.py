@@ -203,17 +203,32 @@ def _notify_diversity_recorder(
             emotion_valence=percept.emotion_valence,
             keyword_hit=len(percept.topics) > 0,
         )
-    except Exception:
+    except Exception as e:
         # Safety valve 2: recording failure does not affect perception
-        pass
+        logger.debug("Diversity recorder notification failed: %s", e)
 
 
 # ── Local heuristic ────────────────────────────────────────────
 
-# Values loaded from coefficient registry
-_perception_coeffs = coefficient_registry.get("perception")
-_BIAS_BANDWIDTH = _perception_coeffs["bias_bandwidth"]  # Absolute upper bound for perceptual bias
-_BIAS_COEFFICIENT = _perception_coeffs["bias_coefficient"]  # Fixed coefficient: valence * coefficient = raw bias
+# Values loaded from coefficient registry (deferred to avoid import-time KeyError)
+_perception_coeffs: Optional[dict] = None
+_BIAS_BANDWIDTH: Optional[float] = None
+_BIAS_COEFFICIENT: Optional[float] = None
+
+
+def _get_perception_coeffs() -> tuple[float, float]:
+    """Lazily load perception coefficients from the registry.
+
+    Deferred to avoid KeyError if the registry is not yet populated
+    at import time. Cached after first successful load.
+    """
+    global _perception_coeffs, _BIAS_BANDWIDTH, _BIAS_COEFFICIENT
+    if _BIAS_BANDWIDTH is not None and _BIAS_COEFFICIENT is not None:
+        return _BIAS_BANDWIDTH, _BIAS_COEFFICIENT
+    _perception_coeffs = coefficient_registry.get("perception")
+    _BIAS_BANDWIDTH = _perception_coeffs["bias_bandwidth"]
+    _BIAS_COEFFICIENT = _perception_coeffs["bias_coefficient"]
+    return _BIAS_BANDWIDTH, _BIAS_COEFFICIENT
 
 
 def _compute_valence_bias(state: Optional[PsycheState]) -> float:
@@ -225,12 +240,13 @@ def _compute_valence_bias(state: Optional[PsycheState]) -> float:
         state: Current PsycheState. If None, returns 0.0 (safety valve 4).
 
     Returns:
-        Bias amount clamped to [-_BIAS_BANDWIDTH, +_BIAS_BANDWIDTH].
+        Bias amount clamped to [-bandwidth, +bandwidth].
     """
     if state is None:
         return 0.0
-    raw_bias = state.mood.valence * _BIAS_COEFFICIENT
-    return max(-_BIAS_BANDWIDTH, min(_BIAS_BANDWIDTH, raw_bias))
+    bandwidth, coeff = _get_perception_coeffs()
+    raw_bias = state.mood.valence * coeff
+    return max(-bandwidth, min(bandwidth, raw_bias))
 
 
 def _heuristic_parse(text: str, state: Optional[PsycheState] = None) -> Percept:

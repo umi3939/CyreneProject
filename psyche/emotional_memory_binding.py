@@ -19,7 +19,7 @@ CRITICAL DESIGN PRINCIPLES:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any, Optional
 import hashlib
@@ -127,7 +127,7 @@ def _generate_id() -> str:
 
 def generate_memory_key(text: str) -> str:
     """Generate a memory key from text via MD5 hash."""
-    return hashlib.md5(text.encode()).hexdigest()[:12]
+    return hashlib.md5(text.encode()).hexdigest()[:16]
 
 
 # =============================================================================
@@ -269,83 +269,31 @@ class MemoryBinding:
 
     def with_freshness(self, new_freshness: float) -> MemoryBinding:
         """Create a copy with updated freshness."""
-        return MemoryBinding(
-            binding_id=self.binding_id,
-            memory_key=self.memory_key,
-            memory_summary=self.memory_summary,
-            traces=self.traces,
-            binding_links=self.binding_links,
-            freshness=max(0.0, min(1.0, new_freshness)),
-            reference_count=self.reference_count,
-            creation_timestamp=self.creation_timestamp,
-            last_reference_timestamp=self.last_reference_timestamp,
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
-        )
+        return replace(self, freshness=max(0.0, min(1.0, new_freshness)))
 
     def with_reference(self) -> MemoryBinding:
         """Create a copy with incremented reference count."""
-        return MemoryBinding(
-            binding_id=self.binding_id,
-            memory_key=self.memory_key,
-            memory_summary=self.memory_summary,
-            traces=self.traces,
-            binding_links=self.binding_links,
-            freshness=self.freshness,
+        return replace(
+            self,
             reference_count=self.reference_count + 1,
-            creation_timestamp=self.creation_timestamp,
             last_reference_timestamp=str(time.time()),
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
         )
 
     def with_traces(self, new_traces: tuple[EmotionalTrace, ...]) -> MemoryBinding:
         """Create a copy with updated traces."""
-        return MemoryBinding(
-            binding_id=self.binding_id,
-            memory_key=self.memory_key,
-            memory_summary=self.memory_summary,
-            traces=new_traces,
-            binding_links=self.binding_links,
-            freshness=self.freshness,
-            reference_count=self.reference_count,
-            creation_timestamp=self.creation_timestamp,
-            last_reference_timestamp=self.last_reference_timestamp,
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
-        )
+        return replace(self, traces=new_traces)
 
     def revise_summary(self, new_summary: str) -> MemoryBinding:
         """Create a copy with revised summary."""
-        return MemoryBinding(
-            binding_id=self.binding_id,
-            memory_key=self.memory_key,
+        return replace(
+            self,
             memory_summary=new_summary,
-            traces=self.traces,
-            binding_links=self.binding_links,
-            freshness=self.freshness,
-            reference_count=self.reference_count,
-            creation_timestamp=self.creation_timestamp,
-            last_reference_timestamp=self.last_reference_timestamp,
             revision_count=self.revision_count + 1,
-            undetermined_aspects=self.undetermined_aspects,
         )
 
     def with_added_trace(self, trace: EmotionalTrace) -> MemoryBinding:
         """Create a copy with an additional trace."""
-        return MemoryBinding(
-            binding_id=self.binding_id,
-            memory_key=self.memory_key,
-            memory_summary=self.memory_summary,
-            traces=self.traces + (trace,),
-            binding_links=self.binding_links,
-            freshness=self.freshness,
-            reference_count=self.reference_count,
-            creation_timestamp=self.creation_timestamp,
-            last_reference_timestamp=self.last_reference_timestamp,
-            revision_count=self.revision_count,
-            undetermined_aspects=self.undetermined_aspects,
-        )
+        return replace(self, traces=self.traces + (trace,))
 
 
 @dataclass(frozen=True)
@@ -708,7 +656,7 @@ def extract_from_recalled_memories(
 
         # Try to detect emotion from keywords
         keywords = mem.get("keywords", [])
-        emotion_label = "joy"  # default
+        emotion_label = "neutral"  # default: no positive/negative bias
         if isinstance(keywords, list):
             for kw in keywords:
                 if isinstance(kw, str):
@@ -966,13 +914,13 @@ class EmotionalMemoryBindingSystem:
 
         # Process each group
         for memory_key, items in groups.items():
-            existing = self._find_binding_for_memory(memory_key)
+            existing_idx = self._find_binding_index_for_memory(memory_key)
 
-            if existing is not None:
+            if existing_idx is not None:
                 # Merge traces into existing binding
-                idx = self._bindings.index(existing)
+                existing = self._bindings[existing_idx]
                 merged = self._merge_traces(existing, items, current_time)
-                self._bindings[idx] = merged
+                self._bindings[existing_idx] = merged
             else:
                 # Create new binding
                 binding_id = _generate_id()
@@ -1151,18 +1099,27 @@ class EmotionalMemoryBindingSystem:
 
     def _enforce_capacity(self) -> None:
         """Remove weakest bindings if over capacity."""
-        while len(self._bindings) > self._config.max_bindings:
-            weakest_idx = min(
-                range(len(self._bindings)),
-                key=lambda i: (self._bindings[i].freshness, len(self._bindings[i].traces)),
-            )
-            removed = self._bindings.pop(weakest_idx)
-            binding_link_ids = set(removed.binding_links)
+        excess = len(self._bindings) - self._config.max_bindings
+        if excess <= 0:
+            return
+        indexed = sorted(
+            range(len(self._bindings)),
+            key=lambda i: (self._bindings[i].freshness, len(self._bindings[i].traces)),
+        )
+        remove_indices = set(indexed[:excess])
+        removed_link_ids: set[str] = set()
+        for idx in remove_indices:
+            removed_link_ids.update(self._bindings[idx].binding_links)
+        self._bindings = [
+            b for i, b in enumerate(self._bindings)
+            if i not in remove_indices
+        ]
+        if removed_link_ids:
             self._binding_links = [
                 bl for bl in self._binding_links
-                if bl.link_id not in binding_link_ids
+                if bl.link_id not in removed_link_ids
             ]
-            self._total_expirations += 1
+        self._total_expirations += excess
 
     def _generate_binding_links(
         self,
@@ -1193,6 +1150,13 @@ class EmotionalMemoryBindingSystem:
         for binding in self._bindings:
             if binding.memory_key == memory_key:
                 return binding
+        return None
+
+    def _find_binding_index_for_memory(self, memory_key: str) -> Optional[int]:
+        """Find the index of an existing binding for a memory key."""
+        for i, binding in enumerate(self._bindings):
+            if binding.memory_key == memory_key:
+                return i
         return None
 
     def _merge_traces(

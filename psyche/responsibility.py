@@ -43,6 +43,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from . import coefficient_registry
+
 
 # ── Data Models ────────────────────────────────────────────────
 
@@ -120,10 +122,12 @@ class ResponsibilityInfluence(BaseModel):
     empathy_bias: float = Field(default=0.0, ge=0.0, le=0.5)
 
 
-# ── Constants ──────────────────────────────────────────────────
+# ── Constants (from coefficient_registry where available) ──────
+
+_resp_coeffs = coefficient_registry.get("responsibility")
 
 # 責任の減衰率（1時間あたり）
-DECAY_RATE_PER_HOUR: float = 0.02
+DECAY_RATE_PER_HOUR: float = _resp_coeffs.get("decay_rate_per_hour", 0.02)
 
 # 責任の上限・下限
 MAX_TOTAL_WEIGHT: float = 1.0
@@ -134,10 +138,10 @@ MAX_ACCUMULATED_HARM: float = 1.0
 MAX_ACCUMULATED_CONFIDENCE: float = 1.0
 
 # 影響の係数
-FEAR_AMPLIFICATION_FACTOR: float = 0.4
-CAUTION_BIAS_FACTOR: float = 0.3
-ANXIETY_BASELINE_FACTOR: float = 0.2
-EMPATHY_BIAS_FACTOR: float = 0.35
+FEAR_AMPLIFICATION_FACTOR: float = _resp_coeffs.get("fear_amplification_factor", 0.4)
+CAUTION_BIAS_FACTOR: float = _resp_coeffs.get("caution_bias_factor", 0.3)
+ANXIETY_BASELINE_FACTOR: float = _resp_coeffs.get("anxiety_baseline_factor", 0.2)
+EMPATHY_BIAS_FACTOR: float = _resp_coeffs.get("empathy_bias_factor", 0.35)
 
 # 直近の決定履歴の保持数
 MAX_RECENT_DECISIONS: int = 20

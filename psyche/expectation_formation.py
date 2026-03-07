@@ -776,6 +776,8 @@ class ExpectationFormationSystem:
         self._total_revisions: int = 0
         self._total_expirations: int = 0
         self._last_store: Optional[ExpectationStore] = None
+        # Cache for detect_competitions result to avoid O(n^2) recomputation
+        self._cached_competition_pairs: Optional[list[tuple[str, str]]] = None
 
     def form_expectations(
         self,
@@ -841,6 +843,7 @@ class ExpectationFormationSystem:
 
         # Detect competitions among all expectations
         competition_pairs = detect_competitions(self._expectations)
+        self._cached_competition_pairs = competition_pairs
         for id_a, id_b in competition_pairs:
             for i, exp in enumerate(self._expectations):
                 if exp.expectation_id == id_a:
@@ -998,8 +1001,12 @@ class ExpectationFormationSystem:
             if self._expectations else 0.0
         )
 
-        # Count competing pairs
-        competition_pairs = detect_competitions(self._expectations)
+        # Count competing pairs (use cache if available)
+        if self._cached_competition_pairs is not None:
+            competition_pairs = self._cached_competition_pairs
+            self._cached_competition_pairs = None
+        else:
+            competition_pairs = detect_competitions(self._expectations)
 
         description = _generate_store_description(
             len(self._expectations),

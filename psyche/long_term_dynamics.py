@@ -47,6 +47,7 @@ import json
 import time
 import math
 import threading
+from collections import Counter
 
 
 # ── Statistics Helpers ──────────────────────────────────────────────
@@ -647,7 +648,6 @@ class DynamicsObserver:
         )
 
         # Policy counts
-        from collections import Counter
         if w.decision_labels:
             counts = Counter(w.decision_labels)
             decision.policy_counts = dict(counts)

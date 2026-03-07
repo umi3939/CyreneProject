@@ -796,20 +796,22 @@ class ValueOrientationValidator:
         now: float,
     ) -> None:
         """単回観測と継続観測を分離し、時系列索引に追加する。"""
+        # Build unit_id -> source_types lookup for O(1) access
+        unit_source_map: dict[str, list[str]] = {
+            u.unit_id: u.source_types
+            for u in self._state.description_units
+        }
         for unit in units:
             # 同一断面の過去エントリがあれば continuous、なければ single
             src_types = set(unit.source_types)
-            past_entries = [
-                e for e in self._state.time_series_index
-                if e.unit_id != unit.unit_id
-            ]
-            has_prior = any(
-                e for e in past_entries
-                if any(
-                    s in src_types
-                    for s in self._get_unit_source_types(e.unit_id)
-                )
-            )
+            has_prior = False
+            for e in self._state.time_series_index:
+                if e.unit_id == unit.unit_id:
+                    continue
+                e_src = unit_source_map.get(e.unit_id, [])
+                if any(s in src_types for s in e_src):
+                    has_prior = True
+                    break
 
             entry = TimeSeriesEntry(
                 tick=tick_count,
@@ -1115,13 +1117,16 @@ class ValueOrientationValidator:
             return
 
         recent = self._state.differential_history[-20:]
+        # Build unit_id -> source_types lookup for O(1) access
+        unit_source_map: dict[str, list[str]] = {
+            u.unit_id: u.source_types
+            for u in self._state.description_units
+        }
         source_counts: dict[str, int] = {}
         for d in recent:
             for uid in d.source_unit_ids:
-                for u in self._state.description_units:
-                    if u.unit_id == uid:
-                        for st in u.source_types:
-                            source_counts[st] = source_counts.get(st, 0) + 1
+                for st in unit_source_map.get(uid, []):
+                    source_counts[st] = source_counts.get(st, 0) + 1
 
         if not source_counts:
             return

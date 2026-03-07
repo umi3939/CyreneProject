@@ -16,9 +16,12 @@ Design principles:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from .state import PsycheState
 from .short_term_memory import ShortTermMemory
@@ -134,8 +137,9 @@ class Snapshot:
                 updated_at=data.get("updated_at", datetime.now().isoformat(timespec="seconds")),
             )
 
-        except Exception:
+        except Exception as e:
             # Any reconstruction error means invalid data
+            logger.debug("Snapshot.from_dict reconstruction failed: %s", e)
             return None
 
     def update_timestamp(self) -> "Snapshot":

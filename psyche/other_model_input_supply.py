@@ -268,13 +268,19 @@ def update_from_percept(
 
     if stm is not None and hasattr(stm, "entries"):
         entries = getattr(stm, "entries", [])
-        # 既存バッファにないエントリのみ追加 (timestampで判定)
-        existing_timestamps = {e.timestamp for e in new_buffer}
+        # 既存バッファにないエントリのみ追加
+        # timestamp + source_text の複合キーで判定（同一タイムスタンプの
+        # 異なるエントリが欠落するのを防ぐ）
+        existing_keys = {
+            (e.timestamp, e.source_text) for e in new_buffer
+        }
         for entry in entries:
             entry_ts = getattr(entry, "timestamp", 0.0)
-            if entry_ts not in existing_timestamps:
+            entry_text = getattr(entry, "source_text", "")[:200]
+            dedup_key = (entry_ts, entry_text)
+            if dedup_key not in existing_keys:
                 new_entry = ReactionBufferEntry(
-                    source_text=getattr(entry, "source_text", "")[:200],
+                    source_text=entry_text,
                     intent=getattr(entry, "intent", "unknown"),
                     emotion_label=getattr(entry, "emotion_label", "neutral"),
                     valence=getattr(entry, "valence", 0.0),
@@ -282,7 +288,7 @@ def update_from_percept(
                     supplied=False,
                 )
                 new_buffer.append(new_entry)
-                existing_timestamps.add(entry_ts)
+                existing_keys.add(dedup_key)
 
     # バッファサイズ制限 (古い方から削除)
     while len(new_buffer) > state.max_buffer_size:

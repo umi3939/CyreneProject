@@ -220,6 +220,9 @@ class HypothesisObservationPairingConfig:
     # enrichmentに列挙する直近対の件数上限
     enrichment_count: int = 5
 
+    # 単回の対構成で生成する隣接対の上限（cross product制限）
+    max_pairs_per_composition: int = 100
+
     # ルーミネーション防止: 連続列挙回数の上限
     rumination_consecutive_limit: int = 3
 
@@ -495,6 +498,7 @@ def compose_adjacent_pairs(
     """
     new_pairs: list[AdjacentPair] = []
     now = time.time()
+    limit = config.max_pairs_per_composition
 
     for snapshot in snapshot_buffer:
         for obs in observations:
@@ -521,6 +525,8 @@ def compose_adjacent_pairs(
                 freshness=1.0,
             )
             new_pairs.append(pair)
+            if len(new_pairs) >= limit:
+                return new_pairs
 
     return new_pairs
 

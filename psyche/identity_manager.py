@@ -48,7 +48,8 @@ def apply_identity_change(state: IdentityState, change: dict) -> IdentityState:
         new_traits.append(trait)
 
     new_confidence = dict(state.trait_confidence)
-    new_confidence[trait] = new_confidence.get(trait, 0.5)
+    if trait not in new_confidence:
+        new_confidence[trait] = 0.5
 
     # Remove this change from pending if present
     new_pending = [p for p in state.pending_changes if p != change]

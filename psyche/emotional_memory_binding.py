@@ -871,6 +871,8 @@ class EmotionalMemoryBindingSystem:
         self._total_revisions: int = 0
         self._total_expirations: int = 0
         self._last_store: Optional[BindingStore] = None
+        # O(1) lookup index: memory_key -> index in self._bindings
+        self._memory_key_index: dict[str, int] = {}
 
     def bind_emotions(
         self,
@@ -971,6 +973,7 @@ class EmotionalMemoryBindingSystem:
                     undetermined_aspects=("emotion_trace_approximate", "binding_provisional"),
                 )
                 self._bindings.append(binding)
+                self._memory_key_index[memory_key] = len(self._bindings) - 1
                 self._total_bindings_created += 1
 
         # Apply decay
@@ -1096,6 +1099,7 @@ class EmotionalMemoryBindingSystem:
             new_bindings.append(updated)
 
         self._bindings = new_bindings
+        self._rebuild_memory_key_index()
 
     def _enforce_capacity(self) -> None:
         """Remove weakest bindings if over capacity."""
@@ -1114,6 +1118,7 @@ class EmotionalMemoryBindingSystem:
             b for i, b in enumerate(self._bindings)
             if i not in remove_indices
         ]
+        self._rebuild_memory_key_index()
         if removed_link_ids:
             self._binding_links = [
                 bl for bl in self._binding_links
@@ -1145,8 +1150,20 @@ class EmotionalMemoryBindingSystem:
 
         return links
 
+    def _rebuild_memory_key_index(self) -> None:
+        """Rebuild the memory_key -> index lookup dict."""
+        self._memory_key_index = {
+            b.memory_key: i for i, b in enumerate(self._bindings)
+        }
+
     def _find_binding_for_memory(self, memory_key: str) -> Optional[MemoryBinding]:
         """Find an existing binding for a memory key."""
+        idx = self._memory_key_index.get(memory_key)
+        if idx is not None and idx < len(self._bindings):
+            binding = self._bindings[idx]
+            if binding.memory_key == memory_key:
+                return binding
+        # Fallback: linear scan if index is stale
         for binding in self._bindings:
             if binding.memory_key == memory_key:
                 return binding
@@ -1154,6 +1171,11 @@ class EmotionalMemoryBindingSystem:
 
     def _find_binding_index_for_memory(self, memory_key: str) -> Optional[int]:
         """Find the index of an existing binding for a memory key."""
+        idx = self._memory_key_index.get(memory_key)
+        if idx is not None and idx < len(self._bindings):
+            if self._bindings[idx].memory_key == memory_key:
+                return idx
+        # Fallback: linear scan if index is stale
         for i, binding in enumerate(self._bindings):
             if binding.memory_key == memory_key:
                 return i

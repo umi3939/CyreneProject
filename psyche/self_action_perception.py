@@ -242,8 +242,6 @@ class SelfActionPerceptionRecorder:
         cfg = self._config
         if len(self._state.records) > cfg.max_records:
             pushout_count = len(self._state.records) - cfg.max_records
-            for old in self._state.records[:pushout_count]:
-                old.status = RecordStatus.PUSHED_OUT.value
             self._state.records = self._state.records[pushout_count:]
             self._state.total_records_pushed_out += pushout_count
 

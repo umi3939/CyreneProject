@@ -861,6 +861,7 @@ class EpisodicMemorySystem:
         self._total_recorded: int = 0
         self._total_compressions: int = 0
         self._last_store: Optional[EpisodeStore] = None
+        self._store_dirty: bool = True
 
     def record_episode(
         self,
@@ -945,6 +946,7 @@ class EpisodicMemorySystem:
         # Add episode
         self._episodes.append(episode)
         self._total_recorded += 1
+        self._store_dirty = True
 
         # Generate links to existing episodes
         self._generate_links(episode)
@@ -990,6 +992,7 @@ class EpisodicMemorySystem:
             )
         ]
         self._episodes = new_episodes
+        self._store_dirty = True
 
         return self._build_store(current_time)
 
@@ -1076,6 +1079,7 @@ class EpisodicMemorySystem:
 
             self._episodes.append(composite)
             self._total_compressions += 1
+            self._store_dirty = True
 
         return self._build_store(current_time)
 
@@ -1141,6 +1145,7 @@ class EpisodicMemorySystem:
                     referenced.vividness + self._config.reference_vividness_boost,
                 )
                 self._episodes[i] = boosted
+                self._store_dirty = True
                 return
 
     def reinterpret_episode(
@@ -1157,6 +1162,7 @@ class EpisodicMemorySystem:
         for i, ep in enumerate(self._episodes):
             if ep.episode_id == episode_id:
                 self._episodes[i] = ep.reinterpret(new_summary, new_type)
+                self._store_dirty = True
                 return
 
     def get_store(self) -> EpisodeStore:
@@ -1286,18 +1292,28 @@ class EpisodicMemorySystem:
         ]
 
     def _build_store(self, current_time: float) -> EpisodeStore:
-        """Build an EpisodeStore snapshot."""
-        active = [ep for ep in self._episodes if ep.vividness > 0.0]
-        compressed = [ep for ep in self._episodes if ep.is_compressed]
+        """Build an EpisodeStore snapshot. Uses cache if nothing changed."""
+        if not self._store_dirty and self._last_store is not None:
+            return self._last_store
+
+        active_count = 0
+        compressed_count = 0
+        vividness_sum = 0.0
+        for ep in self._episodes:
+            if ep.vividness > 0.0:
+                active_count += 1
+            if ep.is_compressed:
+                compressed_count += 1
+            vividness_sum += ep.vividness
         avg_vividness = (
-            sum(ep.vividness for ep in self._episodes) / len(self._episodes)
+            vividness_sum / len(self._episodes)
             if self._episodes else 0.0
         )
 
         description = _generate_store_description(
             len(self._episodes),
-            len(active),
-            len(compressed),
+            active_count,
+            compressed_count,
             avg_vividness,
             self._total_compressions,
         )
@@ -1308,12 +1324,13 @@ class EpisodicMemorySystem:
             total_episodes_recorded=self._total_recorded,
             total_compressions=self._total_compressions,
             average_vividness=round(avg_vividness, 4),
-            active_episode_count=len(active),
-            compressed_episode_count=len(compressed),
+            active_episode_count=active_count,
+            compressed_episode_count=compressed_count,
             timestamp=current_time,
             description=description,
         )
         self._last_store = store
+        self._store_dirty = False
         return store
 
 

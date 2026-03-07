@@ -327,7 +327,11 @@ class ContextState:
     # Last update timestamp
     last_update: float = field(default_factory=time.time)
 
-    # Smoothing factor (0 = no smoothing, 1 = full smoothing)
+    # Smoothing factor (0 = no smoothing, 1 = full smoothing).
+    # Limitation: this alpha is fixed and does not adapt to the actual tick
+    # interval. If tick intervals vary significantly (e.g. 0.5s vs 5s), the
+    # effective smoothing window changes proportionally. For the current
+    # system where tick intervals are relatively stable, this is acceptable.
     smoothing_alpha: float = 0.3
 
     def update(self, context: ExternalContext) -> "ContextState":

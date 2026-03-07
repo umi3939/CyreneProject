@@ -288,15 +288,13 @@ def _heuristic_parse(text: str, state: Optional[PsycheState] = None) -> Percept:
     bias = _compute_valence_bias(state)
     biased_valence = valence + bias
 
-    sentiment = biased_valence  # simple mapping
-
     return Percept(
         text=text,
         meaning=text,
         emotion=emotion,
         intent=intent,
         topics=topics,
-        sentiment=sentiment,
+        sentiment=biased_valence,
         emotion_valence=max(-1.0, min(1.0, biased_valence)),
     )
 

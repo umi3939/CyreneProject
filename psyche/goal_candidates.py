@@ -20,6 +20,7 @@ Key design principles:
 from __future__ import annotations
 
 import json
+import random
 import threading
 import time
 import uuid
@@ -358,8 +359,6 @@ class CandidateGenerator:
         Multiple candidates can be generated from a single vector,
         and candidates can emerge from multiple vectors.
         """
-        import random
-
         new_candidates: list[GoalCandidate] = []
 
         # Filter vectors above threshold
@@ -412,8 +411,6 @@ class CandidateGenerator:
 
     def _determine_candidate_count(self, vector: ProtoGoalVector) -> int:
         """Determine how many candidates to generate from a vector."""
-        import random
-
         # Higher magnitude vectors can produce more candidates
         if vector.magnitude > 0.8:
             return random.choice([1, 1, 2])
@@ -427,8 +424,6 @@ class CandidateGenerator:
         vector: ProtoGoalVector,
     ) -> GoalCandidate:
         """Create a new candidate from a single vector."""
-        import random
-
         # Determine category based on vector direction
         category = self._infer_category(vector.direction)
 
@@ -456,8 +451,6 @@ class CandidateGenerator:
         """Create a candidate from multiple vectors."""
         if not vectors:
             return None
-
-        import random
 
         # Combine directions
         combined_direction: dict[str, float] = {}
@@ -497,8 +490,6 @@ class CandidateGenerator:
 
     def _infer_category(self, direction: dict[str, float]) -> CandidateCategory:
         """Infer a category from direction dimensions."""
-        import random
-
         # Simple heuristic based on direction characteristics
         positive_sum = sum(v for v in direction.values() if v > 0)
         negative_sum = sum(v for v in direction.values() if v < 0)
@@ -541,8 +532,6 @@ class CandidateGenerator:
 
     def _project_direction(self, direction: dict[str, float]) -> dict[str, float]:
         """Project vector direction into candidate expression."""
-        import random
-
         expression = {}
 
         for key, value in direction.items():

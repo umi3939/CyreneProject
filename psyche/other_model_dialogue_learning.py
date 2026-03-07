@@ -652,6 +652,8 @@ class DialogueLearningProcessor:
     def __init__(self, config: Optional[DialogueLearningConfig] = None):
         self._config = config or DialogueLearningConfig()
         self._state = DialogueLearningState()
+        # O(1) lookup index: entry_id -> index in self._state.entries
+        self._entry_id_index: dict[str, int] = {}
 
     @property
     def state(self) -> DialogueLearningState:
@@ -660,6 +662,13 @@ class DialogueLearningProcessor:
     @state.setter
     def state(self, value: DialogueLearningState) -> None:
         self._state = value
+        self._rebuild_entry_id_index()
+
+    def _rebuild_entry_id_index(self) -> None:
+        """Rebuild O(1) lookup index from entries list."""
+        self._entry_id_index = {
+            e.entry_id: i for i, e in enumerate(self._state.entries)
+        }
 
     def tick(self, inputs: DialogueLearningInputs) -> DialogueLearningResult:
         """orchestrator から呼ばれる単一エントリポイント。
@@ -705,18 +714,27 @@ class DialogueLearningProcessor:
         再活性上限を設け、特定の蓄積が永続的に高鮮度を維持しない。
         """
         cfg = self._config
-        for entry in self._state.entries:
-            if entry.entry_id == entry_id:
-                entry.reference_count += 1
-                entry.last_reference_time = time.time()
-                if entry.reactivation_count < cfg.max_reactivation_count:
-                    entry.freshness = _clamp(entry.freshness + cfg.reference_recovery)
-                    entry.freshness_stage = _stage_from_freshness(entry.freshness).value
-                    entry.reactivation_count += 1
-                    if entry.status == EntryStatus.DECAYING.value:
-                        entry.status = EntryStatus.ACTIVE.value
-                        self._state.total_entries_recovered += 1
-                break
+        idx = self._entry_id_index.get(entry_id)
+        entry = None
+        if idx is not None and idx < len(self._state.entries):
+            candidate = self._state.entries[idx]
+            if candidate.entry_id == entry_id:
+                entry = candidate
+        if entry is None:
+            for candidate in self._state.entries:
+                if candidate.entry_id == entry_id:
+                    entry = candidate
+                    break
+        if entry is not None:
+            entry.reference_count += 1
+            entry.last_reference_time = time.time()
+            if entry.reactivation_count < cfg.max_reactivation_count:
+                entry.freshness = _clamp(entry.freshness + cfg.reference_recovery)
+                entry.freshness_stage = _stage_from_freshness(entry.freshness).value
+                entry.reactivation_count += 1
+                if entry.status == EntryStatus.DECAYING.value:
+                    entry.status = EntryStatus.ACTIVE.value
+                    self._state.total_entries_recovered += 1
 
     def get_active_entries(self, user_id: str = "") -> list[AccumulationEntry]:
         """活性状態の蓄積記述を返す（参照情報形式）。"""
@@ -885,6 +903,7 @@ class DialogueLearningProcessor:
             return
 
         for entry in entries:
+            self._entry_id_index[entry.entry_id] = len(self._state.entries)
             self._state.entries.append(entry)
             self._state.total_entries_added += 1
             if uid not in self._state.user_index:
@@ -892,6 +911,7 @@ class DialogueLearningProcessor:
             self._state.user_index[uid].append(entry.entry_id)
 
         # 相手別上限制御
+        needs_index_rebuild = False
         if uid in self._state.user_index:
             user_entries = self._state.user_index[uid]
             if len(user_entries) > cfg.max_entries_per_user:
@@ -906,6 +926,7 @@ class DialogueLearningProcessor:
                     e for e in self._state.entries
                     if e.entry_id not in remove_ids
                 ]
+                needs_index_rebuild = True
 
         # 全体上限制御
         if len(self._state.entries) > cfg.max_entries:
@@ -925,6 +946,10 @@ class DialogueLearningProcessor:
             self._state.entries = [
                 e for e in self._state.entries if e.entry_id not in remove_ids
             ]
+            needs_index_rebuild = True
+
+        if needs_index_rebuild:
+            self._rebuild_entry_id_index()
             for uid_key in self._state.user_index:
                 self._state.user_index[uid_key] = [
                     eid for eid in self._state.user_index[uid_key]

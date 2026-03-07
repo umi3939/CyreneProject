@@ -51,6 +51,7 @@ class ResponsibilityManager:
     def __init__(self, filepath: Path | None = None):
         self.filepath = filepath or RESPONSIBILITY_FILE
         self._data: dict[str, dict] = self._load()
+        self._save_suppressed: bool = False
         logger.info("ResponsibilityManager loaded from %s", self.filepath)
 
     def _load(self) -> dict[str, dict]:
@@ -65,7 +66,9 @@ class ResponsibilityManager:
             return {}
 
     def _save(self):
-        """ファイルに保存する（アトミック書き込み）。"""
+        """ファイルに保存する（アトミック書き込み）。抑制中はスキップ。"""
+        if self._save_suppressed:
+            return
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = self.filepath.with_suffix(".tmp")
         tmp_path.write_text(
@@ -127,7 +130,10 @@ class ResponsibilityManager:
         Returns:
             (新しい ResponsibilityState, decision_id)
         """
+        # Suppress intermediate saves during get_state, save once at end
+        self._save_suppressed = True
         state = self.get_state(user_id)
+        self._save_suppressed = False
         new_state, decision_id = _record_decision(state, policy, context)
         self._data[user_id] = to_dict(new_state)
         self._save()
@@ -155,7 +161,10 @@ class ResponsibilityManager:
         Returns:
             新しい ResponsibilityState
         """
+        # Suppress intermediate saves during get_state, save once at end
+        self._save_suppressed = True
         state = self.get_state(user_id)
+        self._save_suppressed = False
         new_state = _evaluate_outcome(state, decision_id, outcome)
         self._data[user_id] = to_dict(new_state)
         self._save()

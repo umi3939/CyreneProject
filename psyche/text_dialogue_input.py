@@ -90,6 +90,30 @@ _FRESHNESS_ORDER = [
     InputFreshness.FADED,
 ]
 
+
+def _compute_time_based_freshness(age: float) -> InputFreshness:
+    """経過時間から鮮度段階を算出する共通ヘルパー。"""
+    if age < 5.0:
+        return InputFreshness.FRESH
+    elif age < 15.0:
+        return InputFreshness.RECENT
+    elif age < 30.0:
+        return InputFreshness.AGING
+    elif age < 60.0:
+        return InputFreshness.STALE
+    else:
+        return InputFreshness.FADED
+
+
+def _apply_freshness_floor(
+    original: InputFreshness,
+    time_based: InputFreshness,
+) -> InputFreshness:
+    """鮮度は悪化方向のみ適用する（元の鮮度より良くならない）。"""
+    orig_idx = _FRESHNESS_ORDER.index(original)
+    new_idx = _FRESHNESS_ORDER.index(time_based)
+    return _FRESHNESS_ORDER[max(orig_idx, new_idx)]
+
 _ZEN_TO_HAN = str.maketrans(
     "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ"
     "ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ"
@@ -908,21 +932,8 @@ def apply_freshness_decay(
     for unit in units:
         age = now - unit.timestamp
         original = unit.freshness
-
-        if age < 5.0:
-            new_fresh = InputFreshness.FRESH
-        elif age < 15.0:
-            new_fresh = InputFreshness.RECENT
-        elif age < 30.0:
-            new_fresh = InputFreshness.AGING
-        elif age < 60.0:
-            new_fresh = InputFreshness.STALE
-        else:
-            new_fresh = InputFreshness.FADED
-
-        orig_idx = _FRESHNESS_ORDER.index(original)
-        new_idx = _FRESHNESS_ORDER.index(new_fresh)
-        final_fresh = _FRESHNESS_ORDER[max(orig_idx, new_idx)]
+        time_based = _compute_time_based_freshness(age)
+        final_fresh = _apply_freshness_floor(original, time_based)
 
         if final_fresh != original:
             decay_entries.append(DecayHistoryEntry(
@@ -958,19 +969,8 @@ def decay_receive_history(
     result: list[ReceiveHistoryEntry] = []
     for entry in history:
         age = now - entry.timestamp
-        if age < 5.0:
-            f = InputFreshness.FRESH
-        elif age < 15.0:
-            f = InputFreshness.RECENT
-        elif age < 30.0:
-            f = InputFreshness.AGING
-        elif age < 60.0:
-            f = InputFreshness.STALE
-        else:
-            f = InputFreshness.FADED
-        orig_idx = _FRESHNESS_ORDER.index(entry.freshness)
-        new_idx = _FRESHNESS_ORDER.index(f)
-        final = _FRESHNESS_ORDER[max(orig_idx, new_idx)]
+        time_based = _compute_time_based_freshness(age)
+        final = _apply_freshness_floor(entry.freshness, time_based)
         result.append(ReceiveHistoryEntry(
             unit_id=entry.unit_id,
             route_type=entry.route_type,
@@ -989,19 +989,8 @@ def decay_suppression_history(
     result: list[SuppressionHistoryEntry] = []
     for entry in history:
         age = now - entry.timestamp
-        if age < 5.0:
-            f = InputFreshness.FRESH
-        elif age < 15.0:
-            f = InputFreshness.RECENT
-        elif age < 30.0:
-            f = InputFreshness.AGING
-        elif age < 60.0:
-            f = InputFreshness.STALE
-        else:
-            f = InputFreshness.FADED
-        orig_idx = _FRESHNESS_ORDER.index(entry.freshness)
-        new_idx = _FRESHNESS_ORDER.index(f)
-        final = _FRESHNESS_ORDER[max(orig_idx, new_idx)]
+        time_based = _compute_time_based_freshness(age)
+        final = _apply_freshness_floor(entry.freshness, time_based)
         result.append(SuppressionHistoryEntry(
             unit_id=entry.unit_id,
             route_type=entry.route_type,

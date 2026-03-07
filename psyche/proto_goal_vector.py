@@ -22,6 +22,7 @@ Key design principles:
 from __future__ import annotations
 
 import json
+import random
 import threading
 import time
 import uuid
@@ -324,8 +325,6 @@ class VectorGenerator:
         Generation is probabilistic and based on the strength
         of signals from various sources.
         """
-        import random
-
         # Collect potential direction signals
         signals: list[tuple[dict[str, float], VectorSourceType, str]] = []
 

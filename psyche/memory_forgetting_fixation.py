@@ -479,6 +479,9 @@ class MemoryForgettingFixationProcessor:
         self._config = config or ForgettingFixationConfig()
         self._state = ForgettingFixationState()
         self._cycle_recovered_count = 0
+        # O(1) lookup indices (rebuilt as needed)
+        self._source_id_index: dict[str, int] = {}
+        self._series_id_index: dict[str, int] = {}
 
     @property
     def state(self) -> ForgettingFixationState:
@@ -487,6 +490,15 @@ class MemoryForgettingFixationProcessor:
     @state.setter
     def state(self, value: ForgettingFixationState) -> None:
         self._state = value
+        self._rebuild_indices()
+
+    def _rebuild_indices(self) -> None:
+        """Rebuild O(1) lookup indices from series_index list."""
+        self._source_id_index = {}
+        self._series_id_index = {}
+        for i, rec in enumerate(self._state.series_index):
+            self._source_id_index[rec.source_id] = i
+            self._series_id_index[rec.series_id] = i
 
     def process(self, inputs: ForgettingFixationInputs) -> ForgettingFixationResult:
         """
@@ -498,6 +510,10 @@ class MemoryForgettingFixationProcessor:
         self._state.cycle_count += 1
         self._cycle_recovered_count = 0
         now = time.time()
+
+        # Ensure indices are built
+        if not self._source_id_index and self._state.series_index:
+            self._rebuild_indices()
 
         # 系列索引の更新（入力から新規系列を登録、参照を記録）
         self._update_series_index(inputs, now)
@@ -533,7 +549,7 @@ class MemoryForgettingFixationProcessor:
         self, inputs: ForgettingFixationInputs, now: float,
     ) -> None:
         """入力から記憶系列索引を更新する。"""
-        existing_ids = {s.source_id for s in self._state.series_index}
+        existing_ids = set(self._source_id_index.keys())
 
         # エピソード記憶から系列登録
         for entry in inputs.episode_entries:
@@ -547,7 +563,10 @@ class MemoryForgettingFixationProcessor:
                     creation_time=now,
                     emotion_strength=abs(entry.get("emotional_valence", 0.0)),
                 )
+                idx = len(self._state.series_index)
                 self._state.series_index.append(rec)
+                self._source_id_index[sid] = idx
+                self._series_id_index[rec.series_id] = idx
                 existing_ids.add(sid)
             else:
                 # 参照記録
@@ -565,7 +584,10 @@ class MemoryForgettingFixationProcessor:
                     creation_time=now,
                     emotion_strength=entry.get("freshness", 0.0),
                 )
+                idx = len(self._state.series_index)
                 self._state.series_index.append(rec)
+                self._source_id_index[sid] = idx
+                self._series_id_index[rec.series_id] = idx
                 existing_ids.add(sid)
             else:
                 self._record_reference(sid, now)
@@ -582,7 +604,10 @@ class MemoryForgettingFixationProcessor:
                     creation_time=now,
                     emotion_strength=abs(entry.get("emotional_valence", 0.0)),
                 )
+                idx = len(self._state.series_index)
                 self._state.series_index.append(rec)
+                self._source_id_index[sid] = idx
+                self._series_id_index[rec.series_id] = idx
                 existing_ids.add(sid)
             else:
                 self._record_reference(sid, now)
@@ -605,10 +630,13 @@ class MemoryForgettingFixationProcessor:
                     s for s in self._state.series_index
                     if s.series_id not in remove_ids
                 ]
+                self._rebuild_indices()
 
     def _record_reference(self, source_id: str, now: float) -> None:
         """参照を記録し、希薄化を回復する。"""
-        for rec in self._state.series_index:
+        idx = self._source_id_index.get(source_id)
+        if idx is not None and idx < len(self._state.series_index):
+            rec = self._state.series_index[idx]
             if rec.source_id == source_id:
                 rec.reference_count += 1
                 rec.last_reference_time = now
@@ -625,6 +653,26 @@ class MemoryForgettingFixationProcessor:
                     if rec.source_id not in self._state.recovery_candidates:
                         self._state.recovery_candidates.append(rec.source_id)
                 # 再利用履歴
+                rec.reuse_count += 1
+                self._state.reuse_history[source_id] = (
+                    self._state.reuse_history.get(source_id, 0) + 1
+                )
+                return
+        # Fallback: linear scan if index is stale
+        for rec in self._state.series_index:
+            if rec.source_id == source_id:
+                rec.reference_count += 1
+                rec.last_reference_time = now
+                rec.dilution = _clamp(
+                    rec.dilution - self._config.reference_recovery, 0.0, 1.0
+                )
+                rec.forgetting_stage = _stage_from_dilution(rec.dilution).value
+                if rec.status == SeriesStatus.FORGETTING.value:
+                    rec.status = SeriesStatus.RECOVERED.value
+                    self._state.total_recovered += 1
+                    self._cycle_recovered_count += 1
+                    if rec.source_id not in self._state.recovery_candidates:
+                        self._state.recovery_candidates.append(rec.source_id)
                 rec.reuse_count += 1
                 self._state.reuse_history[source_id] = (
                     self._state.reuse_history.get(source_id, 0) + 1
@@ -875,6 +923,12 @@ class MemoryForgettingFixationProcessor:
 
     def _find_series_by_id(self, series_id: str) -> Optional[MemorySeriesRecord]:
         """series_idから系列レコードを探す。"""
+        idx = self._series_id_index.get(series_id)
+        if idx is not None and idx < len(self._state.series_index):
+            rec = self._state.series_index[idx]
+            if rec.series_id == series_id:
+                return rec
+        # Fallback: linear scan if index is stale
         for rec in self._state.series_index:
             if rec.series_id == series_id:
                 return rec
@@ -960,12 +1014,21 @@ class MemoryForgettingFixationProcessor:
         """復帰候補と代替系列を補充し、複線状態に戻す。"""
         supplemented = False
         for source_id in self._state.recovery_candidates[:5]:
-            for rec in self._state.series_index:
-                if rec.source_id == source_id and rec.forgetting_stage != ForgettingStage.ACTIVE.value:
-                    # 希薄化を部分回復
-                    rec.dilution = _clamp(rec.dilution - 0.1, 0.0, 1.0)
-                    rec.forgetting_stage = _stage_from_dilution(rec.dilution).value
-                    supplemented = True
+            idx = self._source_id_index.get(source_id)
+            rec = None
+            if idx is not None and idx < len(self._state.series_index):
+                candidate = self._state.series_index[idx]
+                if candidate.source_id == source_id:
+                    rec = candidate
+            if rec is None:
+                for candidate in self._state.series_index:
+                    if candidate.source_id == source_id:
+                        rec = candidate
+                        break
+            if rec is not None and rec.forgetting_stage != ForgettingStage.ACTIVE.value:
+                rec.dilution = _clamp(rec.dilution - 0.1, 0.0, 1.0)
+                rec.forgetting_stage = _stage_from_dilution(rec.dilution).value
+                supplemented = True
         return supplemented
 
     def _slow_forgetting(self, now: float) -> bool:
@@ -996,11 +1059,20 @@ class MemoryForgettingFixationProcessor:
         if most_common_count / len(ref_ids) > 0.6:
             # 代替系列の再提示
             for alt_id in self._state.alternative_series[:3]:
-                for rec in self._state.series_index:
-                    if rec.source_id == alt_id:
-                        rec.dilution = _clamp(rec.dilution - 0.05, 0.0, 1.0)
-                        rec.forgetting_stage = _stage_from_dilution(rec.dilution).value
-                        break
+                rec = None
+                idx = self._source_id_index.get(alt_id)
+                if idx is not None and idx < len(self._state.series_index):
+                    candidate = self._state.series_index[idx]
+                    if candidate.source_id == alt_id:
+                        rec = candidate
+                if rec is None:
+                    for candidate in self._state.series_index:
+                        if candidate.source_id == alt_id:
+                            rec = candidate
+                            break
+                if rec is not None:
+                    rec.dilution = _clamp(rec.dilution - 0.05, 0.0, 1.0)
+                    rec.forgetting_stage = _stage_from_dilution(rec.dilution).value
 
 
 # =============================================================================

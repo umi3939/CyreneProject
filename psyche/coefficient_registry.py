@@ -177,7 +177,7 @@ _DEFAULTS: dict[str, Any] = {
         "window_size_30": 30,    # emotional_backdrop_cognition / multi_path_recall(rumination) / spontaneous_recall(rumination)
         "window_size_50": 50,    # internal_contradiction / drive_variation / input_pathway_balance(sliding)
         # 鮮度減衰速度 — 複数モジュールに共通する鮮度減衰レート
-        "freshness_decay_rate_002": 0.02,  # emotion_cooccurrence / drive_variation / emotional_backdrop / other_boundary / situational_self_presentation / hypothesis_observation / goal_hierarchy / expectation_lifecycle
+        "freshness_decay_rate_002": 0.02,  # emotion_cooccurrence / drive_variation / emotional_backdrop / other_boundary / situational_self_presentation / hypothesis_observation / goal_hierarchy / expectation_lifecycle / action_result_observation / meta_emotion_cognition / other_model_dialogue_learning
     },
 }
 

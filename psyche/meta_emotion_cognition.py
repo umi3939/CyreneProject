@@ -38,6 +38,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -699,7 +701,7 @@ class MetaEmotionConfig:
     max_emotion_snapshots: int = 20
 
     # 鮮度減衰速度
-    freshness_decay_rate: float = 0.02
+    freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
     # 参照による鮮度回復量
     reference_recovery: float = 0.1
     # 持続パターン検出の特徴量一致閾値

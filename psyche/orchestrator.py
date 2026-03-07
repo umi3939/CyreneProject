@@ -490,6 +490,7 @@ from .perceptual_context import (
 from .scoring_fluctuation import (
     ScoringFluctuationConfig,
     apply_scoring_fluctuation,
+    apply_contradiction_amplitude_modulation,
     extract_stm_info,
     get_fluctuation_summary,
     create_fluctuation_config,
@@ -1558,10 +1559,12 @@ class PsycheOrchestrator:
         self._policy_selection_log = create_policy_selection_log()
 
         # ── Return pathway monitor (帰還経路の動作検証と相互干渉検出) ──
-        # 永続化対象外。save/loadフィールド追加なし。enrichment非接続。
-        # 帰還経路の処理ロジックに一切変更を加えない(READ-ONLY観測のみ)。
-        # セッション境界で全内部状態が消失する。
+        # 発火履歴カウンタのみ永続化対象（save/loadで累計を引き継ぐ）。
+        # enrichment非接続。帰還経路の処理ロジックに一切変更を加えない(READ-ONLY観測のみ)。
+        # 永続化されたカウンタ値はPhase処理から参照されない。
         self._return_pathway_monitor = ReturnPathwayMonitor()
+        # セッション回数カウンタ（永続化が何回保存されたか）
+        self._return_pathway_session_count: int = 0
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
@@ -4374,6 +4377,17 @@ class PsycheOrchestrator:
         }
         data.update(save_fields(self, FIELD_DEFINITIONS))
 
+        # 帰還経路発火履歴の永続化:
+        # 帰還経路モニターの読み取り専用アクセサからセッション内カウンタを取得し、
+        # 永続化データに追記する。帰還経路モニター自身はファイルへの書き込みを行わない。
+        try:
+            rpm_data = self._return_pathway_monitor.get_persistence_data()
+            self._return_pathway_session_count += 1
+            rpm_data["session_count"] = self._return_pathway_session_count
+            data["return_pathway_history"] = rpm_data
+        except Exception as e:
+            logger.debug("Return pathway persistence save failed: %s", e)
+
         # セッション間差分: 前回スナップショットがあれば差分スカラーを算出
         if self._session_prev_snapshot is not None:
             try:
@@ -4423,6 +4437,19 @@ class PsycheOrchestrator:
             # 全フィールドを共通ヘルパーで復元
             load_fields(self, FIELD_DEFINITIONS, data)
 
+            # 帰還経路発火履歴の復元:
+            # 永続化されたカウンタ値を帰還経路モニターの初期値として注入する。
+            # 起動時の一度だけであり、ティック中のモニターの動作ロジックに変更を加えない。
+            try:
+                rpm_saved = data.get("return_pathway_history")
+                if isinstance(rpm_saved, dict) and rpm_saved:
+                    self._return_pathway_monitor.inject_cumulative_counts(rpm_saved)
+                    sc = rpm_saved.get("session_count", 0)
+                    if isinstance(sc, (int, float)):
+                        self._return_pathway_session_count = int(sc)
+            except Exception as e:
+                logger.debug("Return pathway persistence load failed: %s", e)
+
             # Session boundary freshness: compute gap from saved timestamp
             saved_ts = data.get("save_timestamp")
             if saved_ts is not None:
@@ -4447,6 +4474,23 @@ class PsycheOrchestrator:
             # ウォームアップ完了後、最初のティック実行前に1回のみ実行する。
             # 警告のみ（修復・進行阻止なし）。内部状態への書き込みなし。
             execute_session_recovery_check(self, warmup_results)
+
+            # Contradiction amplitude modulation: 内部矛盾蓄積→振幅上限値変調
+            # 矛盾記述構造のFIFOバッファ件数から振幅上限値を微調整する。
+            # セッション起動時に一度だけ実行。ティック中変更禁止。
+            # 矛盾記述構造への書き込みなし（READ-ONLY参照）。
+            try:
+                contradiction_count = len(
+                    self._contradiction_processor.state.contradiction_window
+                )
+                apply_contradiction_amplitude_modulation(
+                    self._fluctuation_config,
+                    contradiction_count,
+                )
+            except Exception as e:
+                logger.debug(
+                    "Contradiction amplitude modulation skipped: %s", e
+                )
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",
                         load_path, data.get("version", 0), self._tick_count)

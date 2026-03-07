@@ -42,6 +42,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from . import coefficient_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -605,7 +607,7 @@ class DialogueLearningConfig:
     max_convergence_records: int = 50
 
     # 鮮度減衰速度
-    freshness_decay_rate: float = 0.02
+    freshness_decay_rate: float = field(default_factory=lambda: coefficient_registry.get("description_common", "freshness_decay_rate_002"))
     # 相手不在時の追加減衰速度
     absent_user_decay_rate: float = 0.01
     # 参照による鮮度回復量

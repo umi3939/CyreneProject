@@ -188,7 +188,7 @@ def _deep_compare(
 # session_decay により load 時に変動が想定されるキー。
 # これらは apply_session_decay() が freshness を -0.3 し
 # freshness_stage を再計算するため、save->load->save で値が変わる。
-_SESSION_DECAY_KEYS: set[str] = {"freshness", "freshness_stage", "session_diff_scalar"}
+_SESSION_DECAY_KEYS: set[str] = {"freshness", "freshness_stage", "session_diff_scalar", "session_count"}
 
 
 def _build_version_dict(target_version: int) -> dict[str, Any]:
@@ -801,8 +801,12 @@ class TestFieldDefinitionConsistency:
     """MIGRATION_CHAINとFIELD_DEFINITIONSの定義が整合していることの検証。"""
 
     def test_all_migration_keys_in_field_definitions(self):
-        """MIGRATION_CHAINの全キーがFIELD_DEFINITIONSに含まれること（tick_count除く）。"""
-        migration_keys = get_all_known_field_keys() - {"tick_count"}
+        """MIGRATION_CHAINの全キーがFIELD_DEFINITIONSに含まれること（特殊フィールド除く）。
+
+        tick_count: 直接処理される特殊フィールド
+        return_pathway_history: 外部ツールの発火履歴永続化（orchestratorのsave/loadで直接処理）
+        """
+        migration_keys = get_all_known_field_keys() - {"tick_count", "return_pathway_history"}
         definition_keys = {fd.key for fd in FIELD_DEFINITIONS}
 
         missing = migration_keys - definition_keys

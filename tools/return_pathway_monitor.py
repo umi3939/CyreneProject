@@ -450,6 +450,80 @@ class ReturnPathwayMonitor:
             # 安全弁1: 計測失敗時の安全な無視
             return None
 
+    # ── 永続化用アクセサ・注入 ──────────────────────────────────────
+
+    def get_persistence_data(self) -> dict[str, Any]:
+        """統合管理層のsave処理が呼び出す読み取り専用アクセサ。
+
+        永続化対象のカウンタ値を辞書形式で返す。
+        永続化責務は統合管理層側にあり、本メソッドは読み取りのみ。
+
+        Returns:
+            永続化対象のカウンタ辞書。
+        """
+        return {
+            "pathway_fire_counts": dict(self._pathway_fire_counts),
+            "concurrent_2plus_count": self._concurrent_2plus_count,
+            "concurrent_3plus_count": self._concurrent_3plus_count,
+            "concurrent_4plus_count": self._concurrent_4plus_count,
+            "concurrent_5_count": self._concurrent_5_count,
+            "aggregate_cap_hit_counts": dict(self._aggregate_cap_hit_counts),
+        }
+
+    def inject_cumulative_counts(self, data: dict[str, Any]) -> None:
+        """読込時に永続化済みカウンタ値を初期値として注入する。
+
+        起動時の一度だけ呼ばれる。ティック中の帰還経路モニターの
+        動作ロジックに一切の変更を加えない。
+
+        注入されたカウンタ値は帰還経路の動作（発火閾値・帯域・頻度）に
+        影響を与える経路を持たない。
+
+        Args:
+            data: 永続化されたカウンタ辞書。フィールドが存在しない場合は
+                ゼロで初期化する（安全弁: 読込時のデフォルト値保証）。
+        """
+        try:
+            if not isinstance(data, dict):
+                return
+
+            # 経路別発火回数の注入
+            saved_fire_counts = data.get("pathway_fire_counts", {})
+            if isinstance(saved_fire_counts, dict):
+                for pathway_id in self._pathway_fire_counts:
+                    count = saved_fire_counts.get(pathway_id, 0)
+                    if isinstance(count, (int, float)):
+                        self._pathway_fire_counts[pathway_id] += int(count)
+
+            # 同時発火カウンタの注入
+            c2 = data.get("concurrent_2plus_count", 0)
+            if isinstance(c2, (int, float)):
+                self._concurrent_2plus_count += int(c2)
+
+            c3 = data.get("concurrent_3plus_count", 0)
+            if isinstance(c3, (int, float)):
+                self._concurrent_3plus_count += int(c3)
+
+            c4 = data.get("concurrent_4plus_count", 0)
+            if isinstance(c4, (int, float)):
+                self._concurrent_4plus_count += int(c4)
+
+            c5 = data.get("concurrent_5_count", 0)
+            if isinstance(c5, (int, float)):
+                self._concurrent_5_count += int(c5)
+
+            # 合算帯域上限到達カウンタの注入
+            saved_cap_hits = data.get("aggregate_cap_hit_counts", {})
+            if isinstance(saved_cap_hits, dict):
+                for kind in self._aggregate_cap_hit_counts:
+                    count = saved_cap_hits.get(kind, 0)
+                    if isinstance(count, (int, float)):
+                        self._aggregate_cap_hit_counts[kind] += int(count)
+
+        except Exception:
+            # 安全弁1: 注入失敗時の安全な無視（ゼロ初期値で動作継続）
+            pass
+
     # ── 読み取り専用アクセサ ─────────────────────────────────────────
 
     def get_summary(self) -> dict[str, Any]:

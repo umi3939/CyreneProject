@@ -387,12 +387,14 @@ class TestOutputIdentity:
         )
 
         # session_decay が適用されるフィールドと psyche (fear_index) を除外
+        # return_pathway_history は session_count が save のたびに増加するため除外
         skip_keys = {
             "meta_emotion_state", "emotional_backdrop_state",
             "drive_variation_state", "emotion_cooccurrence_state",
             "other_boundary_accumulation_state",
             "situational_self_presentation_state",
             "psyche", "save_timestamp",
+            "return_pathway_history",
         }
         for key in json_a:
             if key in skip_keys:
@@ -495,12 +497,17 @@ class TestFieldDefinitionsIntegrity:
 
     def test_migration_chain_covers_field_defs(self):
         """マイグレーションチェーンの全キーがFIELD_DEFINITIONS に含まれる
-        （tick_count を除く）。"""
+        （特殊処理フィールドを除く）。
+
+        tick_count: 直接処理される特殊フィールド
+        return_pathway_history: 外部ツールの発火履歴永続化（orchestratorのsave/loadで直接処理）
+        """
         migration_keys = get_all_known_field_keys()
         field_def_keys = {f.key for f in FIELD_DEFINITIONS}
+        special_keys = {"tick_count", "return_pathway_history"}
         for mk in migration_keys:
-            if mk == "tick_count":
-                continue  # tick_count は特殊処理
+            if mk in special_keys:
+                continue
             assert mk in field_def_keys, (
                 f"Migration key {mk} not in FIELD_DEFINITIONS"
             )
@@ -553,9 +560,10 @@ class TestFieldDefinitionsIntegrity:
 
     def test_field_count_matches_expected(self):
         """FIELD_DEFINITIONS のフィールド数が期待値と一致。"""
-        # tick_count を除いたマイグレーションフィールド数と一致するはず
+        # tick_count, return_pathway_history を除いたマイグレーションフィールド数と一致するはず
         migration_keys = get_all_known_field_keys()
-        expected_count = len(migration_keys) - 1  # tick_count を除外
+        special_keys = {"tick_count", "return_pathway_history"}
+        expected_count = len(migration_keys) - len(special_keys)
         assert len(FIELD_DEFINITIONS) == expected_count, (
             f"Expected {expected_count} field defs, got {len(FIELD_DEFINITIONS)}"
         )

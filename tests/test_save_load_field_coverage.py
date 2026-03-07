@@ -121,7 +121,7 @@ def _load_from_dict(orch: PsycheOrchestrator, data: dict[str, Any]) -> None:
 
 
 # session_decay により load 時に変動が想定されるキー。
-_SESSION_DECAY_KEYS: set[str] = {"freshness", "freshness_stage", "session_diff_scalar"}
+_SESSION_DECAY_KEYS: set[str] = {"freshness", "freshness_stage", "session_diff_scalar", "session_count"}
 
 
 def _deep_compare(
@@ -833,7 +833,7 @@ class TestFieldCoverageCompleteness:
 
     def test_all_migration_fields_covered_by_definitions(self):
         """MIGRATION_CHAINの全フィールドがFIELD_DEFINITIONSでカバーされていること。"""
-        migration_keys = get_all_known_field_keys() - {"tick_count"}
+        migration_keys = get_all_known_field_keys() - {"tick_count", "return_pathway_history"}
         definition_keys = {fd.key for fd in FIELD_DEFINITIONS}
 
         uncovered = migration_keys - definition_keys
@@ -852,16 +852,17 @@ class TestFieldCoverageCompleteness:
         )
 
     def test_field_count_equals_68(self):
-        """永続化フィールド数がv44の68と一致すること（67 FIELD_DEFINITIONS + 1 tick_count）。"""
+        """永続化フィールド数がv45の69と一致すること（67 FIELD_DEFINITIONS + 2 special keys）。"""
         definition_count = len(FIELD_DEFINITIONS)
         migration_count = len(get_all_known_field_keys())
 
-        # FIELD_DEFINITIONSにはtick_countが含まれない（特殊フィールドとして直接処理）
-        # MIGRATION_CHAINにはtick_countが含まれる
-        assert migration_count == definition_count + 1, (
+        # FIELD_DEFINITIONSにはtick_count, return_pathway_historyが含まれない（特殊フィールドとして直接処理）
+        # MIGRATION_CHAINにはこれらが含まれる
+        special_key_count = 2  # tick_count, return_pathway_history
+        assert migration_count == definition_count + special_key_count, (
             f"Field count mismatch: "
             f"MIGRATION_CHAIN={migration_count}, "
-            f"FIELD_DEFINITIONS={definition_count} + 1 (tick_count)"
+            f"FIELD_DEFINITIONS={definition_count} + {special_key_count} (tick_count, return_pathway_history)"
         )
 
     def test_all_semantic_groups_have_fields(self):

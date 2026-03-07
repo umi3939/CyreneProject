@@ -9,8 +9,8 @@
       "window_start_turn": 1,
       "window_end_turn": 10,
       "window_size": 10,
-      "timestamp_start": 1772884431.9061298,
-      "timestamp_end": 1772884432.852557,
+      "timestamp_start": 1772912189.7842536,
+      "timestamp_end": 1772912190.538023,
       "stats": {
         "emotion": {
           "joy": {
@@ -65,14 +65,14 @@
         },
         "value_orientation": {
           "dim_a": {
-            "mean": 0.0019,
-            "std": 0.0052,
-            "delta": 0.0131
+            "mean": -0.0035,
+            "std": 0.0039,
+            "delta": -0.0005
           },
           "dim_b": {
-            "mean": 0.0321,
-            "std": 0.0165,
-            "delta": 0.0458
+            "mean": 0.0318,
+            "std": 0.0163,
+            "delta": 0.0453
           },
           "dim_c": {
             "mean": 0.0079,
@@ -80,16 +80,16 @@
             "delta": 0.0142
           },
           "dim_d": {
-            "mean": -0.0161,
-            "std": 0.0083,
-            "delta": -0.0229
+            "mean": -0.0159,
+            "std": 0.0082,
+            "delta": -0.0227
           },
           "dim_e": {
-            "mean": 0.0093,
-            "std": 0.0131,
-            "delta": 0.0369
+            "mean": 0.0037,
+            "std": 0.0079,
+            "delta": 0.023
           },
-          "overall_stability": 0.9905,
+          "overall_stability": 0.9918,
           "most_changed_dim": "b"
         },
         "responsibility": {
@@ -119,8 +119,8 @@
       "window_start_turn": 11,
       "window_end_turn": 20,
       "window_size": 10,
-      "timestamp_start": 1772884432.9781375,
-      "timestamp_end": 1772884434.4136028,
+      "timestamp_start": 1772912190.6620996,
+      "timestamp_end": 1772912191.8536792,
       "stats": {
         "emotion": {
           "joy": {
@@ -175,12 +175,12 @@
         },
         "value_orientation": {
           "dim_a": {
-            "mean": 0.0357,
+            "mean": 0.0221,
             "std": 0.0115,
             "delta": 0.036
           },
           "dim_b": {
-            "mean": 0.0456,
+            "mean": 0.0451,
             "std": 0.0001,
             "delta": -0.0003
           },
@@ -190,14 +190,14 @@
             "delta": 0.0138
           },
           "dim_d": {
-            "mean": -0.0228,
+            "mean": -0.0226,
             "std": 0.0,
             "delta": 0.0001
           },
           "dim_e": {
-            "mean": 0.0855,
-            "std": 0.0251,
-            "delta": 0.0785
+            "mean": 0.0719,
+            "std": 0.0252,
+            "delta": 0.0789
           },
           "overall_stability": 0.9918,
           "most_changed_dim": "e"
@@ -226,7 +226,7 @@
         "emotion_intensity_delta": -0.0496,
         "silence_rate_delta": 0.0,
         "light_tone_delta": 0.0,
-        "value_stability_delta": 0.0013,
+        "value_stability_delta": -0.0001,
         "responsibility_weight_delta": 0.0,
         "stability_activation_delta": 0.0
       }
@@ -236,8 +236,8 @@
       "window_start_turn": 21,
       "window_end_turn": 30,
       "window_size": 10,
-      "timestamp_start": 1772884434.5980613,
-      "timestamp_end": 1772884436.2130015,
+      "timestamp_start": 1772912192.0073054,
+      "timestamp_end": 1772912193.2346826,
       "stats": {
         "emotion": {
           "joy": {
@@ -292,12 +292,12 @@
         },
         "value_orientation": {
           "dim_a": {
-            "mean": 0.0734,
-            "std": 0.0101,
-            "delta": 0.0317
+            "mean": 0.0599,
+            "std": 0.0102,
+            "delta": 0.0319
           },
           "dim_b": {
-            "mean": 0.0453,
+            "mean": 0.0448,
             "std": 0.0001,
             "delta": -0.0003
           },
@@ -307,14 +307,14 @@
             "delta": 0.0134
           },
           "dim_d": {
-            "mean": -0.0227,
+            "mean": -0.0224,
             "std": 0.0,
             "delta": 0.0001
           },
           "dim_e": {
-            "mean": 0.1699,
-            "std": 0.0234,
-            "delta": 0.0732
+            "mean": 0.1567,
+            "std": 0.0236,
+            "delta": 0.0738
           },
           "overall_stability": 0.9924,
           "most_changed_dim": "e"
@@ -353,8 +353,8 @@
       "window_start_turn": 31,
       "window_end_turn": 40,
       "window_size": 10,
-      "timestamp_start": 1772884436.4082987,
-      "timestamp_end": 1772884437.8101978,
+      "timestamp_start": 1772912193.3792274,
+      "timestamp_end": 1772912194.6480067,
       "stats": {
         "emotion": {
           "joy": {
@@ -409,12 +409,12 @@
         },
         "value_orientation": {
           "dim_a": {
-            "mean": 0.1064,
-            "std": 0.0089,
-            "delta": 0.0279
+            "mean": 0.0929,
+            "std": 0.0088,
+            "delta": 0.0276
           },
           "dim_b": {
-            "mean": 0.045,
+            "mean": 0.0445,
             "std": 0.0001,
             "delta": -0.0003
           },
@@ -424,14 +424,14 @@
             "delta": 0.013
           },
           "dim_d": {
-            "mean": -0.0225,
+            "mean": -0.0223,
             "std": 0.0,
             "delta": 0.0001
           },
           "dim_e": {
-            "mean": 0.2486,
+            "mean": 0.2358,
             "std": 0.0219,
-            "delta": 0.0686
+            "delta": 0.0688
           },
           "overall_stability": 0.993,
           "most_changed_dim": "e"
@@ -457,7 +457,7 @@
       },
       "has_delta": true,
       "delta_summary": {
-        "emotion_intensity_delta": -0.0,
+        "emotion_intensity_delta": 0.0,
         "silence_rate_delta": 0.0,
         "light_tone_delta": 0.0,
         "value_stability_delta": 0.0006,
@@ -470,8 +470,8 @@
       "window_start_turn": 41,
       "window_end_turn": 50,
       "window_size": 10,
-      "timestamp_start": 1772884437.9871092,
-      "timestamp_end": 1772884439.4191906,
+      "timestamp_start": 1772912194.884701,
+      "timestamp_end": 1772912196.0858297,
       "stats": {
         "emotion": {
           "joy": {
@@ -526,12 +526,12 @@
         },
         "value_orientation": {
           "dim_a": {
-            "mean": 0.1355,
-            "std": 0.0079,
-            "delta": 0.0246
+            "mean": 0.1217,
+            "std": 0.0077,
+            "delta": 0.0242
           },
           "dim_b": {
-            "mean": 0.0447,
+            "mean": 0.0442,
             "std": 0.0001,
             "delta": -0.0003
           },
@@ -541,14 +541,14 @@
             "delta": 0.0125
           },
           "dim_d": {
-            "mean": -0.0224,
+            "mean": -0.0221,
             "std": 0.0,
             "delta": 0.0001
           },
           "dim_e": {
-            "mean": 0.3222,
-            "std": 0.0204,
-            "delta": 0.0639
+            "mean": 0.3098,
+            "std": 0.0205,
+            "delta": 0.0642
           },
           "overall_stability": 0.9935,
           "most_changed_dim": "e"

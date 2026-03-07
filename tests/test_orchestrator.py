@@ -516,10 +516,12 @@ class TestPersistence:
             "memory_emotion_return_state",
             # v44
             "other_hypothesis_emotion_return_state",
+            # v45
+            "return_pathway_history",
         ]
         for key in expected_keys:
             assert key in data, f"Missing save field: {key}"
-        assert data["version"] == 44
+        assert data["version"] == 45
 
     def test_roundtrip_json_match(self, tmp_path):
         """save → load → save で JSON が一致する（全フィールド復元確認）。
@@ -570,7 +572,7 @@ class TestPersistence:
         # emotion_cooccurrence_state: load時に apply_session_decay() が適用される
         # other_boundary_accumulation_state: load時に apply_session_decay() が適用される
         # psyche.fear_index: from_dict が個別リスク値を復元しない制約
-        skip_keys = {"meta_emotion_state", "emotional_backdrop_state", "drive_variation_state", "emotion_cooccurrence_state", "other_boundary_accumulation_state", "psyche", "save_timestamp"}
+        skip_keys = {"meta_emotion_state", "emotional_backdrop_state", "drive_variation_state", "emotion_cooccurrence_state", "other_boundary_accumulation_state", "psyche", "save_timestamp", "return_pathway_history"}
         for key in json_a:
             if key in skip_keys:
                 continue

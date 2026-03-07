@@ -302,10 +302,14 @@ MIGRATION_CHAIN: tuple[MigrationEntry, ...] = (
         version=44,
         added_fields=("other_hypothesis_emotion_return_state",),
     ),
+    MigrationEntry(
+        version=45,
+        added_fields=("return_pathway_history",),
+    ),
 )
 
 # 現在のバージョン番号
-CURRENT_VERSION: int = 44
+CURRENT_VERSION: int = 45
 
 
 # ── 段階A: マイグレーション処理 ────────────────────────────────────
@@ -569,9 +573,12 @@ def validate_field_defs(field_defs: list[FieldDef]) -> list[str]:
     # マイグレーションチェーンとの整合性チェック
     migration_keys = get_all_known_field_keys()
     field_def_keys = set(keys)
-    # tick_count は特別扱い（save ヘルパーでは直接扱わない）
-    migration_without_tick = migration_keys - {"tick_count"}
-    for mk in migration_without_tick:
+    # 特殊フィールドは save ヘルパーでは直接扱わない:
+    # - tick_count: orchestrator.save/load で直接処理
+    # - return_pathway_history: 外部ツールの発火履歴（orchestrator.save/load で直接処理）
+    special_keys = {"tick_count", "return_pathway_history"}
+    migration_without_special = migration_keys - special_keys
+    for mk in migration_without_special:
         if mk not in field_def_keys:
             issues.append(f"Migration key {mk} not in field_defs")
     for fk in field_def_keys:

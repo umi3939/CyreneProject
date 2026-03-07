@@ -18,12 +18,23 @@ psyche/scoring_fluctuation.py - スコアリングの構造的揺らぎ
   段階4: ポリシー別の揺らぎ値を生成
   段階5: 既存スコアに加算
 
+セッション起動時変調 (design_contradiction_amplitude_modulation.md 準拠):
+  - 内部矛盾記述構造の蓄積件数から振幅上限値の変調量を算出
+  - セッション起動時に一度だけ適用（ティック中変更禁止）
+  - 変調帯域は振幅上限値初期値の±10%以内
+  - 既存の参照偏在→振幅変調リンクと独立（上限値変更 vs 変動度合成入力）
+  - 合算後の振幅上限値が vo_max_bias_strength を超えない絶対上限
+  - 矛盾記述構造への非介入（READ-ONLY参照）
+
 安全弁:
   1. 振幅の絶対上限（value_orientation の max_bias_strength 未満）
   2. 状態蓄積の禁止（永続化対象なし）
   3. 入力源への逆流遮断（読み取り専用）
   4. 長期価値軸更新経路への非介入（揺らぎ値は伝播しない）
   5. 下限による消失防止（揺らぎがゼロにならない）
+  6. 矛盾蓄積変調の帯域制限（初期値の±10%以内）
+  7. 矛盾蓄積変調の絶対上限（vo_max_bias_strength 未満）
+  8. 矛盾記述構造への非介入（READ-ONLY参照、書き込みなし）
 """
 
 from __future__ import annotations
@@ -640,6 +651,133 @@ def apply_scoring_fluctuation(
     )
 
     return result
+
+
+# =============================================================================
+# セッション起動時変調: 内部矛盾蓄積→振幅上限値
+# design_contradiction_amplitude_modulation.md 準拠
+# =============================================================================
+
+# 変調の段階値テーブル: (蓄積件数閾値, 変調割合)
+# 件数が多いほど変調割合が大きくなるが、帯域上限で頭打ち
+# 変調割合は amplitude_cap の初期値に対する比率
+_CONTRADICTION_MODULATION_STEPS: list[tuple[int, float]] = [
+    (5, 0.02),    # 5件以上: +2%
+    (15, 0.04),   # 15件以上: +4%
+    (25, 0.06),   # 25件以上: +6%
+    (35, 0.08),   # 35件以上: +8%
+    (45, 0.10),   # 45件以上: +10% (帯域上限)
+]
+
+# 変調帯域の上限: 初期値に対する比率（安全弁6）
+_CONTRADICTION_MODULATION_BAND_LIMIT: float = 0.10
+
+
+def compute_contradiction_modulation(
+    contradiction_count: int,
+    base_amplitude_cap: float,
+) -> float:
+    """内部矛盾蓄積件数から振幅上限値の変調量を算出する。
+
+    蓄積件数を入力とし、段階値テーブルに基づいて変調量（振幅上限値への加算量）
+    を導出する。導出は決定論的（同一入力に対し同一出力）。
+
+    変調量は正の方向のみ（振幅上限値の微増）。蓄積件数が少なければ変調量は
+    小さく、多ければ大きくなるが、帯域上限（初期値の±10%以内）で頭打ち。
+
+    Args:
+        contradiction_count: 内部矛盾記述構造のFIFOバッファに蓄積されている件数
+        base_amplitude_cap: 振幅上限値の初期値（デフォルト値）
+
+    Returns:
+        変調量（amplitude_cap に加算するスカラー値、非負）
+    """
+    if contradiction_count <= 0 or base_amplitude_cap <= 0:
+        return 0.0
+
+    # 段階値テーブルから変調割合を決定（最も近い下位閾値を採用）
+    modulation_ratio = 0.0
+    for threshold, ratio in _CONTRADICTION_MODULATION_STEPS:
+        if contradiction_count >= threshold:
+            modulation_ratio = ratio
+        else:
+            break
+
+    # 帯域上限の適用（安全弁6）
+    modulation_ratio = min(modulation_ratio, _CONTRADICTION_MODULATION_BAND_LIMIT)
+
+    # 変調量 = 初期値 × 変調割合
+    modulation = base_amplitude_cap * modulation_ratio
+
+    return modulation
+
+
+def apply_contradiction_amplitude_modulation(
+    config: ScoringFluctuationConfig,
+    contradiction_count: int,
+) -> float:
+    """セッション起動時に内部矛盾蓄積に基づく振幅上限値の変調を適用する。
+
+    この関数はセッション起動時に一度だけ呼び出される。
+    ティック中の呼び出しは構造的に禁止される（呼び出し元が起動時のみ）。
+
+    安全弁6: 変調量は初期値の±10%以内
+    安全弁7: 変調後の振幅上限値が vo_max_bias_strength を超えない
+    安全弁8: 矛盾記述構造への書き込みなし（件数は引数として受け取る）
+
+    Args:
+        config: ScoringFluctuationConfig インスタンス（amplitude_cap が変更される）
+        contradiction_count: 内部矛盾記述構造のFIFOバッファの蓄積件数
+
+    Returns:
+        適用された変調量（情報提供用）
+    """
+    # 変調量の算出
+    # base_amplitude_cap は係数レジストリから取得した初期値を使用
+    base_cap = _fluct_defaults()["amplitude_cap"]
+    modulation = compute_contradiction_modulation(contradiction_count, base_cap)
+
+    if modulation <= 0:
+        logger.debug(
+            "Contradiction amplitude modulation: no modulation "
+            "(count=%d, base_cap=%.4f)",
+            contradiction_count, base_cap,
+        )
+        return 0.0
+
+    # 変調の適用: amplitude_cap に加算
+    new_cap = config.amplitude_cap + modulation
+
+    # 安全弁7: vo_max_bias_strength を超えない絶対上限
+    # 既存安全弁1と同一原則: amplitude_cap < vo_max_bias_strength
+    if new_cap >= config.vo_max_bias_strength:
+        new_cap = config.vo_max_bias_strength * 0.95  # 厳密に小さい値
+
+    # 帯域上限の二重チェック: 初期値からの変調量が±10%を超えない
+    max_allowed = base_cap * (1.0 + _CONTRADICTION_MODULATION_BAND_LIMIT)
+    if new_cap > max_allowed:
+        new_cap = max_allowed
+
+    # 再度絶対上限チェック
+    if new_cap >= config.vo_max_bias_strength:
+        new_cap = config.vo_max_bias_strength * 0.95
+
+    # 適用
+    actual_modulation = new_cap - config.amplitude_cap
+    config.amplitude_cap = new_cap
+
+    # 下限が上限以上にならないように再チェック
+    if config.amplitude_floor >= config.amplitude_cap:
+        config.amplitude_floor = config.amplitude_cap * 0.04
+
+    logger.info(
+        "Contradiction amplitude modulation applied: count=%d, "
+        "modulation=%.6f, new_cap=%.6f (base=%.4f, vo_max=%.4f)",
+        contradiction_count, actual_modulation, new_cap,
+        base_cap, config.vo_max_bias_strength,
+    )
+
+    return actual_modulation
 
 
 # =============================================================================

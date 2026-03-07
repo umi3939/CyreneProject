@@ -174,11 +174,22 @@ class Dashboard:
             return {"status": "read_error"}
 
     def _collect_pathway(self) -> dict[str, Any]:
-        """帰還経路を収集する。"""
+        """帰還経路を収集する。
+
+        セッション内カウンタと永続化用カウンタの両方を収集し、
+        「全セッション累計」と「現セッション分」の対比を可能にする。
+        """
         if self._return_pathway_monitor is None:
             return {"status": "not_connected"}
         try:
-            return self._return_pathway_monitor.get_summary()
+            summary = self._return_pathway_monitor.get_summary()
+            # 永続化用データも取得（累計値を含む）
+            try:
+                persistence_data = self._return_pathway_monitor.get_persistence_data()
+                summary["persistence_data"] = persistence_data
+            except Exception:
+                pass
+            return summary
         except Exception:
             return {"status": "read_error"}
 
@@ -471,9 +482,25 @@ class Dashboard:
                     f" {d.get('concurrent_2plus_count', 0)}"
                 )
                 lines.append(
-                    f"  Concurrent (3):"
-                    f" {d.get('concurrent_3_count', 0)}"
+                    f"  Concurrent (3+):"
+                    f" {d.get('concurrent_3plus_count', 0)}"
                 )
+                lines.append(
+                    f"  Concurrent (4+):"
+                    f" {d.get('concurrent_4plus_count', 0)}"
+                )
+                lines.append(
+                    f"  Concurrent (5):"
+                    f" {d.get('concurrent_5_count', 0)}"
+                )
+                # 合算帯域上限到達カウンタ
+                cap_hits = d.get("aggregate_cap_hit_counts", {})
+                if cap_hits:
+                    lines.append("  Cap hits:")
+                    for kind in sorted(cap_hits.keys()):
+                        lines.append(
+                            f"    {kind}: {cap_hits[kind]}"
+                        )
 
         # enrichment
         if SECTION_ENRICHMENT in data:

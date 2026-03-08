@@ -446,7 +446,7 @@ class TestEnrichmentFormat:
         assert "snapshot" in data
         assert "summary_text" in data
         assert data["summary_count"] == 5
-        assert len(data["snapshot"]) == 4
+        assert len(data["snapshot"]) == 5
 
     def test_enrichment_text_no_emphasis(self, processor_with_data):
         """enrichment内での強調表現が含まれないことを確認。"""
@@ -485,7 +485,7 @@ class TestSnapshot:
         proc = processor_with_data
         proc.describe_features()
         snapshot = proc.get_snapshot()
-        assert len(snapshot) == 4
+        assert len(snapshot) == 5
         assert SECTION_EMOTION_CHANGE_FREQ in snapshot
         assert SECTION_INTENT_CHANGE_FREQ in snapshot
         assert SECTION_TOPIC_OVERLAP in snapshot
@@ -588,7 +588,7 @@ class TestSaveLoad:
 
         # describe_features should work on restored state
         result = new_proc.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5
 
     def test_save_load_empty_state(self):
         state = PerceptualContextState()
@@ -661,11 +661,11 @@ class TestSaveLoad:
         new_proc.accumulate_summary("angry", "request", ["new_topic"], -0.7, tick=6)
         new_proc.accumulate_summary("neutral", "sharing", ["another"], 0.1, tick=7)
         result = new_proc.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5
 
         # previous_snapshot が更新されている
         prev = new_proc.get_previous_snapshot()
-        assert len(prev) == 4
+        assert len(prev) == 5
 
         # enrichment も動作する
         text = new_proc.get_enrichment_text()
@@ -694,7 +694,7 @@ class TestTopicsNoneGuard:
         processor.accumulate_summary("sad", "question", None, -0.3, tick=2)
         processor.accumulate_summary("neutral", "sharing", ["a"], 0.0, tick=3)
         result = processor.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5
 
     def test_topics_none_and_normal_mixed(self, processor):
         """topics=None と通常の topics を混在させても正常動作する。"""
@@ -732,18 +732,18 @@ class TestSafetyValves:
         """安全弁3: 断面等価性 -- 全断面の特徴量に重みや重要度がない。"""
         proc = processor_with_data
         result = proc.describe_features()
-        # 全4断面が含まれている
-        assert len(result) == 4
+        # 全5断面が含まれている
+        assert len(result) == 5
         # 各断面が独立した値を持つ（辞書の値として）
         for section_name in SECTION_ORDER:
             assert section_name in result
 
     def test_valve4_no_cross_section_integration(self, processor_with_data):
-        """安全弁4: 断面間統合禁止 -- 4断面を統合した単一指標がない。"""
+        """安全弁4: 断面間統合禁止 -- 5断面を統合した単一指標がない。"""
         proc = processor_with_data
         result = proc.describe_features()
-        # 4つの独立した断面のみ。統合的な「総合知覚推移指標」は存在しない
-        assert len(result) == 4
+        # 5つの独立した断面のみ。統合的な「総合知覚推移指標」は存在しない
+        assert len(result) == 5
         snapshot = proc.get_snapshot()
         # 統合キーが存在しないことを確認
         for key in snapshot:
@@ -901,7 +901,7 @@ class TestAbsentPerceptionTick:
     def test_describe_on_empty_state(self, processor):
         """空の状態でdescribe_featuresを呼んでもエラーにならない。"""
         result = processor.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5
         # 全てデフォルト値
         assert result[SECTION_EMOTION_CHANGE_FREQ] == ChangeFrequency.MODERATE.value
         assert result[SECTION_INTENT_CHANGE_FREQ] == ChangeFrequency.MODERATE.value
@@ -929,13 +929,13 @@ class TestEdgeCases:
         processor.accumulate_summary("happy", "greeting", ["topic"], 0.5, tick=0)
         result = processor.describe_features()
         # 全てデフォルト値
-        assert len(result) == 4
+        assert len(result) == 5
 
     def test_two_entries(self, processor):
         processor.accumulate_summary("happy", "greeting", ["a"], 0.5, tick=0)
         processor.accumulate_summary("sad", "question", ["b"], -0.5, tick=1)
         result = processor.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5
         # 2件ではmin_records_for_description=3未満なので頻度はMODERATE
         assert result[SECTION_EMOTION_CHANGE_FREQ] == ChangeFrequency.MODERATE.value
 
@@ -945,7 +945,7 @@ class TestEdgeCases:
         processor.accumulate_summary("neutral", "sharing", ["c"], 0.0, tick=2)
         result = processor.describe_features()
         # 3件でmin_records_for_description=3なので計算が行われる
-        assert len(result) == 4
+        assert len(result) == 5
 
     def test_very_large_window(self):
         config = PerceptualContextConfig(max_summaries=1000)
@@ -955,7 +955,7 @@ class TestEdgeCases:
             proc.accumulate_summary(emotion, "sharing", [], 0.0, tick=i)
         assert len(proc.state.summaries) == 500
         result = proc.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5
 
     def test_extreme_valence_values(self, processor):
         processor.accumulate_summary("neutral", "sharing", [], -1.0, tick=0)
@@ -1231,13 +1231,13 @@ class TestIntegration:
 
         # Stage 2: 特徴量記述
         result = proc.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5
 
         # Stage 3: 参照情報
         text = proc.get_enrichment_text()
         assert "待機中" not in text
         snapshot = proc.get_snapshot()
-        assert len(snapshot) == 4
+        assert len(snapshot) == 5
 
         data = proc.get_enrichment_data()
         assert data["summary_count"] == 5
@@ -1273,4 +1273,4 @@ class TestIntegration:
         assert len(proc.state.summaries) == 3
 
         result = proc.describe_features()
-        assert len(result) == 4
+        assert len(result) == 5

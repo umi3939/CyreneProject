@@ -36,7 +36,7 @@ from .phase_declaration import (
 )
 
 if TYPE_CHECKING:
-    pass  # PsycheOrchestrator is not imported to avoid circular deps
+    from tools.phase_profiler import PhaseProfiler
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +133,28 @@ class PhaseExecutionEngine:
         self._band_last_log: dict[Band, PhaseExecutionLog] = {
             band: PhaseExecutionLog() for band in _SUPPORTED_BANDS
         }
+
+        # Phase単位プロファイラ参照(Optional、外部から設定)
+        # 設定されていない場合は計測を行わない
+        self._profiler: Optional["PhaseProfiler"] = None
+
+    # ── プロファイラの設定 ────────────────────────────────────────
+
+    def set_profiler(self, profiler: Optional["PhaseProfiler"]) -> None:
+        """Phase単位プロファイラを設定する。
+
+        orchestrator初期化時に外部から設定される。
+        Noneを渡すと計測を無効化する。
+
+        Args:
+            profiler: PhaseProfilerインスタンス、またはNone
+        """
+        self._profiler = profiler
+
+    @property
+    def profiler(self) -> Optional["PhaseProfiler"]:
+        """設定されたプロファイラを返す(読み取り専用)。"""
+        return self._profiler
 
     # ── 帯域別有効フラグ制御 ──────────────────────────────────────
 
@@ -291,6 +313,15 @@ class PhaseExecutionEngine:
         handlers = self._band_handlers[band]
         log = PhaseExecutionLog()
 
+        # プロファイラとティック番号の取得(計測点挿入用)
+        profiler = self._profiler
+        tick = 0
+        try:
+            if profiler and profiler.enabled:
+                tick = getattr(orchestrator, '_tick_count', 0)
+        except Exception:
+            pass
+
         for phase_id in phase_ids:
             handler = handlers.get(phase_id)
             if handler is None:
@@ -303,7 +334,10 @@ class PhaseExecutionEngine:
             phase_def = PHASE_BY_ID[phase_id]
             if phase_def.error_absorbed:
                 try:
-                    handler(orchestrator, user_id)
+                    self._execute_handler_with_profiling(
+                        handler, orchestrator, user_id,
+                        profiler, band.value, phase_id, tick,
+                    )
                     log.phase_results[phase_id] = PhaseStatus.SUCCESS
                 except Exception as e:
                     log.phase_results[phase_id] = PhaseStatus.FAILED
@@ -313,11 +347,59 @@ class PhaseExecutionEngine:
                     )
             else:
                 # エラー吸収なし: 例外はそのまま伝播
-                handler(orchestrator, user_id)
+                self._execute_handler_with_profiling(
+                    handler, orchestrator, user_id,
+                    profiler, band.value, phase_id, tick,
+                )
                 log.phase_results[phase_id] = PhaseStatus.SUCCESS
 
         self._band_last_log[band] = log
         return log
+
+    @staticmethod
+    def _execute_handler_with_profiling(
+        handler: PhaseHandler,
+        orchestrator: Any,
+        user_id: str,
+        profiler: Optional["PhaseProfiler"],
+        band_name: str,
+        phase_id: str,
+        tick: int,
+    ) -> None:
+        """ハンドラをプロファイリング付きで実行する。
+
+        プロファイラが有効な場合のみ計測を行う。
+        計測点自体が例外を発生させた場合、元のPhase実行に影響を与えない(安全弁1)。
+        無効化時は時刻取得すら行わない(安全弁6)。
+
+        Args:
+            handler: Phase処理関数
+            orchestrator: PsycheOrchestratorインスタンス
+            user_id: 対話相手ID
+            profiler: PhaseProfilerインスタンス(None可)
+            band_name: 帯域名文字列
+            phase_id: Phase識別子
+            tick: ティック番号
+        """
+        if profiler and profiler.enabled:
+            import time as _time
+            start = _time.perf_counter()
+            try:
+                handler(orchestrator, user_id)
+            finally:
+                try:
+                    elapsed = _time.perf_counter() - start
+                    profiler.record_phase(
+                        band_name=band_name,
+                        phase_name=phase_id,
+                        elapsed=elapsed,
+                        tick=tick,
+                    )
+                except Exception:
+                    # 安全弁1: 計測失敗時の安全な無視
+                    pass
+        else:
+            handler(orchestrator, user_id)
 
     # ── 実行ログ参照 ────────────────────────────────────────────
 

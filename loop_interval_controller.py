@@ -5,6 +5,7 @@ Controls the timing intervals for the three input pathways in the main loop:
 A. Screen capture interval: adaptive based on capture results
 B. Spontaneous activation check interval: linked to check results
 C. Text input - screen capture coordination
+D. Arousal-based interval modulation (post-stage micro-adjustment)
 
 This module only controls timing intervals. It does NOT reference
 psyche module states or outputs. All decisions are based solely on
@@ -12,11 +13,13 @@ observable facts within the main loop itself:
 - Capture result (frame present or None)
 - Text queue state (empty or not)
 - Spontaneous activation result (activated or not)
+- Arousal value (passed as argument by caller, not read from psyche)
 
 No state is persisted across sessions.
 """
 
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -49,6 +52,56 @@ SPONTANEOUS_WAIT_STAGES: list[float] = [
 # After this many consecutive text inputs without a screen capture,
 # force a screen capture opportunity
 TEXT_CONSECUTIVE_LIMIT: int = 5
+
+# --- Arousal Modulation Constants ---
+
+# Maximum modulation ratio (+-10% of base interval)
+_AROUSAL_MOD_MAX_RATIO: float = 0.1
+
+# Arousal neutral point (center of arousal range 0.0-1.0)
+_AROUSAL_NEUTRAL: float = 0.5
+
+# Number of recent arousal values to keep for safety valve detection
+_AROUSAL_HISTORY_SIZE: int = 5
+
+# How many consecutive same-direction changes trigger the safety valve
+_AROUSAL_MONOTONIC_THRESHOLD: int = 4
+
+# How many direction reversals needed to release the safety valve (hysteresis)
+_AROUSAL_HYSTERESIS_REVERSALS: int = 2
+
+# Maximum modulation effect records to keep (FIFO diagnostic)
+_AROUSAL_EFFECT_RECORD_SIZE: int = 20
+
+
+@dataclass
+class ArousalModulationState:
+    """State for arousal-based loop interval modulation.
+
+    All fields are ephemeral (not persisted across sessions).
+    """
+    # Recent arousal values for monotonic change detection
+    arousal_history: deque = field(default_factory=lambda: deque(maxlen=_AROUSAL_HISTORY_SIZE))
+    # Safety valve: True = modulation disabled (monotonic change detected)
+    safety_valve_active: bool = False
+    # Counter for direction reversals needed to release safety valve
+    reversal_count: int = 0
+
+    def reset(self) -> None:
+        """Reset to initial state (no modulation, safety valve off)."""
+        self.arousal_history.clear()
+        self.safety_valve_active = False
+        self.reversal_count = 0
+
+
+@dataclass
+class ArousalModulationRecord:
+    """Single record of arousal modulation effect (diagnostic only)."""
+    arousal_value: float = 0.0
+    modulation_coefficient: float = 1.0
+    base_interval: float = 0.0
+    effective_interval: float = 0.0
+    safety_valve_active: bool = False
 
 
 @dataclass
@@ -212,6 +265,12 @@ class LoopIntervalController:
         # Telemetry counters (diagnostic-only, never referenced by control logic)
         self._telemetry = TelemetryCounters()
 
+        # Arousal modulation state (ephemeral, not persisted)
+        self._arousal_state = ArousalModulationState()
+        self._arousal_effect_log: deque[ArousalModulationRecord] = deque(
+            maxlen=_AROUSAL_EFFECT_RECORD_SIZE,
+        )
+
         # Initialize times
         now = time.monotonic()
         self._capture_state.last_capture_time = now
@@ -258,6 +317,16 @@ class LoopIntervalController:
     def telemetry(self) -> TelemetryCounters:
         """Read-only access to telemetry counters."""
         return self._telemetry
+
+    @property
+    def arousal_state(self) -> ArousalModulationState:
+        """Read-only access to arousal modulation state."""
+        return self._arousal_state
+
+    @property
+    def arousal_effect_log(self) -> deque:
+        """Read-only access to arousal modulation effect records."""
+        return self._arousal_effect_log
 
     # --- A. Screen Capture Interval Control ---
 
@@ -482,6 +551,165 @@ class LoopIntervalController:
         self._telemetry.all_pathway_reset_count += 1
         self._telemetry._check_overflow()
 
+    # --- D. Arousal-Based Interval Modulation ---
+
+    def _detect_monotonic_arousal(self) -> bool:
+        """Check if recent arousal values show monotonic (same-direction) change.
+
+        Returns True if the last _AROUSAL_MONOTONIC_THRESHOLD consecutive
+        changes are all in the same direction (all increasing or all decreasing).
+        """
+        history = self._arousal_state.arousal_history
+        if len(history) < _AROUSAL_MONOTONIC_THRESHOLD + 1:
+            return False
+
+        # Check the last THRESHOLD consecutive differences
+        recent = list(history)[-(_AROUSAL_MONOTONIC_THRESHOLD + 1):]
+        diffs = [recent[i + 1] - recent[i] for i in range(len(recent) - 1)]
+
+        # All positive or all negative (ignore zero as non-directional)
+        all_positive = all(d > 0 for d in diffs)
+        all_negative = all(d < 0 for d in diffs)
+        return all_positive or all_negative
+
+    def _detect_reversal(self) -> bool:
+        """Check if the most recent arousal change is a direction reversal
+        compared to the one before it.
+
+        Returns True if the last two consecutive differences have opposite signs.
+        """
+        history = self._arousal_state.arousal_history
+        if len(history) < 3:
+            return False
+
+        recent = list(history)[-3:]
+        d1 = recent[1] - recent[0]
+        d2 = recent[2] - recent[1]
+
+        # Reversal: signs differ (and neither is zero)
+        if d1 == 0 or d2 == 0:
+            return False
+        return (d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0)
+
+    def _compute_arousal_coefficient(self, arousal: float) -> float:
+        """Compute the modulation coefficient from arousal value.
+
+        Higher arousal -> coefficient < 1.0 (shorter interval)
+        Lower arousal -> coefficient > 1.0 (longer interval)
+
+        Coefficient is clamped to [1 - MAX_RATIO, 1 + MAX_RATIO].
+        """
+        # Linear mapping: deviation from neutral scaled to +-MAX_RATIO
+        deviation = arousal - _AROUSAL_NEUTRAL
+        # Normalize: deviation range is [-0.5, 0.5], map to [-MAX_RATIO, MAX_RATIO]
+        raw_mod = -(deviation / 0.5) * _AROUSAL_MOD_MAX_RATIO
+        # Clamp
+        clamped = max(-_AROUSAL_MOD_MAX_RATIO, min(_AROUSAL_MOD_MAX_RATIO, raw_mod))
+        return 1.0 + clamped
+
+    def apply_arousal_modulation(
+        self, base_interval: float, arousal: float,
+    ) -> float:
+        """Apply arousal-based modulation to a base interval.
+
+        This is the post-stage modulation layer. The base_interval is the
+        value already determined by the 3-path control (stage-based).
+        The arousal value is passed by the caller (not read from psyche).
+
+        Args:
+            base_interval: The interval determined by existing 3-path control.
+            arousal: Current arousal value (typically 0.0-1.0), passed by caller.
+
+        Returns:
+            The effective interval after arousal modulation.
+            If the safety valve is active, returns base_interval unchanged.
+        """
+        # Clamp arousal to valid range
+        arousal = max(0.0, min(1.0, arousal))
+
+        # Record arousal in history
+        self._arousal_state.arousal_history.append(arousal)
+
+        # Safety valve logic
+        if self._arousal_state.safety_valve_active:
+            # Check for direction reversal to count toward release
+            if self._detect_reversal():
+                self._arousal_state.reversal_count += 1
+            else:
+                # Non-reversal does not reset the counter (accumulative)
+                pass
+
+            # Release safety valve after enough reversals
+            if self._arousal_state.reversal_count >= _AROUSAL_HYSTERESIS_REVERSALS:
+                self._arousal_state.safety_valve_active = False
+                self._arousal_state.reversal_count = 0
+            else:
+                # Safety valve still active: no modulation
+                record = ArousalModulationRecord(
+                    arousal_value=arousal,
+                    modulation_coefficient=1.0,
+                    base_interval=base_interval,
+                    effective_interval=base_interval,
+                    safety_valve_active=True,
+                )
+                self._arousal_effect_log.append(record)
+                return base_interval
+        else:
+            # Check if monotonic change triggers safety valve
+            if self._detect_monotonic_arousal():
+                self._arousal_state.safety_valve_active = True
+                self._arousal_state.reversal_count = 0
+                # Immediately disable modulation
+                record = ArousalModulationRecord(
+                    arousal_value=arousal,
+                    modulation_coefficient=1.0,
+                    base_interval=base_interval,
+                    effective_interval=base_interval,
+                    safety_valve_active=True,
+                )
+                self._arousal_effect_log.append(record)
+                return base_interval
+
+        # Compute and apply modulation
+        coefficient = self._compute_arousal_coefficient(arousal)
+        effective_interval = base_interval * coefficient
+
+        # Record effect
+        record = ArousalModulationRecord(
+            arousal_value=arousal,
+            modulation_coefficient=coefficient,
+            base_interval=base_interval,
+            effective_interval=effective_interval,
+            safety_valve_active=False,
+        )
+        self._arousal_effect_log.append(record)
+
+        return effective_interval
+
+    def get_arousal_diagnostics(self) -> dict:
+        """Return arousal modulation diagnostic snapshot.
+
+        For debugging/logging purposes only. Not referenced by control logic.
+        """
+        history = list(self._arousal_state.arousal_history)
+        recent_effects = [
+            {
+                "arousal": r.arousal_value,
+                "coefficient": r.modulation_coefficient,
+                "base_interval": r.base_interval,
+                "effective_interval": r.effective_interval,
+                "safety_valve_active": r.safety_valve_active,
+            }
+            for r in self._arousal_effect_log
+        ]
+        return {
+            "arousal_history": history,
+            "safety_valve_active": self._arousal_state.safety_valve_active,
+            "reversal_count": self._arousal_state.reversal_count,
+            "effect_log_size": len(self._arousal_effect_log),
+            "recent_effects": recent_effects[-5:] if recent_effects else [],
+        }
+
     # --- Snapshot for diagnostics ---
 
     def get_diagnostics(self) -> dict:
@@ -506,4 +734,9 @@ class LoopIntervalController:
                 "force_capture_needed": self.should_force_capture_after_text(),
             },
             "telemetry": self._telemetry.to_dict(),
+            "arousal_modulation": {
+                "safety_valve_active": self._arousal_state.safety_valve_active,
+                "history_length": len(self._arousal_state.arousal_history),
+                "effect_log_size": len(self._arousal_effect_log),
+            },
         }

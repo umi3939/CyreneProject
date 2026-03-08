@@ -14,6 +14,7 @@ Usage::
     python -m tools.long_term_sim --scenario smoke --stats
     python -m tools.long_term_sim --divergence smoke --num-instances 3 --warmup-turns 5
     python -m tools.long_term_sim --ab-compare smoke
+    python -m tools.long_term_sim --probe-consistency mixed --probe-patterns neutral positive --probe-interval 10
 """
 
 from __future__ import annotations
@@ -2265,6 +2266,369 @@ def run_ab_comparison(
     }
 
 
+# ── Measurement Mode 4: Probe-based Response Consistency ─────
+
+def _generate_probe_positions(
+    total_background_turns: int,
+    probe_interval: int,
+    num_probe_types: int,
+) -> list[int]:
+    """Generate equidistant probe insertion positions.
+
+    Positions specify after which background turn index (0-based) a probe
+    batch is inserted. Each probe batch consists of one probe per probe type.
+
+    Safety valve 4: The minimum interval between probe batches is enforced.
+    Safety valve 4 (ratio): Total probe turns must not exceed half of
+    background turns.
+
+    Args:
+        total_background_turns: Number of turns in the background scenario.
+        probe_interval: Interval between probe insertion points (in background turns).
+        num_probe_types: Number of probe types used simultaneously.
+
+    Returns:
+        Sorted list of 0-based background turn indices after which probes
+        are inserted.
+    """
+    if total_background_turns < 1 or probe_interval < 1 or num_probe_types < 1:
+        return []
+
+    # Enforce minimum interval of 3
+    effective_interval = max(probe_interval, 3)
+
+    positions: list[int] = []
+    pos = effective_interval - 1  # 0-based index of the background turn
+    while pos < total_background_turns:
+        positions.append(pos)
+        pos += effective_interval
+
+    # Safety valve 4 (ratio check): total probe turns <= half of background
+    total_probes = len(positions) * num_probe_types
+    while total_probes > total_background_turns // 2 and len(positions) > 1:
+        # Remove every other position to reduce density
+        positions = positions[::2]
+        total_probes = len(positions) * num_probe_types
+
+    return positions
+
+
+def run_probe_consistency_measurement(
+    scenario_name: str | None = None,
+    custom_sequence: list[str] | None = None,
+    probe_pattern_keys: list[str] | None = None,
+    probe_positions: list[int] | None = None,
+    probe_interval: int = 10,
+    delta_time: float = 2.0,
+    user_id: str = "sim_user",
+    max_probe_types: int = 5,
+    entropy_bin_params: list[int] | None = None,
+) -> dict[str, Any]:
+    """Run probe-based response consistency measurement.
+
+    Executes a background scenario while inserting probe inputs at specified
+    positions. Each probe is processed as a normal turn (no state
+    evacuation/restoration). Records pre-probe state, post-probe state,
+    state difference, and policy selection at each probe point.
+
+    After all turns are completed, computes trajectory statistical features
+    on the probe response difference time series.
+
+    Args:
+        scenario_name: SCENARIOS name for the background input sequence.
+        custom_sequence: Custom pattern key list (overrides scenario_name).
+        probe_pattern_keys: List of pattern keys to use as probes.
+            If None, defaults to ["neutral"].
+        probe_positions: Explicit 0-based background turn indices after which
+            to insert probe batches. Overrides probe_interval if provided.
+        probe_interval: Interval between probe insertion points (in background
+            turns). Used only if probe_positions is None.
+        delta_time: Virtual seconds between turns.
+        user_id: Simulated user ID.
+        max_probe_types: Upper bound for simultaneous probe types (safety valve 5).
+        entropy_bin_params: Bin parameters for entropy calculation on probe
+            response features.
+
+    Returns:
+        Measurement result dict with metadata, background turn records,
+        probe records, and probe response trajectory features.
+
+    Raises:
+        ValueError: Invalid scenario, pattern keys, or constraint violations.
+    """
+    if entropy_bin_params is None:
+        entropy_bin_params = [5, 10, 20]
+
+    # Resolve probe pattern keys
+    if probe_pattern_keys is None:
+        probe_pattern_keys = ["neutral"]
+
+    # Safety valve 5: limit probe type count
+    if len(probe_pattern_keys) > max_probe_types:
+        probe_pattern_keys = probe_pattern_keys[:max_probe_types]
+
+    # Validate probe pattern keys
+    for key in probe_pattern_keys:
+        if key not in INPUT_PATTERNS:
+            raise ValueError(
+                f"Invalid probe pattern key: {key}. "
+                f"Available: {list(INPUT_PATTERNS.keys())}"
+            )
+
+    # Resolve background sequence
+    if custom_sequence is not None:
+        sequence = custom_sequence
+        scenario_label = "custom"
+    elif scenario_name is not None:
+        if scenario_name not in SCENARIOS:
+            raise ValueError(
+                f"Unknown scenario: {scenario_name}. "
+                f"Available: {list(SCENARIOS.keys())}"
+            )
+        sequence = SCENARIOS[scenario_name]
+        scenario_label = scenario_name
+    else:
+        raise ValueError("Either scenario_name or custom_sequence is required.")
+
+    # Validate background pattern keys
+    for key in sequence:
+        if key not in INPUT_PATTERNS:
+            raise ValueError(
+                f"Invalid pattern key: {key}. "
+                f"Available: {list(INPUT_PATTERNS.keys())}"
+            )
+
+    total_background = len(sequence)
+
+    # Resolve probe positions
+    if probe_positions is not None:
+        # Validate custom positions
+        effective_positions = sorted(set(
+            p for p in probe_positions
+            if 0 <= p < total_background
+        ))
+        # Safety valve 4 (ratio check)
+        total_probes = len(effective_positions) * len(probe_pattern_keys)
+        while total_probes > total_background // 2 and len(effective_positions) > 1:
+            effective_positions = effective_positions[::2]
+            total_probes = len(effective_positions) * len(probe_pattern_keys)
+    else:
+        effective_positions = _generate_probe_positions(
+            total_background, probe_interval, len(probe_pattern_keys),
+        )
+
+    started_at = datetime.now().isoformat(timespec="seconds")
+
+    # Initialize orchestrator
+    tmpdir = tempfile.mkdtemp(prefix="psyche_probe_")
+    orch = PsycheOrchestrator(memory_count=0, data_dir=Path(tmpdir))
+
+    # Convert positions to a set for O(1) lookup
+    probe_position_set = set(effective_positions)
+
+    # Tracking structures
+    all_turn_records: list[dict[str, Any]] = []
+    probe_records: list[dict[str, Any]] = []
+    sim_memory_count = 0
+    actual_turn_num = 0  # Absolute turn counter (background + probes)
+
+    for bg_idx, pattern_key in enumerate(sequence):
+        actual_turn_num += 1
+
+        # Process background turn (normal sim loop)
+        percept = Percept(**INPUT_PATTERNS[pattern_key])
+        orch.post_response_update(percept, delta_time, user_id)
+
+        if abs(percept.emotion_valence) > 0.3:
+            sim_memory_count += 1
+            orch.on_memory_saved(
+                summary=percept.text,
+                keywords=[percept.emotion or "unknown"],
+                memory_count=sim_memory_count,
+            )
+
+        policy = orch.select_policy_dict(percept, [], user_id)
+        outcome = _pattern_to_outcome(pattern_key)
+        resp_state = orch._responsibility_mgr.get_state(user_id)
+        for rec in reversed(resp_state.recent_decisions):
+            if not rec.get("evaluated", False):
+                orch._responsibility_mgr.evaluate_outcome(
+                    user_id, rec["id"], outcome,
+                )
+                break
+
+        bg_record = {
+            "turn": actual_turn_num,
+            "type": "background",
+            "background_index": bg_idx,
+            "input_pattern": pattern_key,
+            "tick": orch.tick_count,
+        }
+        all_turn_records.append(bg_record)
+
+        # Check if probes should be inserted after this background turn
+        if bg_idx in probe_position_set:
+            for probe_key in probe_pattern_keys:
+                actual_turn_num += 1
+
+                # Record pre-probe state vector
+                state_before = _extract_state_vector(orch)
+
+                # Process probe turn (same interface as background)
+                probe_percept = Percept(**INPUT_PATTERNS[probe_key])
+                orch.post_response_update(probe_percept, delta_time, user_id)
+
+                if abs(probe_percept.emotion_valence) > 0.3:
+                    sim_memory_count += 1
+                    orch.on_memory_saved(
+                        summary=probe_percept.text,
+                        keywords=[probe_percept.emotion or "unknown"],
+                        memory_count=sim_memory_count,
+                    )
+
+                probe_policy = orch.select_policy_dict(
+                    probe_percept, [], user_id,
+                )
+                probe_outcome = _pattern_to_outcome(probe_key)
+                resp_state = orch._responsibility_mgr.get_state(user_id)
+                for rec in reversed(resp_state.recent_decisions):
+                    if not rec.get("evaluated", False):
+                        orch._responsibility_mgr.evaluate_outcome(
+                            user_id, rec["id"], probe_outcome,
+                        )
+                        break
+
+                # Record post-probe state vector
+                state_after = _extract_state_vector(orch)
+
+                # Compute difference vector
+                diff_vector = [
+                    round(state_after[i] - state_before[i], 6)
+                    for i in range(len(state_before))
+                ]
+
+                probe_record: dict[str, Any] = {
+                    "turn": actual_turn_num,
+                    "type": "probe",
+                    "probe_pattern": probe_key,
+                    "background_index": bg_idx,
+                    "background_turns_elapsed": bg_idx + 1,
+                    "tick": orch.tick_count,
+                    "state_before": [round(v, 6) for v in state_before],
+                    "state_after": [round(v, 6) for v in state_after],
+                    "state_diff": diff_vector,
+                    "policy_label": probe_policy.get("policy_label", ""),
+                    "policy_score": round(probe_policy.get("_score", 0.0), 6),
+                }
+                probe_records.append(probe_record)
+
+                all_turn_records.append({
+                    "turn": actual_turn_num,
+                    "type": "probe",
+                    "probe_pattern": probe_key,
+                    "background_index": bg_idx,
+                    "tick": orch.tick_count,
+                })
+
+    finished_at = datetime.now().isoformat(timespec="seconds")
+
+    # Compute probe response trajectory features per probe type
+    labels = _dimension_labels()
+    probe_trajectory_features: dict[str, Any] = {}
+
+    for probe_key in probe_pattern_keys:
+        key_records = [
+            r for r in probe_records if r["probe_pattern"] == probe_key
+        ]
+        if len(key_records) < 2:
+            probe_trajectory_features[probe_key] = {
+                "num_probes": len(key_records),
+                "insufficient_data": True,
+            }
+            continue
+
+        # Build diff vectors time series for this probe type
+        diff_vectors = [r["state_diff"] for r in key_records]
+
+        per_dim_features: dict[str, dict[str, Any]] = {}
+        for d, label in enumerate(labels):
+            dim_values = [dv[d] for dv in diff_vectors]
+            dim_feat: dict[str, Any] = {}
+
+            dim_feat["variance"] = round(_compute_variance(dim_values), 6)
+            dim_feat["lag1_autocorrelation"] = round(
+                _compute_lag1_autocorrelation(dim_values), 6
+            )
+
+            dim_feat["entropy"] = {}
+            for num_bins in entropy_bin_params:
+                dim_feat["entropy"][f"bins_{num_bins}"] = round(
+                    _compute_binned_entropy(dim_values, num_bins), 6
+                )
+
+            dim_feat["stationarity"] = _compute_split_half_stationarity(
+                dim_values
+            )
+
+            per_dim_features[label] = dim_feat
+
+        # Change from first probe: how each probe's diff differs from the first
+        first_diff = diff_vectors[0]
+        change_from_first: list[dict[str, float]] = []
+        for idx, dv in enumerate(diff_vectors):
+            delta_from_first = {
+                labels[d]: round(dv[d] - first_diff[d], 6)
+                for d in range(len(labels))
+            }
+            total_change = round(
+                math.sqrt(sum(
+                    (dv[d] - first_diff[d]) ** 2 for d in range(len(labels))
+                )),
+                6,
+            )
+            change_from_first.append({
+                "probe_index": idx,
+                "background_turns_elapsed": key_records[idx]["background_turns_elapsed"],
+                "per_dimension": delta_from_first,
+                "euclidean_distance": total_change,
+            })
+
+        # Policy label transitions
+        policy_labels = [r["policy_label"] for r in key_records]
+        policy_transitions = _compute_transition_frequency(policy_labels)
+
+        # Effective dimensionality of diff vectors
+        eff_dim = _compute_effective_dimensionality(diff_vectors)
+
+        probe_trajectory_features[probe_key] = {
+            "num_probes": len(key_records),
+            "per_dimension": per_dim_features,
+            "effective_dimensionality": round(eff_dim, 6),
+            "policy_transitions": policy_transitions,
+            "change_from_first_probe": change_from_first,
+        }
+
+    return {
+        "metadata": {
+            "mode": "probe_consistency",
+            "scenario": scenario_label,
+            "background_turns": total_background,
+            "probe_pattern_keys": probe_pattern_keys,
+            "probe_positions": effective_positions,
+            "total_probes": len(probe_records),
+            "total_turns_including_probes": actual_turn_num,
+            "delta_time": delta_time,
+            "user_id": user_id,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "dimension_labels": labels,
+        },
+        "turn_sequence": all_turn_records,
+        "probe_records": probe_records,
+        "probe_trajectory_features": probe_trajectory_features,
+    }
+
+
 # ── CLI ───────────────────────────────────────────────────────
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -2367,6 +2731,31 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Run A/B comparison (session modulation enabled vs disabled)",
     )
+    parser.add_argument(
+        "--probe-consistency",
+        type=str,
+        default=None,
+        help="Run probe-based response consistency measurement for given scenario",
+    )
+    parser.add_argument(
+        "--probe-patterns",
+        nargs="+",
+        type=str,
+        default=None,
+        help="Probe input pattern keys (default: neutral)",
+    )
+    parser.add_argument(
+        "--probe-interval",
+        type=int,
+        default=10,
+        help="Interval between probe insertions in background turns (default: 10)",
+    )
+    parser.add_argument(
+        "--max-probe-types",
+        type=int,
+        default=5,
+        help="Upper bound for simultaneous probe types (default: 5)",
+    )
     return parser
 
 
@@ -2412,6 +2801,27 @@ def main(argv: list[str] | None = None) -> None:
             user_id=args.user_id,
         )
         output_text = json.dumps(ab_result, ensure_ascii=False, indent=2)
+        if args.output:
+            out_path = Path(args.output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(output_text, encoding="utf-8")
+            print(f"Output written to {out_path}")
+        else:
+            print(output_text)
+        return
+
+    # ── Probe consistency measurement mode ──
+    if args.probe_consistency:
+        probe_result = run_probe_consistency_measurement(
+            scenario_name=args.probe_consistency,
+            probe_pattern_keys=args.probe_patterns,
+            probe_interval=args.probe_interval,
+            delta_time=args.delta_time,
+            user_id=args.user_id,
+            max_probe_types=args.max_probe_types,
+            entropy_bin_params=args.entropy_bins,
+        )
+        output_text = json.dumps(probe_result, ensure_ascii=False, indent=2)
         if args.output:
             out_path = Path(args.output)
             out_path.parent.mkdir(parents=True, exist_ok=True)

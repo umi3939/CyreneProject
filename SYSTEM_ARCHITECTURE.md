@@ -2,8 +2,8 @@
 
 作成日: 2026-02-09
 更新日: 2026-03-08
-総コード行数: ~254,000行
-総テスト数: 11,424テスト
+総コード行数: ~259,000行
+総テスト数: 11,729テスト
 
 ---
 
@@ -216,16 +216,17 @@
 | ファイル | 行数 | 説明 |
 |---------|------|------|
 | execution_monitor.py | 1,663 | Phase計測、圧縮比追跡、API追跡、EnrichmentDistributionMonitor、EnrichmentEffectivenessMonitor |
-| long_term_sim.py | 998 | 長期挙動シミュレータ（5シナリオ、統計、差分、帰還経路検証対応） |
+| long_term_sim.py | 2,507 | 長期挙動シミュレータ（5シナリオ、統計、差分、帰還経路検証、自我発現計測3モード: 状態分岐度/軌跡統計特徴量/係数A/B比較） |
 | persistence_integrity.py | 912 | 永続化整合性検証（43パターン、load自動検証、CLIサポート） |
 | policy_selection_analysis.py | 652 | ポリシー選択分布分析（15ポリシー、6断面寄与度、集中度計測） |
 | pipeline_measurement.py | 640 | パイプライン計測（end-to-endレイテンシ、知覚辞書カバレッジ率） |
 | dashboard.py | 628 | 統合ダッシュボード（6種モニタリングツール統合CLI表示） |
-| anomaly_detection.py | 564 | 動態停止検出（4信号型ゼロ変化率検出、READ-ONLY） |
+| anomaly_detection.py | 884 | 動態停止検出（4信号型ゼロ変化率検出+緩やかな収束検出、READ-ONLY） |
 | expression_quality_verification.py | 533 | 代弁品質フィードバック構造化（psyche方針-Gemini発話の対記録） |
 | policy_selection_log.py | 538 | ポリシー選択ログ（thought.py collect_breakdown連携） |
 | phase_dependency_validator.py | 530 | Phase間データ依存関係の宣言的可視化（CLI対応、Cycle 9-10変数追加） |
 | return_pathway_monitor.py | 483 | 帰還経路モニター（5帰還経路発火記録、合算帯域記述、合算上限到達頻度記録） |
+| policy_distribution_tracking.py | 710 | ポリシー選択分布の経時的変化追跡（スナップショット蓄積、文脈別分布、推移記述） |
 | __init__.py | 0 | パッケージ初期化 |
 
 ---
@@ -4746,7 +4747,47 @@ Tier 1 (5 HIGH):
 **固定化リスク解析**: analysis_cycle12_tier12.md (Tier 1+2: 低), analysis_cycle12_tier3.md (Tier 3: 低, C12-5のみ低〜中)
 **テスト**: 11,424テスト全通過 (+268)
 
+### Cycle 13: 自我発現の定量的指標の整備 (E-4)
+
+**起点**: gap_analysis_c12_20260307.md — E-4「自我発現の定量的指標の不在」を最初に着手。
+**候補**: candidates_cycle13.md — 10候補（9候補がtools/外部ツール拡張、psyche変更なし）
+**討論**: discussion_cycle13_20260308.md — 3推奨 / 7条件付き推奨
+
+#### Tier 1 実装完了 (C13-1/7/9 統合実装)
+
+long_term_sim.pyの大規模拡張（+901行、1,606→2,507行）として3計測モードを統合実装:
+
+- **C13-1 状態分岐度計測**: 異なる初期条件の複数PsycheOrchestratorインスタンスに同一入力列を供給し、12次元状態ベクトル（感情6+ドライブ4+ムード2）のペアワイズユークリッド距離で分岐度を追跡。「異なる経験を持つ個体が同じ刺激に異なる反応を示す程度」の定量化
+- **C13-7 軌跡統計特徴量**: 各次元の分散・lag-1自己相関・ビニングエントロピー（複数ビンパラメータ）・split-half定常性指標・有効次元数・状態遷移頻度を算出。単一個体の軌跡の「複雑さ」の定量化
+- **C13-9 係数A/B比較**: 同一シナリオでCycle 12セッション境界変調の有効/無効を比較し、Cohen's d効果量を算出。Cycle 12成果の効果検証
+
+全てtools/外部ツール拡張。psyche変更ゼロ。評価判定・enrichmentフィードバックなし。
+
+**設計書**: design_self_emergence_measurement.md
+**テスト**: tests/test_self_emergence_measurement.py — 100テスト
+**テスト合計**: 11,524テスト全通過 (+100)
+
+#### Tier 2 実装完了 (C13-2/10/4)
+
+- **C13-2 応答一貫性の経時的計測**: long_term_sim.py +410行（2,507→2,917行）。計測モード4: プローブ付きシナリオ実行。背景シナリオ実行中に固定プローブ入力を定期挿入し、プローブ前後の状態差分・ポリシー選択を記録。プローブも経験として蓄積（状態退避禁止）。Tier 1の軌跡特徴量関数を再利用。安全弁6種。63テスト
+- **C13-10 緩やかな固定化進行の検出**: anomaly_detection.py +319行（565→884行）。スライディングウィンドウをサブウィンドウに分割し分散の単調減少を検出。感情・駆動信号対象。遷移時のみログ出力（冗長抑制）。READ-ONLY。安全弁8種。59テスト
+- **C13-4 ポリシー選択分布の経時的変化追跡**: tools/policy_distribution_tracking.py 新規710行。定期スナップショット蓄積+文脈別（駆動/valence/覚醒度3段離散化）選択分布+隣接推移記述。既存policy_selection_analysis.pyへの統合出力。安全弁7種。83テスト
+
+全てtools/外部ツール拡張。psyche変更ゼロ。
+
+**設計書**: design_response_consistency_measurement.md, design_gradual_fixation_detection.md, design_policy_distribution_tracking.md
+**固定化リスク解析**: analysis_c13_2_consistency.md / analysis_c13_10_fixation.md / analysis_c13_4_policy_tracking.md（全て低リスク）
+**コードレビュー**: code_review_c13_2_consistency.md / code_review_c13_10_fixation.md / code_review_c13_4_policy_tracking.md（HIGH 0, MED 4, LOW 12）
+**テスト合計**: 11,729テスト全通過 (+205)
+
+#### 未実装 (Tier 3: 4候補)
+
+- C13-6: psycheパイプライン実行時間プロファイリング
+- C13-3: enrichment実効性の定量評価
+- C13-5: 感情→ループ間隔の微弱接続
+- C13-8: 文脈理解記述（perceptual_context.py断面拡張推奨）
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~254,000行 / テスト数: 11,424*
+*総コード行数: ~259,000行 / テスト数: 11,729*

@@ -41,6 +41,19 @@ from psyche.responsibility import ResponsibilityInfluence
 from psyche.state import DriveVector, EmotionVector, Mood, Percept, PsycheState
 
 
+# ── Isolation fixture ────────────────────────────────────────
+# reaction.DECAY_RATE is a module-level global that can be modified by
+# modulation modules (e.g. decay_rate_modulation) during orchestrator load().
+# Restore it before/after each test to prevent cross-test pollution.
+
+@pytest.fixture(autouse=True)
+def _restore_decay_rate():
+    from psyche import reaction
+    original = reaction.DECAY_RATE
+    yield
+    reaction.DECAY_RATE = original
+
+
 # ── Helpers ───────────────────────────────────────────────────
 
 def _zero_emotion_state(**overrides) -> PsycheState:

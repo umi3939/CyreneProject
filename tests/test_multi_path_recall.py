@@ -39,6 +39,19 @@ from psyche.multi_path_recall import (
     create_multi_path_recall,
     _clamp,
 )
+from psyche import coefficient_registry
+
+
+# ── Isolation fixture ────────────────────────────────────────
+# coefficient_registry window size values can be modified by modulation
+# modules (e.g. window_size_modulation) during orchestrator load().
+# Reset the registry before/after each test to prevent cross-test pollution.
+
+@pytest.fixture(autouse=True)
+def _reset_coefficient_registry():
+    coefficient_registry.reset()
+    yield
+    coefficient_registry.reset()
 
 
 # =============================================================================

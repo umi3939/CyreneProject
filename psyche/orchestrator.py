@@ -496,6 +496,9 @@ from .scoring_fluctuation import (
     create_fluctuation_config,
 )
 
+# Coefficient registry (係数レジストリ — FIFO experience expansion)
+from . import coefficient_registry as _coefficient_registry
+
 # Selection attribution (選択帰属)
 from .selection_attribution import (
     SelectionAttributionRecorder,
@@ -4359,6 +4362,84 @@ class PsycheOrchestrator:
     # 共通ヘルパー save_fields / load_fields を使用する。
     # tick_count は特殊フィールドとして直接処理する。
 
+    def _propagate_fifo_expansion(self, expanded: dict[str, int]) -> None:
+        """Apply expanded FIFO limits from coefficient registry to module configs.
+
+        Called once at session startup after apply_fifo_experience_expansion().
+        Updates config objects that hold FIFO limit fields so that the expanded
+        values take effect for the rest of the session.
+
+        This method does not modify module state data (records/history).
+        It only updates the config parameters that control FIFO trimming.
+        """
+        # Mapping: registry key -> list of (config_attr, field_name) or
+        #          (module_attr, "_config", field_name) tuples
+        fifo_30_targets: list[tuple] = [
+            ("_stabilization_desc_config", "max_history"),
+            ("_behavioral_diversity_config", "max_history"),
+            ("_frb_config", "max_history"),
+            ("_reference_frequency_config", "max_snapshot_history"),
+            ("_att_dist_config", "max_snapshot_history"),
+            ("_input_pathway_balance_config", "max_snapshot_history"),
+        ]
+        fifo_50_targets: list[tuple] = [
+            ("_selection_attribution_recorder", "_config", "max_records"),
+            ("_self_action_recorder", "_config", "max_records"),
+            ("_intent_action_gap_recorder", "_config", "max_records"),
+            ("_emotion_cooccurrence_processor", "_config", "max_records"),
+            ("_perceptual_context", "_config", "max_summaries"),
+        ]
+        fifo_100_targets: list[tuple] = [
+            ("_interaction_accumulation", "_config", "max_pairs"),
+            ("_temporal_cognition", "_config", "max_elapsed_records"),
+            ("_temporal_cognition", "_config", "max_external_input_records"),
+            ("_responsibility_temporal_trace", "_config", "max_snapshots"),
+        ]
+        fifo_200_targets: list[tuple] = [
+            ("_expectation_lifecycle_processor", "_config", "max_records"),
+            ("_goal_hierarchy_propagation", "_config", "max_records"),
+            ("_hypothesis_observation_pairing", "_config", "max_total_pairs"),
+            ("_other_boundary_accumulation", "_config", "max_records_total"),
+            ("_situational_self_presentation", "_config", "max_records_total"),
+            ("_input_pathway_balance_config", "max_usage_facts"),
+        ]
+
+        def _set_attr(target_spec: tuple, new_val: int) -> None:
+            """Set FIFO limit on config object."""
+            try:
+                if len(target_spec) == 2:
+                    config_attr, field_name = target_spec
+                    obj = getattr(self, config_attr, None)
+                    if obj is not None:
+                        setattr(obj, field_name, new_val)
+                elif len(target_spec) == 3:
+                    module_attr, config_sub, field_name = target_spec
+                    module = getattr(self, module_attr, None)
+                    if module is not None:
+                        cfg = getattr(module, config_sub, None)
+                        if cfg is not None:
+                            setattr(cfg, field_name, new_val)
+            except Exception:
+                pass
+
+        propagation_map: dict[str, list[tuple]] = {
+            "fifo_limit_30": fifo_30_targets,
+            "fifo_limit_50": fifo_50_targets,
+            "fifo_limit_100": fifo_100_targets,
+            "fifo_limit_200": fifo_200_targets,
+        }
+
+        count = 0
+        for key, new_val in expanded.items():
+            targets = propagation_map.get(key, [])
+            for target in targets:
+                _set_attr(target, new_val)
+                count += 1
+
+        logger.info(
+            "FIFO expansion propagated to %d config fields.", count
+        )
+
     def save(self, path: Optional[Path] = None) -> None:
         """全状態を永続化する。
 
@@ -4474,6 +4555,21 @@ class PsycheOrchestrator:
             # ウォームアップ完了後、最初のティック実行前に1回のみ実行する。
             # 警告のみ（修復・進行阻止なし）。内部状態への書き込みなし。
             execute_session_recovery_check(self, warmup_results)
+
+            # FIFO experience expansion: 累計ティック数→FIFO上限拡張
+            # 係数レジストリのdescription_common FIFO上限値を拡張し、
+            # 各モジュールの設定オブジェクトに伝播する。
+            # セッション起動時に一度だけ実行。ティック中変更禁止。
+            try:
+                expanded = _coefficient_registry.apply_fifo_experience_expansion(
+                    self._tick_count
+                )
+                if expanded:
+                    self._propagate_fifo_expansion(expanded)
+            except Exception as e:
+                logger.debug(
+                    "FIFO experience expansion skipped: %s", e
+                )
 
             # Contradiction amplitude modulation: 内部矛盾蓄積→振幅上限値変調
             # 矛盾記述構造のFIFOバッファ件数から振幅上限値を微調整する。

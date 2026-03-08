@@ -363,6 +363,140 @@ def reset() -> None:
 
 
 # =============================================================================
+# FIFO experience-dependent expansion (design_fifo_experience_expansion.md)
+# =============================================================================
+
+# Stage thresholds: (cumulative_tick_threshold, expansion_factor)
+# Meaning: at or above the threshold, use the corresponding factor.
+# Discrete stages — not continuous/proportional.
+# expansion_factor is multiplied with the base FIFO limit value.
+# Below the first threshold: factor = 1.0 (no expansion)
+_FIFO_EXPANSION_STAGES: tuple[tuple[int, float], ...] = (
+    (500, 1.2),      # 500-1999 ticks: 20% expansion
+    (2000, 1.4),     # 2000-4999 ticks: 40% expansion
+    (5000, 1.6),     # 5000-9999 ticks: 60% expansion
+    (10000, 1.8),    # 10000-19999 ticks: 80% expansion
+    (20000, 2.0),    # 20000+ ticks: 100% expansion (= max ratio)
+)
+
+# Maximum expansion ratio (safety valve): never exceed 2x the base value
+_FIFO_EXPANSION_MAX_RATIO: float = 2.0
+
+# FIFO limit keys in description_common that are subject to expansion
+_FIFO_EXPANSION_TARGET_KEYS: tuple[str, ...] = (
+    "fifo_limit_30",
+    "fifo_limit_50",
+    "fifo_limit_100",
+    "fifo_limit_200",
+)
+
+
+def _compute_fifo_expansion_factor(cumulative_ticks: int) -> float:
+    """Compute the FIFO expansion factor from cumulative tick count.
+
+    The relationship between cumulative ticks and expansion factor is
+    discrete/staged (not continuous). Each stage threshold must be
+    reached for the corresponding factor to apply.
+
+    Safety valve: the returned factor never exceeds _FIFO_EXPANSION_MAX_RATIO.
+
+    Args:
+        cumulative_ticks: Total accumulated tick count across all sessions.
+
+    Returns:
+        Expansion factor (>= 1.0, <= _FIFO_EXPANSION_MAX_RATIO).
+    """
+    if cumulative_ticks < 0:
+        return 1.0
+
+    factor = 1.0
+    for threshold, stage_factor in _FIFO_EXPANSION_STAGES:
+        if cumulative_ticks >= threshold:
+            factor = stage_factor
+        else:
+            break
+
+    # Safety valve: cap at maximum expansion ratio
+    return min(factor, _FIFO_EXPANSION_MAX_RATIO)
+
+
+def apply_fifo_experience_expansion(cumulative_ticks: int) -> dict[str, int]:
+    """Apply FIFO limit expansion based on cumulative tick count.
+
+    This function should be called once at session startup, after load()
+    completes and the cumulative tick count has been restored.
+
+    The expansion modifies the description_common FIFO limit values in the
+    registry in-place. The modified values are used by all description layer
+    modules that read FIFO limits from the registry.
+
+    Safety valves:
+      1. Startup-only: must be called before any tick processing begins.
+      2. Max expansion ratio: expansion factor never exceeds _FIFO_EXPANSION_MAX_RATIO.
+      3. Discrete stages: no continuous proportional relationship.
+      4. Expansion only: FIFO limits never decrease below base values.
+      5. enrichment non-exposure: expansion values are not exposed to enrichment.
+
+    Args:
+        cumulative_ticks: Total accumulated tick count across all sessions.
+
+    Returns:
+        Dict mapping FIFO limit key to the expanded integer value.
+        Empty dict if registry is not loaded or expansion is not applicable.
+    """
+    global _registry
+
+    if not _loaded or _registry is None:
+        logger.warning(
+            "Cannot apply FIFO expansion: registry not loaded."
+        )
+        return {}
+
+    factor = _compute_fifo_expansion_factor(cumulative_ticks)
+
+    if factor <= 1.0:
+        logger.info(
+            "FIFO experience expansion: no expansion (ticks=%d, factor=%.2f).",
+            cumulative_ticks, factor,
+        )
+        return {}
+
+    desc_common = _registry.get("description_common")
+    if not isinstance(desc_common, dict):
+        logger.warning("FIFO experience expansion: description_common not found.")
+        return {}
+
+    expanded: dict[str, int] = {}
+    for key in _FIFO_EXPANSION_TARGET_KEYS:
+        if key not in desc_common:
+            continue
+        base_val = desc_common[key]
+        if not isinstance(base_val, (int, float)):
+            continue
+        # Compute expanded value (round to int, at least base_val)
+        new_val = max(int(base_val), int(round(float(base_val) * factor)))
+        desc_common[key] = new_val
+        expanded[key] = new_val
+
+    logger.info(
+        "FIFO experience expansion applied: ticks=%d, factor=%.2f, expanded=%s",
+        cumulative_ticks, factor, expanded,
+    )
+
+    return expanded
+
+
+def get_fifo_expansion_stages() -> tuple[tuple[int, float], ...]:
+    """Return the FIFO expansion stage definitions (for testing)."""
+    return _FIFO_EXPANSION_STAGES
+
+
+def get_fifo_expansion_max_ratio() -> float:
+    """Return the maximum FIFO expansion ratio (for testing)."""
+    return _FIFO_EXPANSION_MAX_RATIO
+
+
+# =============================================================================
 # Session history recording (design_coefficient_history.md)
 # =============================================================================
 

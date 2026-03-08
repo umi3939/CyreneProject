@@ -27,10 +27,18 @@ from psyche import coefficient_registry
 
 @pytest.fixture(autouse=True)
 def reset_registry():
-    """Reset the registry before and after each test."""
+    """Reset the registry before and after each test.
+
+    Also restores reaction.DECAY_RATE which is a module-level global
+    derived from the registry at import time. Modulation modules can
+    modify it during orchestrator load(), causing cross-test pollution.
+    """
+    from psyche import reaction
+    original_decay_rate = reaction.DECAY_RATE
     coefficient_registry.reset()
     yield
     coefficient_registry.reset()
+    reaction.DECAY_RATE = original_decay_rate
 
 
 def _write_json(path: str, data: dict) -> None:

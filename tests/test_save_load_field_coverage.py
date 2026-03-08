@@ -121,7 +121,12 @@ def _load_from_dict(orch: PsycheOrchestrator, data: dict[str, Any]) -> None:
 
 
 # session_decay により load 時に変動が想定されるキー。
-_SESSION_DECAY_KEYS: set[str] = {"freshness", "freshness_stage", "session_diff_scalar", "session_count"}
+# decay_rate_modulated_value / window_modulated_values はセッション起動時に
+# 変調モジュールが再計算するため、save/load間で値が変動する。
+_SESSION_DECAY_KEYS: set[str] = {
+    "freshness", "freshness_stage", "session_diff_scalar", "session_count",
+    "decay_rate_modulated_value", "window_modulated_values",
+}
 
 
 def _deep_compare(

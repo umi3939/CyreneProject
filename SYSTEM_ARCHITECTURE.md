@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-03-06
-総コード行数: ~250,000行
-総テスト数: 11,156テスト
+更新日: 2026-03-08
+総コード行数: ~254,000行
+総テスト数: 11,424テスト
 
 ---
 
@@ -4703,7 +4703,50 @@ Tier 1 (5 HIGH):
 **解析レポート**: analysis_post_review_group_a.md / analysis_post_review_group_b.md
 **テスト**: 11,156テスト全通過（修正による回帰なし）
 
+### Cycle 12: 経験が構造を変える経路の拡充 (B-1)
+
+**起点**: gap_analysis_c12_20260307.md — 9ギャップ特定（外部接続除外）。B-1「経験が構造を変える経路の限定性」を最初に着手。
+**候補**: candidates_cycle12.md — 10候補（全て既存構造拡張、セッション境界での統計的係数調整）
+**討論**: discussion_cycle12_b1_20260308.md — 3推奨 / 7条件付き推奨
+
+#### 実装完了 (8候補)
+
+**Tier 1+2 (前提整備 + 独立実装)**:
+- **C12-10**: description_common coefficient_registry統合 — 3モジュール(action_result_observation/meta_emotion_cognition/other_model_dialogue_learning)のfreshness_decay_rateを外部化
+- **C12-8**: 帰還経路発火履歴永続化 — return_pathway_monitor.py get_persistence_data()/inject_cumulative_counts()、orchestrator save/load v45 (69フィールド)、dashboard.py拡張
+- **C12-6**: 矛盾蓄積→振幅上限値変調 — scoring_fluctuation.py +133行、段階値テーブル、安全弁3種(帯域±10%/絶対上限/READ-ONLY)
+
+**Tier 3 (経験依存パラメータ変調4件)**:
+- **C12-1**: FIFO経験拡張 — coefficient_registry.py +134行、5段階(500/2000/5000/10000/20000ティック)最大2x、orchestrator _propagate_fifo_expansion() 21設定フィールド伝播
+- **C12-2**: 感情減衰速度変調 — decay_rate_modulation.py 227行、emotional_backdrop_cognition蓄積→±5%帯域、回帰圧力0.3、save/load永続化
+- **C12-4**: ウィンドウサイズ変調 — window_size_modulation.py 295行、forgetting_recall_balance想起頻度→±20%帯域、双方向、整数丸め、save/load永続化
+- **C12-5**: 帰還経路発火頻度変調 — firing_frequency_modulation.py 357行、累計発火回数→log(1+count/50)→帯域拡大、絶対上限1.5x、4経路(A/C/D/E)
+
+#### 未実装 (3候補 — 条件付き推奨の課題が重いため次サイクル繰越)
+- C12-3: ポリシースコア帯域 — 暗黙規範+振動リスク+registry拡張要
+- C12-7: 非同期更新基盤 — 個別実装完了により共通基盤としての価値低下
+- C12-9: enrichment統合 — C12-7依存+トークン効率問題
+
+#### 新psycheモジュール
+| モジュール | 行数 | テスト | 用途 |
+|---|---|---|---|
+| decay_rate_modulation.py | 227 | 45 | 感情減衰速度の経験依存変調 |
+| window_size_modulation.py | 295 | 52 | ウィンドウサイズの経験依存変調 |
+| firing_frequency_modulation.py | 357 | 50 | 帰還経路発火→帯域変調 |
+
+#### 新経路（経験→構造変化）
+| 入力源 | 変調対象 | 帯域 | 方向性 |
+|---|---|---|---|
+| 累積ティック数 | FIFO上限 (4キー) | 最大2x | 拡張のみ |
+| 感情基調蓄積 | decay_rate | ±5% | 双方向+回帰 |
+| 矛盾蓄積件数 | amplitude_cap | ±10% | 正方向+FIFO自然減 |
+| 想起頻度 | ウィンドウサイズ (3キー) | ±20% | 双方向+回帰 |
+| 帰還発火累計 | 帯域上限 (4経路) | 最大1.5x | 拡張のみ+log飽和 |
+
+**固定化リスク解析**: analysis_cycle12_tier12.md (Tier 1+2: 低), analysis_cycle12_tier3.md (Tier 3: 低, C12-5のみ低〜中)
+**テスト**: 11,424テスト全通過 (+268)
+
 ---
 
 *このドキュメントはCyrene AI システムの完全な技術仕様書です。*
-*総コード行数: ~250,000行 / テスト数: 11,156*
+*総コード行数: ~254,000行 / テスト数: 11,424*

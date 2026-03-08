@@ -12,6 +12,8 @@ Usage::
     python -m tools.long_term_sim --list-patterns
     python -m tools.long_term_sim --compare stable high_variation --output report.json
     python -m tools.long_term_sim --scenario smoke --stats
+    python -m tools.long_term_sim --divergence smoke --num-instances 3 --warmup-turns 5
+    python -m tools.long_term_sim --ab-compare smoke
 """
 
 from __future__ import annotations
@@ -1449,6 +1451,820 @@ def generate_diff_report(
     return report
 
 
+# ── State Vector Extraction (12-dimensional) ─────────────────
+
+# Dimension order for state vectors: 7 emotions + 3 drives + 2 mood
+_STATE_VECTOR_EMOTION_KEYS = ("joy", "anger", "sorrow", "fear", "surprise", "love", "fun")
+_STATE_VECTOR_DRIVE_KEYS = ("social", "curiosity", "expression")
+_STATE_VECTOR_MOOD_KEYS = ("valence", "arousal")
+
+# Total number of dimensions in the state vector
+STATE_VECTOR_DIM = (
+    len(_STATE_VECTOR_EMOTION_KEYS)
+    + len(_STATE_VECTOR_DRIVE_KEYS)
+    + len(_STATE_VECTOR_MOOD_KEYS)
+)
+
+
+def _extract_state_vector(orch: PsycheOrchestrator) -> list[float]:
+    """Extract a 12-dimensional state vector from the orchestrator.
+
+    Order: joy, anger, sorrow, fear, surprise, love, fun,
+           social, curiosity, expression, valence, arousal.
+
+    READ-ONLY operation. No state modification.
+
+    Returns:
+        List of 12 float values.
+    """
+    p = orch.psyche
+    emo = p.emotions.as_dict()
+    drv = p.drives.as_dict()
+    vec: list[float] = []
+    for k in _STATE_VECTOR_EMOTION_KEYS:
+        vec.append(emo.get(k, 0.0))
+    for k in _STATE_VECTOR_DRIVE_KEYS:
+        vec.append(drv.get(k, 0.5))
+    vec.append(p.mood.valence)
+    vec.append(p.mood.arousal)
+    return vec
+
+
+def _extract_state_vector_from_record(record: dict[str, Any]) -> list[float]:
+    """Extract a 12-dimensional state vector from a turn record dict.
+
+    Used for trajectory analysis on already-recorded data.
+
+    Returns:
+        List of 12 float values.
+    """
+    ps = record["psyche_state"]
+    emo = ps["emotions"]
+    drv = ps["drives"]
+    mood = ps["mood"]
+    vec: list[float] = []
+    for k in _STATE_VECTOR_EMOTION_KEYS:
+        vec.append(emo.get(k, 0.0))
+    for k in _STATE_VECTOR_DRIVE_KEYS:
+        vec.append(drv.get(k, 0.5))
+    vec.append(mood.get("valence", 0.0))
+    vec.append(mood.get("arousal", 0.3))
+    return vec
+
+
+def _euclidean_distance(a: list[float], b: list[float]) -> float:
+    """Compute Euclidean distance between two vectors of equal length."""
+    return math.sqrt(sum((ai - bi) ** 2 for ai, bi in zip(a, b)))
+
+
+def _dimension_labels() -> list[str]:
+    """Return the ordered labels for the 12 state vector dimensions."""
+    labels: list[str] = []
+    labels.extend(_STATE_VECTOR_EMOTION_KEYS)
+    labels.extend(_STATE_VECTOR_DRIVE_KEYS)
+    labels.extend(_STATE_VECTOR_MOOD_KEYS)
+    return labels
+
+
+# ── Measurement Mode 1: State Divergence ─────────────────────
+
+def run_divergence_measurement(
+    scenario_name: str | None = None,
+    custom_sequence: list[str] | None = None,
+    num_instances: int = 3,
+    warmup_turns: int = 5,
+    warmup_patterns: list[list[str]] | None = None,
+    delta_time: float = 2.0,
+    user_id: str = "sim_user",
+    max_instances: int = 10,
+) -> dict[str, Any]:
+    """Run state divergence measurement with multiple orchestrator instances.
+
+    Creates multiple PsycheOrchestrator instances with different initial
+    conditions (via different warmup input sequences), then feeds the same
+    input sequence to all instances and records pairwise Euclidean distances
+    at each tick.
+
+    Args:
+        scenario_name: SCENARIOS name for the main input sequence.
+        custom_sequence: Custom pattern key list (overrides scenario_name).
+        num_instances: Number of orchestrator instances to create.
+        warmup_turns: Number of warmup turns per instance. Each instance
+            gets a different warmup pattern to create initial divergence.
+        warmup_patterns: Optional explicit warmup pattern lists per instance.
+            If None, auto-generated from available patterns.
+        delta_time: Virtual seconds between turns.
+        user_id: Simulated user ID.
+        max_instances: Upper bound for num_instances (safety valve 6).
+
+    Returns:
+        Measurement result dict with metadata, per-tick distance records,
+        and summary statistics.
+
+    Raises:
+        ValueError: Invalid scenario or pattern keys.
+    """
+    # Safety valve 6: instance count upper bound
+    num_instances = min(num_instances, max_instances)
+    if num_instances < 2:
+        raise ValueError("num_instances must be at least 2.")
+
+    # Resolve main sequence
+    if custom_sequence is not None:
+        sequence = custom_sequence
+        scenario_label = "custom"
+    elif scenario_name is not None:
+        if scenario_name not in SCENARIOS:
+            raise ValueError(
+                f"Unknown scenario: {scenario_name}. "
+                f"Available: {list(SCENARIOS.keys())}"
+            )
+        sequence = SCENARIOS[scenario_name]
+        scenario_label = scenario_name
+    else:
+        raise ValueError("Either scenario_name or custom_sequence is required.")
+
+    # Validate pattern keys
+    for key in sequence:
+        if key not in INPUT_PATTERNS:
+            raise ValueError(f"Invalid pattern key: {key}")
+
+    # Generate warmup patterns if not provided
+    if warmup_patterns is None:
+        available_keys = list(INPUT_PATTERNS.keys())
+        warmup_patterns = []
+        for i in range(num_instances):
+            # Rotate through available patterns to create different initial states
+            offset = i * 2  # offset to ensure diversity
+            wp = []
+            for j in range(warmup_turns):
+                idx = (offset + j) % len(available_keys)
+                wp.append(available_keys[idx])
+            warmup_patterns.append(wp)
+    else:
+        if len(warmup_patterns) != num_instances:
+            raise ValueError(
+                f"warmup_patterns length ({len(warmup_patterns)}) "
+                f"must match num_instances ({num_instances})."
+            )
+        for i, wp in enumerate(warmup_patterns):
+            for key in wp:
+                if key not in INPUT_PATTERNS:
+                    raise ValueError(
+                        f"Invalid warmup pattern key: {key} (instance {i})"
+                    )
+
+    started_at = datetime.now().isoformat(timespec="seconds")
+
+    # Create isolated instances
+    instances: list[PsycheOrchestrator] = []
+    tmpdirs: list[str] = []
+    for _ in range(num_instances):
+        tmpdir = tempfile.mkdtemp(prefix="psyche_div_")
+        tmpdirs.append(tmpdir)
+        orch = PsycheOrchestrator(memory_count=0, data_dir=Path(tmpdir))
+        instances.append(orch)
+
+    # Phase 1: Warmup — each instance gets its own warmup sequence
+    warmup_records: list[dict[str, Any]] = []
+    for inst_idx, orch in enumerate(instances):
+        wp = warmup_patterns[inst_idx]
+        for pattern_key in wp:
+            percept = Percept(**INPUT_PATTERNS[pattern_key])
+            orch.post_response_update(percept, delta_time, user_id)
+            policy = orch.select_policy_dict(percept, [], user_id)
+            outcome = _pattern_to_outcome(pattern_key)
+            resp_state = orch._responsibility_mgr.get_state(user_id)
+            for rec in reversed(resp_state.recent_decisions):
+                if not rec.get("evaluated", False):
+                    orch._responsibility_mgr.evaluate_outcome(
+                        user_id, rec["id"], outcome,
+                    )
+                    break
+
+        # Record post-warmup state vector
+        warmup_records.append({
+            "instance": inst_idx,
+            "warmup_pattern": wp,
+            "state_vector": _extract_state_vector(orch),
+        })
+
+    # Phase 2: Main sequence — same inputs to all instances
+    tick_records: list[dict[str, Any]] = []
+    for turn_idx, pattern_key in enumerate(sequence):
+        turn_num = turn_idx + 1
+        percept = Percept(**INPUT_PATTERNS[pattern_key])
+        outcome = _pattern_to_outcome(pattern_key)
+
+        # Process each instance
+        tick_vectors: list[list[float]] = []
+        for orch in instances:
+            orch.post_response_update(percept, delta_time, user_id)
+            policy = orch.select_policy_dict(percept, [], user_id)
+            resp_state = orch._responsibility_mgr.get_state(user_id)
+            for rec in reversed(resp_state.recent_decisions):
+                if not rec.get("evaluated", False):
+                    orch._responsibility_mgr.evaluate_outcome(
+                        user_id, rec["id"], outcome,
+                    )
+                    break
+            tick_vectors.append(_extract_state_vector(orch))
+
+        # Compute pairwise distances
+        pairwise_distances: list[dict[str, Any]] = []
+        for i in range(num_instances):
+            for j in range(i + 1, num_instances):
+                dist = _euclidean_distance(tick_vectors[i], tick_vectors[j])
+                pairwise_distances.append({
+                    "pair": [i, j],
+                    "distance": round(dist, 6),
+                })
+
+        # Mean distance across all pairs
+        all_dists = [d["distance"] for d in pairwise_distances]
+        mean_distance = round(sum(all_dists) / len(all_dists), 6) if all_dists else 0.0
+
+        tick_record: dict[str, Any] = {
+            "turn": turn_num,
+            "input_pattern": pattern_key,
+            "instance_vectors": [
+                [round(v, 6) for v in vec] for vec in tick_vectors
+            ],
+            "pairwise_distances": pairwise_distances,
+            "mean_distance": mean_distance,
+        }
+        tick_records.append(tick_record)
+
+    finished_at = datetime.now().isoformat(timespec="seconds")
+
+    # Compute divergence trajectory summary
+    mean_distances = [r["mean_distance"] for r in tick_records]
+    divergence_summary: dict[str, Any] = {}
+    if mean_distances:
+        divergence_summary["initial_mean_distance"] = mean_distances[0]
+        divergence_summary["final_mean_distance"] = mean_distances[-1]
+        divergence_summary["max_mean_distance"] = round(max(mean_distances), 6)
+        divergence_summary["min_mean_distance"] = round(min(mean_distances), 6)
+        divergence_summary["mean_of_mean_distances"] = round(
+            sum(mean_distances) / len(mean_distances), 6
+        )
+        if len(mean_distances) >= 2:
+            divergence_summary["distance_change"] = round(
+                mean_distances[-1] - mean_distances[0], 6
+            )
+
+    return {
+        "metadata": {
+            "mode": "divergence",
+            "scenario": scenario_label,
+            "num_instances": num_instances,
+            "warmup_turns": warmup_turns,
+            "main_turns": len(sequence),
+            "delta_time": delta_time,
+            "user_id": user_id,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "dimension_labels": _dimension_labels(),
+        },
+        "warmup_states": warmup_records,
+        "tick_records": tick_records,
+        "divergence_summary": divergence_summary,
+    }
+
+
+# ── Measurement Mode 2: Trajectory Statistical Features ──────
+
+def _compute_variance(values: list[float]) -> float:
+    """Compute population variance."""
+    n = len(values)
+    if n <= 1:
+        return 0.0
+    mean = sum(values) / n
+    return sum((v - mean) ** 2 for v in values) / n
+
+
+def _compute_lag1_autocorrelation(values: list[float]) -> float:
+    """Compute lag-1 autocorrelation of a time series.
+
+    Returns 0.0 if the series has fewer than 3 elements or zero variance.
+    """
+    n = len(values)
+    if n < 3:
+        return 0.0
+    mean = sum(values) / n
+    var = sum((v - mean) ** 2 for v in values) / n
+    if var < 1e-15:
+        return 0.0
+    cov = sum(
+        (values[i] - mean) * (values[i + 1] - mean)
+        for i in range(n - 1)
+    ) / (n - 1)
+    return cov / var
+
+
+def _compute_binned_entropy(values: list[float], num_bins: int) -> float:
+    """Compute Shannon entropy of binned values.
+
+    Divides the value range into equal-width bins and computes entropy.
+    Returns 0.0 if all values are identical or list is empty.
+
+    Args:
+        values: Numeric time series.
+        num_bins: Number of equal-width bins.
+
+    Returns:
+        Entropy in nats (natural logarithm base).
+    """
+    n = len(values)
+    if n == 0 or num_bins < 1:
+        return 0.0
+    v_min = min(values)
+    v_max = max(values)
+    if v_max - v_min < 1e-15:
+        return 0.0
+    # Bin width
+    bin_width = (v_max - v_min) / num_bins
+    # Count per bin
+    counts = [0] * num_bins
+    for v in values:
+        idx = int((v - v_min) / bin_width)
+        if idx >= num_bins:
+            idx = num_bins - 1
+        counts[idx] += 1
+    # Shannon entropy
+    entropy = 0.0
+    for c in counts:
+        if c > 0:
+            p = c / n
+            entropy -= p * math.log(p)
+    return entropy
+
+
+def _compute_split_half_stationarity(
+    values: list[float],
+) -> dict[str, float]:
+    """Compute split-half stationarity indicators.
+
+    Splits the series into first half and second half, and records the
+    difference in mean and variance between the two halves.
+
+    No binary "stationary/non-stationary" judgment is made.
+
+    Returns:
+        Dict with mean_diff, variance_diff, first_half_mean,
+        second_half_mean, first_half_variance, second_half_variance.
+    """
+    n = len(values)
+    if n < 2:
+        return {
+            "mean_diff": 0.0,
+            "variance_diff": 0.0,
+            "first_half_mean": 0.0,
+            "second_half_mean": 0.0,
+            "first_half_variance": 0.0,
+            "second_half_variance": 0.0,
+        }
+    mid = n // 2
+    first_half = values[:mid]
+    second_half = values[mid:]
+
+    fh_mean = sum(first_half) / len(first_half)
+    sh_mean = sum(second_half) / len(second_half)
+    fh_var = _compute_variance(first_half)
+    sh_var = _compute_variance(second_half)
+
+    return {
+        "mean_diff": round(sh_mean - fh_mean, 6),
+        "variance_diff": round(sh_var - fh_var, 6),
+        "first_half_mean": round(fh_mean, 6),
+        "second_half_mean": round(sh_mean, 6),
+        "first_half_variance": round(fh_var, 6),
+        "second_half_variance": round(sh_var, 6),
+    }
+
+
+def _compute_effective_dimensionality(
+    vectors: list[list[float]],
+) -> float:
+    """Compute effective dimensionality from variance contribution ratios.
+
+    Uses the proportion of variance explained by each dimension to compute
+    a participation ratio, which corresponds to the effective number of
+    dimensions being used.
+
+    Effective dimensionality = (sum of variances)^2 / sum of (variances^2)
+    This is the participation ratio of the variance distribution.
+
+    Returns:
+        Effective dimensionality (float, range 1.0 to STATE_VECTOR_DIM).
+        Returns 0.0 if input is empty.
+    """
+    if not vectors:
+        return 0.0
+    n = len(vectors)
+    dim = len(vectors[0])
+    if n < 2 or dim == 0:
+        return 0.0
+
+    # Per-dimension variance
+    variances: list[float] = []
+    for d in range(dim):
+        vals = [v[d] for v in vectors]
+        variances.append(_compute_variance(vals))
+
+    total_var = sum(variances)
+    if total_var < 1e-15:
+        return 0.0
+
+    # Participation ratio
+    sum_var_sq = sum(v ** 2 for v in variances)
+    if sum_var_sq < 1e-15:
+        return 0.0
+
+    return (total_var ** 2) / sum_var_sq
+
+
+def _compute_transition_frequency(
+    labels: list[str],
+) -> dict[str, Any]:
+    """Count the number of transitions (label changes) in a sequence.
+
+    Returns:
+        Dict with transition_count and unique_labels.
+    """
+    if len(labels) < 2:
+        return {"transition_count": 0, "unique_labels": len(set(labels))}
+    transitions = sum(
+        1 for i in range(len(labels) - 1) if labels[i] != labels[i + 1]
+    )
+    return {
+        "transition_count": transitions,
+        "unique_labels": len(set(labels)),
+    }
+
+
+def compute_trajectory_features(
+    result: dict[str, Any],
+    entropy_bin_params: list[int] | None = None,
+) -> dict[str, Any]:
+    """Compute statistical features of the state trajectory.
+
+    This is a pure function on existing turn record data. No additional
+    state is held. Extends the existing statistics with structural
+    features of the trajectory.
+
+    No evaluation judgments (good/bad, normal/abnormal) are included.
+
+    Args:
+        result: Output from run_simulation().
+        entropy_bin_params: List of bin counts for entropy calculation.
+            If None, defaults to [5, 10, 20].
+
+    Returns:
+        Trajectory feature dict.
+    """
+    if entropy_bin_params is None:
+        entropy_bin_params = [5, 10, 20]
+
+    turns = result.get("turns", [])
+    if not turns:
+        return {
+            "scenario": result.get("metadata", {}).get("scenario", "unknown"),
+            "total_turns": 0,
+        }
+
+    # Extract state vectors from all turns
+    vectors = [_extract_state_vector_from_record(t) for t in turns]
+    labels = _dimension_labels()
+
+    features: dict[str, Any] = {
+        "scenario": result["metadata"]["scenario"],
+        "total_turns": len(turns),
+        "dimension_labels": labels,
+    }
+
+    # Per-dimension features
+    per_dim: dict[str, dict[str, Any]] = {}
+    for d, label in enumerate(labels):
+        dim_values = [v[d] for v in vectors]
+        dim_features: dict[str, Any] = {}
+
+        # Variance
+        dim_features["variance"] = round(_compute_variance(dim_values), 6)
+
+        # Lag-1 autocorrelation
+        dim_features["lag1_autocorrelation"] = round(
+            _compute_lag1_autocorrelation(dim_values), 6
+        )
+
+        # Binned entropy (multiple bin parameters)
+        dim_features["entropy"] = {}
+        for num_bins in entropy_bin_params:
+            dim_features["entropy"][f"bins_{num_bins}"] = round(
+                _compute_binned_entropy(dim_values, num_bins), 6
+            )
+
+        # Split-half stationarity
+        dim_features["stationarity"] = _compute_split_half_stationarity(dim_values)
+
+        per_dim[label] = dim_features
+
+    features["per_dimension"] = per_dim
+
+    # Full trajectory features
+    features["effective_dimensionality"] = round(
+        _compute_effective_dimensionality(vectors), 6
+    )
+
+    # Transition frequency: dominant emotion and policy label
+    dominant_emotions = [t["psyche_state"]["dominant_emotion"] for t in turns]
+    features["dominant_emotion_transitions"] = _compute_transition_frequency(
+        dominant_emotions
+    )
+
+    policy_labels = [t["policy"]["policy_label"] for t in turns]
+    features["policy_label_transitions"] = _compute_transition_frequency(
+        policy_labels
+    )
+
+    return features
+
+
+# ── Measurement Mode 3: A/B Coefficient Comparison ───────────
+
+def _run_sim_for_ab(
+    sequence: list[str],
+    delta_time: float,
+    user_id: str,
+    bypass_session_modulation: bool = False,
+) -> dict[str, Any]:
+    """Run a single simulation for A/B comparison.
+
+    When bypass_session_modulation is True, the session boundary
+    coefficient modulations are skipped by not calling load() on
+    the orchestrator instance (cold start without modulations).
+
+    When False, a save+load cycle is performed to trigger session
+    boundary modulations (apply_fifo_experience_expansion,
+    apply_contradiction_amplitude_modulation, session_decay).
+
+    Args:
+        sequence: Pattern key list.
+        delta_time: Virtual seconds between turns.
+        user_id: Simulated user ID.
+        bypass_session_modulation: If True, skip session boundary
+            coefficient modulation.
+
+    Returns:
+        Simulation result dict (same structure as run_simulation).
+    """
+    # Phase 1: Create instance with some state (warmup)
+    tmpdir = tempfile.mkdtemp(prefix="psyche_ab_")
+    data_dir = Path(tmpdir)
+    orch = PsycheOrchestrator(memory_count=0, data_dir=data_dir)
+
+    # Minimal warmup to establish non-trivial state for session boundary effects
+    warmup_keys = ["positive", "negative", "neutral", "confused", "angry"]
+    for key in warmup_keys:
+        percept = Percept(**INPUT_PATTERNS[key])
+        orch.post_response_update(percept, delta_time, user_id)
+        policy = orch.select_policy_dict(percept, [], user_id)
+        outcome = _pattern_to_outcome(key)
+        resp_state = orch._responsibility_mgr.get_state(user_id)
+        for rec in reversed(resp_state.recent_decisions):
+            if not rec.get("evaluated", False):
+                orch._responsibility_mgr.evaluate_outcome(
+                    user_id, rec["id"], outcome,
+                )
+                break
+
+    if not bypass_session_modulation:
+        # Condition A: save and load to trigger session boundary modulations
+        orch.save()
+        orch2 = PsycheOrchestrator(memory_count=0, data_dir=data_dir)
+        orch2.load()
+        orch = orch2
+    # Condition B (bypass_session_modulation=True): continue with the
+    # same instance — no save/load, so no session boundary modulations.
+
+    # Phase 2: Run main sequence
+    started_at = datetime.now().isoformat(timespec="seconds")
+    records: list[dict[str, Any]] = []
+    sim_memory_count = 0
+
+    for turn_idx, pattern_key in enumerate(sequence):
+        turn_num = turn_idx + 1
+        percept = Percept(**INPUT_PATTERNS[pattern_key])
+        orch.post_response_update(percept, delta_time, user_id)
+
+        if abs(percept.emotion_valence) > 0.3:
+            sim_memory_count += 1
+            orch.on_memory_saved(
+                summary=percept.text,
+                keywords=[percept.emotion or "unknown"],
+                memory_count=sim_memory_count,
+            )
+
+        policy = orch.select_policy_dict(percept, [], user_id)
+        outcome = _pattern_to_outcome(pattern_key)
+        resp_state = orch._responsibility_mgr.get_state(user_id)
+        for rec in reversed(resp_state.recent_decisions):
+            if not rec.get("evaluated", False):
+                orch._responsibility_mgr.evaluate_outcome(
+                    user_id, rec["id"], outcome,
+                )
+                break
+
+        record = _extract_turn_record(
+            turn=turn_num,
+            tick=orch.tick_count,
+            pattern_key=pattern_key,
+            percept=percept,
+            orch=orch,
+            policy=policy,
+            outcome=outcome,
+            user_id=user_id,
+        )
+        records.append(record)
+
+    finished_at = datetime.now().isoformat(timespec="seconds")
+
+    return {
+        "metadata": {
+            "scenario": "ab_condition",
+            "total_turns": len(sequence),
+            "delta_time_per_turn": delta_time,
+            "user_id": user_id,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "bypass_session_modulation": bypass_session_modulation,
+            "version": 3,
+        },
+        "turns": records,
+    }
+
+
+def _compute_per_dimension_effect_size(
+    vectors_a: list[list[float]],
+    vectors_b: list[list[float]],
+) -> list[dict[str, Any]]:
+    """Compute standardized effect size per dimension for A/B comparison.
+
+    For each dimension, computes:
+    - mean_a, mean_b: Mean of each condition
+    - diff: mean_a - mean_b
+    - pooled_stddev: sqrt((var_a + var_b) / 2)
+    - effect_size: diff / pooled_stddev (Cohen's d equivalent)
+
+    No thresholds or evaluation ("small/medium/large") are applied.
+
+    Returns:
+        List of per-dimension effect size records.
+    """
+    if not vectors_a or not vectors_b:
+        return []
+
+    dim = len(vectors_a[0])
+    labels = _dimension_labels()
+    results: list[dict[str, Any]] = []
+
+    for d in range(dim):
+        vals_a = [v[d] for v in vectors_a]
+        vals_b = [v[d] for v in vectors_b]
+
+        mean_a = sum(vals_a) / len(vals_a)
+        mean_b = sum(vals_b) / len(vals_b)
+        var_a = _compute_variance(vals_a)
+        var_b = _compute_variance(vals_b)
+        pooled_var = (var_a + var_b) / 2.0
+        pooled_sd = math.sqrt(pooled_var) if pooled_var > 1e-15 else 0.0
+
+        diff = mean_a - mean_b
+        effect_size = diff / pooled_sd if pooled_sd > 1e-15 else 0.0
+
+        results.append({
+            "dimension": labels[d] if d < len(labels) else f"dim_{d}",
+            "mean_a": round(mean_a, 6),
+            "mean_b": round(mean_b, 6),
+            "diff": round(diff, 6),
+            "pooled_stddev": round(pooled_sd, 6),
+            "effect_size": round(effect_size, 6),
+        })
+
+    return results
+
+
+def run_ab_comparison(
+    scenario_name: str | None = None,
+    custom_sequence: list[str] | None = None,
+    delta_time: float = 2.0,
+    user_id: str = "sim_user",
+) -> dict[str, Any]:
+    """Run A/B comparison of session boundary coefficient modulation.
+
+    Condition A: Session boundary modulations enabled (save + load cycle).
+    Condition B: Session boundary modulations disabled (no save/load).
+
+    Both conditions start from the same warmup state and receive the same
+    input sequence.
+
+    No evaluation judgment (which condition is "better") is made.
+
+    Args:
+        scenario_name: SCENARIOS name for the input sequence.
+        custom_sequence: Custom pattern key list (overrides scenario_name).
+        delta_time: Virtual seconds between turns.
+        user_id: Simulated user ID.
+
+    Returns:
+        A/B comparison result dict.
+
+    Raises:
+        ValueError: Invalid scenario or pattern keys.
+    """
+    # Resolve sequence
+    if custom_sequence is not None:
+        sequence = custom_sequence
+        scenario_label = "custom"
+    elif scenario_name is not None:
+        if scenario_name not in SCENARIOS:
+            raise ValueError(
+                f"Unknown scenario: {scenario_name}. "
+                f"Available: {list(SCENARIOS.keys())}"
+            )
+        sequence = SCENARIOS[scenario_name]
+        scenario_label = scenario_name
+    else:
+        raise ValueError("Either scenario_name or custom_sequence is required.")
+
+    for key in sequence:
+        if key not in INPUT_PATTERNS:
+            raise ValueError(f"Invalid pattern key: {key}")
+
+    started_at = datetime.now().isoformat(timespec="seconds")
+
+    # Run both conditions
+    result_a = _run_sim_for_ab(
+        sequence, delta_time, user_id,
+        bypass_session_modulation=False,
+    )
+    result_b = _run_sim_for_ab(
+        sequence, delta_time, user_id,
+        bypass_session_modulation=True,
+    )
+
+    # Extract state vectors
+    vectors_a = [
+        _extract_state_vector_from_record(t) for t in result_a["turns"]
+    ]
+    vectors_b = [
+        _extract_state_vector_from_record(t) for t in result_b["turns"]
+    ]
+
+    # Per-tick distance between A and B
+    per_tick_distances: list[dict[str, Any]] = []
+    for idx in range(min(len(vectors_a), len(vectors_b))):
+        dist = _euclidean_distance(vectors_a[idx], vectors_b[idx])
+        per_tick_distances.append({
+            "turn": idx + 1,
+            "distance": round(dist, 6),
+        })
+
+    # Per-dimension effect sizes
+    effect_sizes = _compute_per_dimension_effect_size(vectors_a, vectors_b)
+
+    # Summary statistics of distances
+    all_dists = [d["distance"] for d in per_tick_distances]
+    distance_summary: dict[str, Any] = {}
+    if all_dists:
+        distance_summary["min"] = round(min(all_dists), 6)
+        distance_summary["max"] = round(max(all_dists), 6)
+        distance_summary["mean"] = round(sum(all_dists) / len(all_dists), 6)
+        distance_summary["stddev"] = round(_safe_stddev(all_dists), 6)
+
+    finished_at = datetime.now().isoformat(timespec="seconds")
+
+    return {
+        "metadata": {
+            "mode": "ab_comparison",
+            "scenario": scenario_label,
+            "total_turns": len(sequence),
+            "delta_time": delta_time,
+            "user_id": user_id,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "condition_a": "session_modulation_enabled",
+            "condition_b": "session_modulation_disabled",
+            "dimension_labels": _dimension_labels(),
+        },
+        "condition_a": result_a,
+        "condition_b": result_b,
+        "per_tick_distances": per_tick_distances,
+        "effect_sizes": effect_sizes,
+        "distance_summary": distance_summary,
+    }
+
+
 # ── CLI ───────────────────────────────────────────────────────
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1508,6 +2324,49 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Run multiple scenarios and generate diff report",
     )
+    # ── Measurement mode arguments ──
+    parser.add_argument(
+        "--divergence",
+        type=str,
+        default=None,
+        help="Run state divergence measurement for given scenario",
+    )
+    parser.add_argument(
+        "--num-instances",
+        type=int,
+        default=3,
+        help="Number of instances for divergence measurement (default: 3)",
+    )
+    parser.add_argument(
+        "--warmup-turns",
+        type=int,
+        default=5,
+        help="Number of warmup turns per instance for divergence (default: 5)",
+    )
+    parser.add_argument(
+        "--max-instances",
+        type=int,
+        default=10,
+        help="Upper bound for num-instances (default: 10)",
+    )
+    parser.add_argument(
+        "--trajectory-features",
+        action="store_true",
+        help="Include trajectory statistical features in output",
+    )
+    parser.add_argument(
+        "--entropy-bins",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Entropy bin parameters (default: 5 10 20)",
+    )
+    parser.add_argument(
+        "--ab-compare",
+        type=str,
+        default=None,
+        help="Run A/B comparison (session modulation enabled vs disabled)",
+    )
     return parser
 
 
@@ -1523,6 +2382,43 @@ def main(argv: list[str] | None = None) -> None:
     if args.list_patterns:
         for name, pat in INPUT_PATTERNS.items():
             print(f"{name}: emotion={pat['emotion']}, valence={pat['emotion_valence']}, intent={pat['intent']}")
+        return
+
+    # ── Divergence measurement mode ──
+    if args.divergence:
+        div_result = run_divergence_measurement(
+            scenario_name=args.divergence,
+            num_instances=args.num_instances,
+            warmup_turns=args.warmup_turns,
+            delta_time=args.delta_time,
+            user_id=args.user_id,
+            max_instances=args.max_instances,
+        )
+        output_text = json.dumps(div_result, ensure_ascii=False, indent=2)
+        if args.output:
+            out_path = Path(args.output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(output_text, encoding="utf-8")
+            print(f"Output written to {out_path}")
+        else:
+            print(output_text)
+        return
+
+    # ── A/B comparison mode ──
+    if args.ab_compare:
+        ab_result = run_ab_comparison(
+            scenario_name=args.ab_compare,
+            delta_time=args.delta_time,
+            user_id=args.user_id,
+        )
+        output_text = json.dumps(ab_result, ensure_ascii=False, indent=2)
+        if args.output:
+            out_path = Path(args.output)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(output_text, encoding="utf-8")
+            print(f"Output written to {out_path}")
+        else:
+            print(output_text)
         return
 
     # ── Compare mode: 複数シナリオ実行 + 差分レポート ──
@@ -1589,6 +2485,12 @@ def main(argv: list[str] | None = None) -> None:
     # 統計サマリー付加
     if args.stats:
         output_data["statistics"] = compute_statistics(result)
+
+    # 軌跡統計特徴量付加
+    if args.trajectory_features:
+        output_data["trajectory_features"] = compute_trajectory_features(
+            result, entropy_bin_params=args.entropy_bins,
+        )
 
     output_text = json.dumps(output_data, ensure_ascii=False, indent=2)
 

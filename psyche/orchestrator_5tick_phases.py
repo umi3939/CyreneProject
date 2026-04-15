@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from .orchestrator import PsycheOrchestrator
@@ -29,101 +29,87 @@ if TYPE_CHECKING:
 # これらは orchestrator.py のトップレベルで既にインポートされているが、
 # 分離先ファイルでも直接使用するため、同一のインポートを行う。
 
-from .other_model_input_supply import (
-    supply_context,
-    update_from_percept as update_input_supply,
-    decay_buffer,
-    supply_reaction_log,
+from tools.return_pathway_monitor import (
+    PATHWAY_A as _RPM_PATHWAY_A,
 )
-
-from .self_narrative import (
-    observe_from_chain as observe_narrative_from_chain,
-)
-
-from .episodic_memory import (
-    record_from_chain as record_episode_from_chain,
-)
-
-from .emotional_memory_binding import (
-    bind_from_chain,
-)
-
-from .memory_system_integration import (
-    IntegrationContext,
-)
-
-from .multi_path_recall import (
-    EmotionSnapshot as RecallEmotionSnapshot,
-    ContextSnapshot as RecallContextSnapshot,
-    TemporalSnapshot as RecallTemporalSnapshot,
-)
-
-from .spontaneous_recall import (
-    InternalEmotionSnapshot as SpontaneousRecallEmotionSnapshot,
-)
-
-from .multi_emotion import (
-    get_active_emotions,
-)
-
-from .introspection_trace import (
-    get_trace_summary,
-)
-
-from .introspection_consumption import (
-    consume_from_chain as consume_introspection_from_chain,
-)
-
-from .expectation_formation import (
-    form_from_chain as form_expectations_from_chain,
-)
-
-from .reference_frequency_description import (
-    process_reference_frequency,
-)
-
-from .other_model_real_feed import (
-    enhance_context_with_feed,
-)
-
-from .other_agent_model import (
-    observe_from_chain as observe_other_from_chain,
-)
-
-from .value_orientation import (
-    update_orientation,
-    update_from_decision,
-    generate_emotion_signal,
-    generate_responsibility_signal,
-    generate_decision_signal,
-    ValueOrientationConfig,
-    compute_effective_learning_rate,
-)
-
-from .stabilization_description import (
-    process_stabilization_description,
+from tools.return_pathway_monitor import (
+    PATHWAY_C as _RPM_PATHWAY_C,
 )
 
 from .behavioral_diversity_description import (
     process_behavioral_diversity,
 )
-
+from .emotional_memory_binding import (
+    bind_from_chain,
+)
+from .episodic_memory import (
+    record_from_chain as record_episode_from_chain,
+)
+from .expectation_formation import (
+    form_from_chain as form_expectations_from_chain,
+)
 from .forgetting_recall_balance import (
     process_forgetting_recall_balance,
 )
-
-from .memory_emotion_return import (
-    MemoryEmotionReturnProcessor,
+from .introspection_consumption import (
+    consume_from_chain as consume_introspection_from_chain,
 )
-
-from tools.return_pathway_monitor import (
-    PATHWAY_A as _RPM_PATHWAY_A,
-    PATHWAY_C as _RPM_PATHWAY_C,
+from .introspection_trace import (
+    get_trace_summary,
 )
-
+from .memory_system_integration import (
+    IntegrationContext,
+)
+from .multi_emotion import (
+    get_active_emotions,
+)
+from .multi_path_recall import (
+    ContextSnapshot as RecallContextSnapshot,
+)
+from .multi_path_recall import (
+    EmotionSnapshot as RecallEmotionSnapshot,
+)
+from .multi_path_recall import (
+    TemporalSnapshot as RecallTemporalSnapshot,
+)
+from .other_agent_model import (
+    observe_from_chain as observe_other_from_chain,
+)
+from .other_model_input_supply import (
+    decay_buffer,
+    supply_context,
+    supply_reaction_log,
+)
+from .other_model_input_supply import (
+    update_from_percept as update_input_supply,
+)
+from .other_model_real_feed import (
+    enhance_context_with_feed,
+)
+from .reference_frequency_description import (
+    process_reference_frequency,
+)
 from .responsibility_dispersion import (
     get_active_units as get_dispersion_active_units,
+)
+from .responsibility_dispersion import (
     get_total_active_weight as get_dispersion_active_weight,
+)
+from .self_narrative import (
+    observe_from_chain as observe_narrative_from_chain,
+)
+from .spontaneous_recall import (
+    InternalEmotionSnapshot as SpontaneousRecallEmotionSnapshot,
+)
+from .stabilization_description import (
+    process_stabilization_description,
+)
+from .value_orientation import (
+    ValueOrientationConfig,
+    generate_decision_signal,
+    generate_emotion_signal,
+    generate_responsibility_signal,
+    update_orientation,
 )
 
 logger = logging.getLogger(__name__)
@@ -811,6 +797,8 @@ def _run_5t_other_model_interaction(orch: PsycheOrchestrator, user_id: str) -> N
             try:
                 from .other_model_real_feed import (
                     ObservationFragment as RealFeedFragment,
+                )
+                from .other_model_real_feed import (
                     ObservationFragmentType as RealFeedFragmentType,
                 )
                 active_pairs = orch._action_result_observer.get_active_pairs()
@@ -1136,6 +1124,27 @@ def _run_5t_value_responsibility(orch: PsycheOrchestrator, user_id: str) -> None
     except Exception as e:
         logger.debug("Expectation-action diff skipped: %s", e)
 
+    # Phase 26d2: expectation_perception_matching — 予期照合記述
+    # 予期形成の出力と知覚の出力を構造的フィールド比較し、
+    # 対応の程度を段階値で記述・蓄積する。
+    # Phase 26dが「予期と行動-結果」の照合であるのに対し、
+    # 本機能は「予期と知覚」の照合であり、入力ソースが異なる独立した照合。
+    # 予期形成への書き込み経路を持たない（READ-ONLY）。
+    # 照合記録→ポリシー選択・バイアス適用・スコアリングへの接続禁止。
+    # 照合記録→感情システムへの接続禁止。
+    # パターン抽出禁止、統計量算出禁止、正誤判定禁止。
+    try:
+        if (orch._last_expectations is not None
+                and orch._expectation_perception_matcher is not None
+                and orch._last_percept is not None):
+            orch._expectation_perception_matcher.process(
+                orch._last_expectations,
+                orch._last_percept,
+                tick=orch._tick_count,
+            )
+    except Exception as e:
+        logger.debug("Expectation-perception matching skipped: %s", e)
+
     # Phase 26e: intent_action_gap — 意図-行動間の乖離認知
     # 自己行動知覚(notify_self_output)の後の帯で、自己行動記録の最新記録と
     # ポリシー選択情報を入力として処理を呼び出す。
@@ -1266,6 +1275,7 @@ def _run_5t_value_responsibility(orch: PsycheOrchestrator, user_id: str) -> None
 # ── Experience-driven value update bandwidth expansion ───────────────────────
 
 from . import coefficient_registry as _coeff_registry
+
 _exp_coeffs = _coeff_registry.get("experience_intensity")
 
 # 帯域拡大係数の絶対上限（基本学習率の倍数）

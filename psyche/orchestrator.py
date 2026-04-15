@@ -577,6 +577,12 @@ from .expectation_lifecycle_description import (
     get_lifecycle_summary,
 )
 
+# Expectation perception matching (予期照合記述)
+from .expectation_perception_matching import (
+    ExpectationPerceptionMatcher,
+    MatchingState,
+)
+
 # Goal hierarchy propagation (目的階層間の隣接状態変化記述)
 from .goal_hierarchy_propagation import (
     GoalHierarchyPropagationProcessor,
@@ -1155,6 +1161,12 @@ def _build_field_definitions() -> list[FieldDef]:
             load_type=GoalHierarchyPropagationState, version=41, group=SG.DESCRIPTION_COGNITION,
             state_sub_attr="state",
         ),
+        FieldDef(
+            key="expectation_perception_matching_state", attr_path="_expectation_perception_matcher",
+            save_interface=SI.TO_DICT, load_interface=LI.STATE_ATTR,
+            load_type=MatchingState, version=45, group=SG.DESCRIPTION_COGNITION,
+            state_sub_attr="state",
+        ),
     ]
 
 
@@ -1471,6 +1483,9 @@ class PsycheOrchestrator:
         # ── Drive variation description (駆動の変動記述) ──
         self._drive_variation_processor = create_drive_variation_processor()
         self._last_drive_variation_result: Optional[DriveVariationResult] = None
+
+        # ── Expectation perception matching (予期照合記述) ──
+        self._expectation_perception_matcher = ExpectationPerceptionMatcher()
 
         # ── Expectation lifecycle description (予期の成立・消失の事後記述) ──
         self._expectation_lifecycle_processor = create_expectation_lifecycle_processor()

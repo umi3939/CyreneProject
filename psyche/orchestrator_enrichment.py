@@ -558,6 +558,15 @@ def _collect_enrichment_memory(
             memory_items.append(("予期差分記録", "\n".join(diff_parts)))
     except Exception:
         pass
+    # #25b expectation_perception_matching (予期照合記述)
+    if orch._expectation_perception_matcher is not None:
+        try:
+            epm_data = orch._expectation_perception_matcher.get_enrichment_data()
+            epm_text = epm_data.get("summary_text", "")
+            if epm_text and epm_data.get("record_count", 0) > 0:
+                memory_items.append(("予期照合", f"予期照合: {epm_text}"))
+        except Exception:
+            pass
     # #26 intent_action_gap
     if orch._intent_action_gap_recorder is not None:
         try:

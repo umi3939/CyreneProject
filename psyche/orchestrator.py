@@ -499,6 +499,22 @@ from .scoring_fluctuation import (
 # Coefficient registry (係数レジストリ — FIFO experience expansion)
 from . import coefficient_registry as _coefficient_registry
 
+# Decay rate modulation (感情減衰速度の経験依存変調 — セッション起動時限定)
+from .decay_rate_modulation import apply_decay_rate_modulation
+
+# Window size modulation (ウィンドウサイズの経験依存変調 — セッション起動時限定)
+from .window_size_modulation import (
+    apply_window_size_modulation,
+    save_modulated_values as _save_window_modulated,
+    load_modulated_values as _load_window_modulated,
+)
+
+# Firing frequency modulation (帰還経路発火頻度変調 — セッション起動時限定)
+from .firing_frequency_modulation import apply_firing_frequency_modulation
+
+# Drive dynamics section band (firing_frequency_modulation の Pathway D 対象)
+from .reaction_drive_dynamics import _SECTION_BAND as _drive_section_band
+
 # Selection attribution (選択帰属)
 from .selection_attribution import (
     SelectionAttributionRecorder,
@@ -1568,6 +1584,12 @@ class PsycheOrchestrator:
         self._return_pathway_monitor = ReturnPathwayMonitor()
         # セッション回数カウンタ（永続化が何回保存されたか）
         self._return_pathway_session_count: int = 0
+
+        # ── 経験依存変調の状態（セッション起動時に算出、save/loadで永続化） ──
+        # decay_rate_modulation: 前回セッション終了時の変調後decay_rate
+        self._decay_rate_modulated: Optional[float] = None
+        # window_size_modulation: 前回セッション終了時の変調後ウィンドウサイズ
+        self._window_size_modulated: Optional[dict[str, int]] = None
 
         logger.info(
             "PsycheOrchestrator initialized: fear=%.2f, dominant=%s, "
@@ -4469,6 +4491,15 @@ class PsycheOrchestrator:
         except Exception as e:
             logger.debug("Return pathway persistence save failed: %s", e)
 
+        # 経験依存変調の永続化（decay_rate / window_size）:
+        # firing_frequency_modulation は発火回数から再計算で復元可能なため保存不要。
+        if self._decay_rate_modulated is not None:
+            data["decay_rate_modulated"] = self._decay_rate_modulated
+        if self._window_size_modulated is not None:
+            data["window_size_modulated"] = _save_window_modulated(
+                self._window_size_modulated
+            )
+
         # セッション間差分: 前回スナップショットがあれば差分スカラーを算出
         if self._session_prev_snapshot is not None:
             try:
@@ -4586,6 +4617,63 @@ class PsycheOrchestrator:
             except Exception as e:
                 logger.debug(
                     "Contradiction amplitude modulation skipped: %s", e
+                )
+
+            # Decay rate modulation: 感情基調蓄積パターン→感情減衰速度変調
+            # emotional_backdrop_cognitionの蓄積データから振幅特性を読み取り、
+            # 感情減衰速度を±5%帯域内で変調する。回帰圧力0.3。
+            # セッション起動時に一度だけ実行。ティック中変更禁止。
+            try:
+                _base_decay = _coefficient_registry.get("emotion_processing")["decay_rate"]
+                _prev_modulated = data.get("decay_rate_modulated")
+                if _prev_modulated is not None and not isinstance(_prev_modulated, (int, float)):
+                    _prev_modulated = None
+                _backdrop_dict = self._emotional_backdrop_processor.state.to_dict()
+                _mod_rate, _amp_score = apply_decay_rate_modulation(
+                    _backdrop_dict,
+                    _base_decay,
+                    _prev_modulated,
+                )
+                self._decay_rate_modulated = _mod_rate
+            except Exception as e:
+                logger.debug(
+                    "Decay rate modulation skipped: %s", e
+                )
+
+            # Window size modulation: 想起頻度→ウィンドウサイズ変調
+            # forgetting_recall_balanceの想起頻度から変調方向を決定し、
+            # ウィンドウサイズ(3キー)を±20%帯域内で変調する。整数丸め。
+            # セッション起動時に一度だけ実行。ティック中変更禁止。
+            try:
+                _prev_window = _load_window_modulated(
+                    data.get("window_size_modulated")
+                )
+                _mod_windows = apply_window_size_modulation(
+                    self._frb_state,
+                    _prev_window or None,
+                )
+                self._window_size_modulated = _mod_windows
+            except Exception as e:
+                logger.debug(
+                    "Window size modulation skipped: %s", e
+                )
+
+            # Firing frequency modulation: 帰還経路発火頻度→帯域上限変調
+            # return_pathway_monitorの累計発火回数から対数スケーリングで
+            # 帯域上限を拡大する（最大1.5x）。4経路(A/C/D/E)対象。
+            # 発火回数から再計算で状態復元可能なためsave/load不要。
+            # セッション起動時に一度だけ実行。ティック中変更禁止。
+            try:
+                _fire_counts = self._return_pathway_monitor.pathway_fire_counts
+                apply_firing_frequency_modulation(
+                    _fire_counts,
+                    self._memory_emotion_return._config,
+                    self._other_hypothesis_emotion_return._config,
+                    _drive_section_band,
+                )
+            except Exception as e:
+                logger.debug(
+                    "Firing frequency modulation skipped: %s", e
                 )
 
             logger.info("Psyche state loaded from %s (v%d, tick=%d)",

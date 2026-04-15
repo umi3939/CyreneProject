@@ -43,8 +43,10 @@ Usage::
 from __future__ import annotations
 
 import logging
+import math
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
@@ -75,6 +77,342 @@ def _gen_id() -> str:
 
 def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, value))
+
+
+# テキスト長の安全弁上限
+TEXT_MAX_LENGTH = 10000
+
+# 語彙サイズの安全弁上限
+DEFAULT_MAX_VOCAB_SIZE = 5000
+
+# N-gram のデフォルトサイズ（bi-gram）
+DEFAULT_NGRAM_N = 2
+
+
+def _is_cjk(char: str) -> bool:
+    """文字がCJK統合漢字・ひらがな・カタカナかどうか判定する。"""
+    cp = ord(char)
+    # CJK Unified Ideographs
+    if 0x4E00 <= cp <= 0x9FFF:
+        return True
+    # Hiragana
+    if 0x3040 <= cp <= 0x309F:
+        return True
+    # Katakana
+    if 0x30A0 <= cp <= 0x30FF:
+        return True
+    # CJK Extension A
+    if 0x3400 <= cp <= 0x4DBF:
+        return True
+    # CJK Extension B
+    if 0x20000 <= cp <= 0x2A6DF:
+        return True
+    # CJK Compatibility Ideographs
+    if 0xF900 <= cp <= 0xFAFF:
+        return True
+    # Halfwidth/Fullwidth Katakana
+    if 0xFF65 <= cp <= 0xFF9F:
+        return True
+    return False
+
+
+def _tokenize(text: str, ngram_n: int = DEFAULT_NGRAM_N) -> list[str]:
+    """テキストをトークンに分割する。
+
+    Unicode文字種境界で分割し、CJK文字列にはN-gram（デフォルトbi-gram）を適用する。
+    外部辞書・形態素解析器には一切依存しない。
+
+    Args:
+        text: 入力テキスト
+        ngram_n: CJK文字列に適用するN-gramサイズ
+
+    Returns:
+        トークンのリスト（小文字正規化済み）
+    """
+    if not text:
+        return []
+
+    # 制御文字の除去（改行・タブ以外のU+0000-U+001Fは空白に置換）
+    cleaned = []
+    for ch in text:
+        if ch in ('\n', '\t'):
+            cleaned.append(' ')
+        elif ord(ch) < 0x20:
+            # 制御文字を空白に置換（隣接トークンの連結を防止）
+            cleaned.append(' ')
+        else:
+            cleaned.append(ch)
+    text = ''.join(cleaned)
+
+    # テキスト長上限の適用
+    if len(text) > TEXT_MAX_LENGTH:
+        text = text[:TEXT_MAX_LENGTH]
+
+    # 小文字正規化
+    text = text.lower()
+
+    tokens: list[str] = []
+
+    # 文字種ごとにセグメントに分割
+    # CJK文字のランとASCII/ラテン文字のランを区別
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+
+        if _is_cjk(ch):
+            # CJKランを収集
+            cjk_run = []
+            while i < n and _is_cjk(text[i]):
+                cjk_run.append(text[i])
+                i += 1
+            # N-gram分割
+            cjk_str = ''.join(cjk_run)
+            if len(cjk_str) < ngram_n:
+                # N-gram不能→単一トークンとして扱う
+                tokens.append(cjk_str)
+            else:
+                for j in range(len(cjk_str) - ngram_n + 1):
+                    tokens.append(cjk_str[j:j + ngram_n])
+
+        elif ch.isalnum():
+            # ASCII/ラテン文字のランを収集（単語）
+            # CJK文字はisalnum()=Trueだが別セグメントなので除外
+            word_start = i
+            while i < n and text[i].isalnum() and not _is_cjk(text[i]):
+                i += 1
+            tokens.append(text[word_start:i])
+
+        else:
+            # 区切り文字（空白、句読点、記号）→スキップ
+            i += 1
+
+    return tokens
+
+
+def _build_tfidf_index(
+    units: list[Any],
+    ngram_n: int = DEFAULT_NGRAM_N,
+    max_vocab_size: int = DEFAULT_MAX_VOCAB_SIZE,
+) -> "TfIdfIndex":
+    """記憶群からTF-IDFインデックスを構築する純粋関数。
+
+    入力のUnifiedMemoryUnitを読み取るのみで変更しない。
+
+    Args:
+        units: UnifiedMemoryUnit互換オブジェクトのリスト
+        ngram_n: CJK文字列に適用するN-gramサイズ
+        max_vocab_size: 語彙サイズの上限。超過時はIDF低値の語から除外
+
+    Returns:
+        構築されたTfIdfIndex
+    """
+    if not units:
+        return TfIdfIndex()
+
+    # Step 1: 各文書のテキストを収集しトークン化
+    doc_tokens: list[tuple[str, list[str]]] = []  # (unit_id, tokens)
+    for unit in units:
+        unit_id = getattr(unit, "unit_id", "")
+        topics = getattr(unit, "topics", []) or []
+        summary = getattr(unit, "summary", "") or ""
+
+        # トピックとsummaryを結合してトークン化
+        text_parts = [' '.join(str(t) for t in topics), summary]
+        combined_text = ' '.join(text_parts)
+        tokens = _tokenize(combined_text, ngram_n=ngram_n)
+        doc_tokens.append((unit_id, tokens))
+
+    # Step 2: 文書頻度（DF）を計算
+    doc_count = len(doc_tokens)
+    df: Counter[str] = Counter()
+    for _uid, tokens in doc_tokens:
+        unique_tokens = set(tokens)
+        for token in unique_tokens:
+            df[token] += 1
+
+    # Step 3: 語彙を構築（必要に応じてIDF低値から除外）
+    # IDF = log(N / df_t) + 1 （スムージング付き）
+    token_idf: dict[str, float] = {}
+    for token, freq in df.items():
+        token_idf[token] = math.log(doc_count / freq) + 1.0
+
+    # 語彙上限の適用: IDF低値（=多くの文書に出現する非特徴的な語）から除外
+    if len(token_idf) > max_vocab_size:
+        # IDF値でソートし、上位max_vocab_size件を保持
+        sorted_tokens = sorted(token_idf.items(), key=lambda x: x[1], reverse=True)
+        token_idf = dict(sorted_tokens[:max_vocab_size])
+
+    # 語彙辞書: token → integer ID
+    vocabulary: dict[str, int] = {}
+    idf: dict[int, float] = {}
+    for idx, (token, idf_val) in enumerate(sorted(token_idf.items())):
+        vocabulary[token] = idx
+        idf[idx] = idf_val
+
+    # Step 4: 各文書のTF-IDFベクトルを構築
+    memory_vectors: dict[str, dict[int, float]] = {}
+    for uid, tokens in doc_tokens:
+        if not tokens:
+            continue
+        # TF: 正規化された語頻度
+        tf_counts = Counter(tokens)
+        max_tf = max(tf_counts.values())
+        vec: dict[int, float] = {}
+        for token, count in tf_counts.items():
+            if token not in vocabulary:
+                continue
+            tid = vocabulary[token]
+            tf = count / max_tf  # augmented TF normalization
+            weight = tf * idf[tid]
+            if weight > 0:
+                vec[tid] = weight
+        if vec:
+            memory_vectors[uid] = vec
+
+    return TfIdfIndex(
+        vocabulary=vocabulary,
+        idf=idf,
+        memory_vectors=memory_vectors,
+        doc_count=doc_count,
+        built_at=time.time(),
+        ngram_n=ngram_n,
+    )
+
+
+def _vectorize_query(
+    text: str,
+    vocabulary: dict[str, int],
+    idf: dict[int, float],
+    ngram_n: int = DEFAULT_NGRAM_N,
+) -> dict[int, float]:
+    """クエリテキストをTF-IDFベクトルに変換する。
+
+    Args:
+        text: クエリテキスト
+        vocabulary: 語彙辞書（token → ID）
+        idf: IDF辞書（ID → IDF値）
+        ngram_n: N-gramサイズ
+
+    Returns:
+        疎ベクトル（token_id → TF-IDF重み）
+    """
+    if not text or not vocabulary:
+        return {}
+
+    tokens = _tokenize(text, ngram_n=ngram_n)
+    if not tokens:
+        return {}
+
+    tf_counts = Counter(tokens)
+    max_tf = max(tf_counts.values())
+    vec: dict[int, float] = {}
+    for token, count in tf_counts.items():
+        if token not in vocabulary:
+            continue
+        tid = vocabulary[token]
+        tf = count / max_tf
+        idf_val = idf.get(tid, 0.0)
+        weight = tf * idf_val
+        if weight > 0:
+            vec[tid] = weight
+    return vec
+
+
+def _cosine_similarity(v1: dict[int, float], v2: dict[int, float]) -> float:
+    """2つの疎ベクトル間のcosine similarityを計算する。
+
+    Args:
+        v1: 疎ベクトル1（token_id → 重み）
+        v2: 疎ベクトル2（token_id → 重み）
+
+    Returns:
+        cosine similarity値（-1.0 〜 1.0）。空ベクトルの場合は0.0
+    """
+    if not v1 or not v2:
+        return 0.0
+
+    # 内積: 共通キーのみ走査（疎ベクトル最適化）
+    dot = 0.0
+    # 小さい方をイテレートして大きい方をルックアップ
+    if len(v1) > len(v2):
+        v1, v2 = v2, v1
+    for key, val in v1.items():
+        if key in v2:
+            dot += val * v2[key]
+
+    if dot == 0.0:
+        return 0.0
+
+    # ノルム計算
+    norm1 = math.sqrt(sum(v * v for v in v1.values()))
+    norm2 = math.sqrt(sum(v * v for v in v2.values()))
+
+    if norm1 == 0.0 or norm2 == 0.0:
+        return 0.0
+
+    return dot / (norm1 * norm2)
+
+
+# =============================================================================
+# TF-IDF Index Structure
+# =============================================================================
+
+@dataclass
+class TfIdfIndex:
+    """TF-IDFインデックス構造。
+
+    記憶群から構築された不変の索引。語彙辞書、IDF辞書、記憶ベクトル群を保持する。
+    インデックス構築は純粋関数 _build_tfidf_index で行い、
+    このデータクラスは結果の格納とシリアライズのみを担う。
+    """
+    # 語彙辞書: token → integer ID
+    vocabulary: dict[str, int] = field(default_factory=dict)
+    # IDF辞書: token_id → IDF値
+    idf: dict[int, float] = field(default_factory=dict)
+    # 記憶ベクトル群: unit_id → {token_id: TF-IDF weight} (疎表現)
+    memory_vectors: dict[str, dict[int, float]] = field(default_factory=dict)
+    # 構築時点の記憶数
+    doc_count: int = 0
+    # 構築タイムスタンプ
+    built_at: float = 0.0
+    # N-gramパラメータ
+    ngram_n: int = DEFAULT_NGRAM_N
+
+    def is_empty(self) -> bool:
+        """語彙が空かどうかを返す。フォールバック判定に使用。"""
+        return len(self.vocabulary) == 0
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON互換の辞書に変換する。"""
+        return {
+            "vocabulary": dict(self.vocabulary),
+            "idf": {str(k): v for k, v in self.idf.items()},
+            "memory_vectors": {
+                uid: {str(tid): w for tid, w in vec.items()}
+                for uid, vec in self.memory_vectors.items()
+            },
+            "doc_count": self.doc_count,
+            "built_at": self.built_at,
+            "ngram_n": self.ngram_n,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TfIdfIndex":
+        """辞書からTfIdfIndexを復元する。"""
+        if not data:
+            return cls()
+        return cls(
+            vocabulary=dict(data.get("vocabulary", {})),
+            idf={int(k): v for k, v in data.get("idf", {}).items()},
+            memory_vectors={
+                uid: {int(tid): w for tid, w in vec.items()}
+                for uid, vec in data.get("memory_vectors", {}).items()
+            },
+            doc_count=data.get("doc_count", 0),
+            built_at=data.get("built_at", 0.0),
+            ngram_n=data.get("ngram_n", DEFAULT_NGRAM_N),
+        )
 
 
 # =============================================================================
@@ -234,12 +572,16 @@ class MultiPathRecallState:
     # サイクルカウンタ
     cycle_count: int = 0
 
+    # TF-IDFインデックス（文脈連想経路用）
+    tfidf_index: TfIdfIndex = field(default_factory=TfIdfIndex)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "current_candidates": [c.to_dict() for c in self.current_candidates],
             "recent_recall_history": list(self.recent_recall_history),
             "path_stats": self.path_stats.to_dict(),
             "cycle_count": self.cycle_count,
+            "tfidf_index": self.tfidf_index.to_dict(),
         }
 
     @classmethod
@@ -252,6 +594,7 @@ class MultiPathRecallState:
             recent_recall_history=list(data.get("recent_recall_history", [])),
             path_stats=PathStatistics.from_dict(data.get("path_stats", {})),
             cycle_count=data.get("cycle_count", 0),
+            tfidf_index=TfIdfIndex.from_dict(data.get("tfidf_index", {})),
         )
 
 
@@ -283,6 +626,20 @@ class MultiPathRecallConfig:
     # テキスト断片の最大長
     summary_snippet_length: int = 80
 
+    # TF-IDF安全弁: 1セッション内のインデックス再構築回数上限
+    # デフォルト10: 通常セッション(数十サイクル)でrebuild_threshold(20%)変動が
+    # 発生する回数は10回以下。異常な高速記憶追加パターンを遮断
+    max_rebuild_per_session: int = 10
+
+    # TF-IDF安全弁: 語彙サイズ上限
+    max_vocab_size: int = DEFAULT_MAX_VOCAB_SIZE
+
+    # TF-IDF安全弁: 記憶数変化率の再構築閾値
+    rebuild_threshold: float = 0.2
+
+    # TF-IDF安全弁: テキスト長上限
+    text_max_length: int = TEXT_MAX_LENGTH
+
 
 # =============================================================================
 # Processor
@@ -299,6 +656,7 @@ class MultiPathRecallProcessor:
     def __init__(self, config: Optional[MultiPathRecallConfig] = None):
         self._config = config or MultiPathRecallConfig()
         self._state = MultiPathRecallState()
+        self._rebuild_count: int = 0  # セッション内再構築カウンタ
 
     @property
     def state(self) -> MultiPathRecallState:
@@ -423,7 +781,6 @@ class MultiPathRecallProcessor:
             unit_id = getattr(unit, "unit_id", "")
             emotional_valence = getattr(unit, "emotional_valence", 0.0)
             emotional_label = getattr(unit, "emotional_label", "")
-            source_id = getattr(unit, "source_id", "")
 
             # 感情近接度の計算
             proximity = 0.0
@@ -439,7 +796,7 @@ class MultiPathRecallProcessor:
 
             # BindingStoreの痕跡との近接
             binding_traces = trace_map.get(unit_id, [])
-            for trace_label, trace_intensity, trace_valence in binding_traces:
+            for trace_label, trace_intensity, _trace_valence in binding_traces:
                 if trace_label in emo.emotions:
                     proximity += emo.emotions[trace_label] * trace_intensity * 0.2
 
@@ -525,7 +882,77 @@ class MultiPathRecallProcessor:
         ctx: ContextSnapshot,
         now: float,
     ) -> list[RecallCandidate]:
-        """文脈連想経路: 知覚内容/トピックと記憶のトピック属性の重複による候補列挙。"""
+        """文脈連想経路: TF-IDF + cosine similarityによるスコアリング。
+
+        インデックスが利用不能（語彙空 or 再構築上限到達で未構築）の場合、
+        旧Jaccard方式の_recall_contextual_fallbackにフォールバックする。
+        """
+        cfg = self._config
+
+        if not ctx.topics and not ctx.percept_text:
+            return []
+
+        # インデックスの構築/更新を試行
+        self._ensure_index(units)
+
+        # フォールバック判定: インデックスの語彙が空
+        if self._state.tfidf_index.is_empty():
+            return self._recall_contextual_fallback(units, ctx, now)
+
+        idx = self._state.tfidf_index
+
+        # クエリベクトルの構築（percept_text + topics）
+        query_parts = []
+        if ctx.topics:
+            query_parts.append(' '.join(str(t) for t in ctx.topics))
+        if ctx.percept_text:
+            query_parts.append(ctx.percept_text)
+        query_text = ' '.join(query_parts)
+
+        query_vec = _vectorize_query(query_text, idx.vocabulary, idx.idf, idx.ngram_n)
+        if not query_vec:
+            return self._recall_contextual_fallback(units, ctx, now)
+
+        # 各記憶とのcosine similarityを計算
+        scored: list[tuple[float, Any]] = []
+        for unit in units:
+            unit_id = getattr(unit, "unit_id", "")
+            mem_vec = idx.memory_vectors.get(unit_id, {})
+            if not mem_vec:
+                continue
+            sim = _cosine_similarity(query_vec, mem_vec)
+            if sim > 0:
+                scored.append((sim, unit))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        selected = scored[:cfg.per_path_limit]
+
+        input_desc = f"topics={','.join(ctx.topics[:3])}" if ctx.topics else f"text={ctx.percept_text[:30]}"
+
+        candidates: list[RecallCandidate] = []
+        for _, unit in selected:
+            summary = getattr(unit, "summary", "")[:cfg.summary_snippet_length]
+            candidates.append(RecallCandidate(
+                unit_id=getattr(unit, "unit_id", ""),
+                source_id=getattr(unit, "source_id", ""),
+                summary=summary,
+                path_label=RecallPathLabel.CONTEXTUAL.value,
+                recall_timestamp=now,
+                input_snapshot=input_desc,
+            ))
+
+        return candidates
+
+    def _recall_contextual_fallback(
+        self,
+        units: list[Any],
+        ctx: ContextSnapshot,
+        now: float,
+    ) -> list[RecallCandidate]:
+        """旧文脈連想方式: Jaccard的トピック重複 + テキスト部分一致。
+
+        TF-IDFインデックスが利用不能な場合のフォールバックとして保持。
+        """
         cfg = self._config
 
         if not ctx.topics and not ctx.percept_text:
@@ -539,7 +966,6 @@ class MultiPathRecallProcessor:
         for unit in units:
             unit_topics = getattr(unit, "topics", []) or []
             unit_topic_set = {t.lower() for t in unit_topics}
-            summary = getattr(unit, "summary", "")
 
             relevance = 0.0
 
@@ -576,6 +1002,53 @@ class MultiPathRecallProcessor:
             ))
 
         return candidates
+
+    # ─── インデックス管理 ─────────────────────────────────────────
+
+    def _should_rebuild_index(self, units: list[Any]) -> bool:
+        """インデックスの再構築が必要かどうかを判定する。
+
+        再構築条件:
+        - インデックスが未構築（語彙空）
+        - 記憶数がrebuild_threshold以上変化
+        """
+        idx = self._state.tfidf_index
+        if idx.is_empty():
+            return True
+
+        current_count = len(units)
+        if idx.doc_count == 0:
+            return True
+
+        change_rate = abs(current_count - idx.doc_count) / idx.doc_count
+        return change_rate >= self._config.rebuild_threshold
+
+    def _ensure_index(self, units: list[Any]) -> None:
+        """必要に応じてTF-IDFインデックスを構築/更新する。
+
+        再構築上限（max_rebuild_per_session）に達した場合は構築を行わない。
+        """
+        if self._rebuild_count >= self._config.max_rebuild_per_session:
+            return
+
+        if not self._should_rebuild_index(units):
+            return
+
+        try:
+            self._state.tfidf_index = _build_tfidf_index(
+                units,
+                max_vocab_size=self._config.max_vocab_size,
+            )
+            self._rebuild_count += 1
+            logger.debug(
+                "TF-IDF index rebuilt: vocab=%d, docs=%d, rebuild_count=%d",
+                len(self._state.tfidf_index.vocabulary),
+                self._state.tfidf_index.doc_count,
+                self._rebuild_count,
+            )
+        except Exception:
+            logger.exception("TF-IDF index build failed, will use fallback")
+            # 失敗時はインデックスを空のままにしてフォールバックを使う
 
     # ─── 経路3: 時間近接 ───────────────────────────────────────
 

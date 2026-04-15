@@ -1,9 +1,9 @@
 # Cyrene AI  - 完全システムアーキテクチャ仕様書
 
 作成日: 2026-02-09
-更新日: 2026-03-13
-総コード行数: ~261,000行 (+2,876行 MCP自己観測ツール)
-総テスト数: 12,010テスト (+388 MCP自己観測テスト)
+更新日: 2026-04-14
+総コード行数: ~267,900行
+総テスト数: 12,098テスト
 
 ---
 
@@ -33,7 +33,7 @@
 │         ▼                                                      │            │
 │   ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐         │
 │   │  vision   │───→│   brain   │───→│  psyche   │───→│   voice   │         │
-│   │  (393行)  │    │  (941行)  │    │(53,158行) │    │  (437行)  │         │
+│   │  (393行)  │    │ (1,415行) │    │(92,732行) │    │  (437行)  │         │
 │   └───────────┘    └───────────┘    └───────────┘    └───────────┘         │
 │         │                │                │                │                │
 │    dxcam/YOLO       Gemini API      心理処理        Style-Bert-VITS2       │
@@ -66,12 +66,12 @@
 
 | ディレクトリ | ファイル数 | 総行数 | 説明 |
 |-------------|-----------|--------|------|
-| psyche/ | 103 | 90,074 | 心理システム本体（orchestrator.py含む） |
-| tests/ | 149 | 130,681 | 自動テストコード |
-| src/ | 13 | 2,656 | 補助モジュール |
-| tools/ | 12 | 7,979 | 検証・モニタリングツール群 |
-| ルート | 7 | 3,700 | コアシステム |
-| **合計** | **284** | **235,090** | |
+| psyche/ | 108 | 93,205 | 心理システム本体（orchestrator.py含む） |
+| tests/ | 179 | 154,662 | 自動テストコード |
+| src/ | 13 | 2,659 | 補助モジュール |
+| tools/ | 15 | 13,419 | 検証・モニタリングツール群 |
+| ルート | 7 | 3,933 | コアシステム |
+| **合計** | **322** | **267,878** | |
 
 ### 2.2 Psycheモジュール詳細 (行数順)
 
@@ -83,34 +83,34 @@
 | 4 | self_image_integration.py | 1,184 | 59 | 内省 | 自己像統合（暫定的自己像生成） |
 | 5 | self_narrative.py | 1,526 | 98 | 内省 | 自己物語形成（非規範・観測型） |
 | 6 | identity_coherence.py | 1,110 | 76 | 内省 | 自己同一性の揺らぎ認知 |
-| 7 | episodic_memory.py | 1,709 | 113 | 記憶 | エピソード記憶（自伝的記憶） |
+| 7 | episodic_memory.py | 1,689 | 113 | 記憶 | エピソード記憶（自伝的記憶） |
 | 8 | introspection_consumption.py | 1,455 | 94 | 内省 | 内省の消費層（読み取り可能断片の循環） |
-| 9 | expectation_formation.py | 1,485 | 103 | 内省 | 予期・期待の形成（未来方向の連続性投射） |
-| 10 | other_agent_model.py | 1,603 | 112 | 内省 | 他者モデル（他者状態の仮説的推測） |
-| 10a | other_model_input_supply.py | 429 | 30 | 内省 | 他者モデル入力供給（external_context / reaction_log 生成） |
-| 11 | emotional_memory_binding.py | 1,708 | 114 | 記憶 | 感情記憶の紐づけ（中長期感情痕跡） |
+| 9 | expectation_formation.py | 1,434 | 103 | 内省 | 予期・期待の形成（未来方向の連続性投射） |
+| 10 | other_agent_model.py | 1,610 | 112 | 内省 | 他者モデル（他者状態の仮説的推測） |
+| 10a | other_model_input_supply.py | 440 | 30 | 内省 | 他者モデル入力供給（external_context / reaction_log 生成） |
+| 11 | emotional_memory_binding.py | 1,694 | 114 | 記憶 | 感情記憶の紐づけ（中長期感情痕跡） |
 | 12 | intrinsic_motivation.py | 1,752 | 113 | 動機 | 自発的内的動機（感情・傾向由来の内的推進力） |
 | 13 | responsibility_dispersion.py | 1,039 | 48 | 責任 | 責任の発散・昇華・時間分配 |
 | 13a | policy_candidate_expansion.py | 1,408 | 86 | 判断 | ポリシー候補拡張（8断面×10軸、内面反映経路の増設） |
 | 13b | memory_system_integration.py | 1,217 | 93 | 記憶 | 記憶系統統合（episodic↔long_term↔binding正規化、重複並立・競合併存・出所多様性） |
 | 13c | other_model_real_feed.py | 1,492 | 102 | 内省 | 他者モデルリアルフィード統合（8観測断片抽出・正規化・競合併存・鮮度管理・安全弁） |
-| 13d | text_dialogue_input.py | 1,559 | 102 | 入力 | テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁） |
-| 13e | spontaneous_activation.py | 1,549 | 84 | 起動 | 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁） |
-| 13f | value_orientation_validation.py | 1,211 | 88 | 検証 | 価値方向性実運用検証（8断面・6段パイプライン・差分並立・安全弁） |
-| 13g | memory_forgetting_fixation.py | 1,053 | 85 | 記憶 | 記憶の忘却と固定化（8断面・6段パイプライン・段階忘却・復帰経路・安全弁） |
+| 13d | text_dialogue_input.py | 1,548 | 102 | 入力 | テキスト対話入力経路（6段パイプライン・経路多様性・重複抑制・安全弁） |
+| 13e | spontaneous_activation.py | 1,552 | 84 | 起動 | 自発起動経路（8断面交差・5段パイプライン・競合並立・安全弁） |
+| 13f | value_orientation_validation.py | 1,228 | 88 | 検証 | 価値方向性実運用検証（8断面・6段パイプライン・差分並立・安全弁） |
+| 13g | memory_forgetting_fixation.py | 1,128 | 85 | 記憶 | 記憶の忘却と固定化（8断面・6段パイプライン・段階忘却・復帰経路・安全弁） |
 | 13h | action_result_observation.py | 1,638 | 128 | 観測 | 行動-結果の観測と蓄積（8断面・6段パイプライン・非正誤判定・時系列隣接記録・入力経路ラベル併記・安全弁4種） |
-| 13i | other_model_dialogue_learning.py | 1,624 | 135 | 内省 | 他者観測の長期蓄積と仮説補助（8断面・8段パイプライン・相手別分離・仮説再生成方式・安全弁4種） |
+| 13i | other_model_dialogue_learning.py | 1,651 | 135 | 内省 | 他者観測の長期蓄積と仮説補助（8断面・8段パイプライン・相手別分離・仮説再生成方式・安全弁4種） |
 | 13j | meta_emotion_cognition.py | 1,628 | 155 | 感情 | メタ感情認知と変動候補生成（8断面・7段パイプライン・常時等価列挙・Phase 1-2不変性保証・境界値到達記述追加・安全弁4種） |
 | 13k | self_action_perception.py | 395 | 114 | 知覚 | 自己行動知覚（3段パイプライン・全記録等価・テキスト非解釈・判断系非接続・brain.py通知経路） |
 | 13l | intent_action_gap.py | 397 | 129 | 知覚 | 意図-行動間の乖離認知（3段パイプライン・対構成→多断面記述→蓄積参照・全記録等価・パターン抽出禁止・3経路遮断・安全弁5種） |
 | 13m | temporal_cognition.py | 809 | 212 | 知覚 | 時間認知構造（3段パイプライン・経過蓄積→8断面特徴量記述→参照提供・スライディングウィンドウ・段階値列挙型・帯域キャッシュ鮮度+入力経路間隔断面追加・パターン抽出禁止・4経路遮断・安全弁5種） |
-| 13n | multi_path_recall.py | 807 | 105 | 記憶 | 記憶の多経路想起（3経路想起・感情連想/文脈連想/時間近接・経路等価性・顕著性バイアス抑制・ルーミネーション防止・忘却分離・安全弁5種） |
+| 13n | multi_path_recall.py | 1,282 | 178 | 記憶 | 記憶の多経路想起（3経路想起・感情連想/文脈連想(TF-IDF+cosine)/時間近接・経路等価性・顕著性バイアス抑制・ルーミネーション防止・忘却分離・TF-IDFインデックス動的構築・安全弁8種） |
 | 13o | introspection_cross_section.py | 731 | 130 | 内省 | 内省断面間の横断的記述（3段パイプライン・6断面並置・ウィンドウ25件（enrichment10件）・パターン抽出禁止・統合禁止・全断面等価・5経路遮断・安全弁5種） |
 | 13p | perceptual_context.py | 766 | 116 | 知覚 | 知覚入力の内部文脈化（3段パイプライン・5断面段階値列挙型・感情変化頻度/意図変化頻度/話題重複度/感情価推移方向/知覚構造化度・テキスト比較禁止・4経路遮断・安全弁7種） |
 | 13q | (moved to #45) | - | - | - | → scoring_fluctuation.py（690行、#45に移動） |
 | 13r | selection_attribution.py | 413 | 87 | 知覚 | 選択帰属（選択事実のREAD-ONLY記録・候補群構成+選択ラベル+バイアス源構成蓄積・全記録等価・パターン抽出禁止・5経路遮断・enrichment等価列挙（バイアス情報遮断）・安全弁5種） |
 | 13s | reference_frequency_description.py | 827 | 106 | 内省 | 参照頻度の構造的記述（15箇所横断読み取り・断面構成・集中度/偏在度記述・変動記述・FIFO断面履歴・enrichment直接露出遮断・忘却経路遮断・想起経路遮断・multi_path_recall/spontaneous_recall追加・安全弁5種） |
-| 13t | persistent_commitment.py | 1,037 | テスト内 | 目標 | 持続的取り組み保持（transient_goal昇格が唯一生成経路・複数並行保持・強度依存非線形減衰・慣性時間減衰・4解除条件・認知記録FIFO・資源競合・バイアス上限<VO・安全弁6種・自己強化ループ4重遮断） |
+| 13t | persistent_commitment.py | 1,083 | テスト内 | 目標 | 持続的取り組み保持（transient_goal昇格が唯一生成経路・複数並行保持・強度依存非線形減衰・慣性時間減衰・4解除条件・認知記録FIFO・資源競合・バイアス上限<VO・安全弁6種・自己強化ループ4重遮断） |
 | 13u | behavioral_diversity_description.py | 664 | テスト内 | 内省 | 行動多様性の構造的記述（3断面横断読み取り・結果断面キー種類数/選択ラベル種類数/候補群サイズ分散度・段階値列挙型・FIFO蓄積・enrichment直接露出遮断・頻度情報構造的排除・安全弁8種） |
 | 13v | spontaneous_recall.py | 1,025 | テスト内 | 記憶 | 記憶の自発的想起（4段パイプライン・3経路想起・感情変動連想/動機連想/揺らぎ連想・外部入力非依存・ルーミネーション防止・経路等価性・multi_path_recall経路分離・安全弁7種） |
 | 13w | internal_contradiction_description.py | 787 | テスト内 | 内省 | 内部状態の矛盾並置記述（5段パイプライン・6断面対定義・数値的乖離検出・矛盾解消禁止・全記録等価・収束監視・evaluative語彙除去・安全弁7種） |
@@ -127,14 +127,14 @@
 | 13ah | forgetting_recall_balance.py | 729 | テスト内 | 記憶 | 忘却と想起の均衡記述（忘却速度/想起頻度の事実記述・窓内カウント・規範なし・パラメータ非介入・安全弁5種） |
 | 13ai | attention_distribution_description.py | 920 | テスト内 | 自己認知 | 注意配分の構造的記述（処理帯域集中/分散記述・横断読み取り・段階値・FIFO・帯域制御禁止・安全弁5種） |
 | 13aj | goal_hierarchy_propagation.py | 1,083 | テスト内 | 目標 | 目的階層間の隣接状態変化記述（3層限定・6段パイプライン・スナップショット比較・因果帰属禁止・enrichment直接露出遮断・安全弁7種） |
-| 13ak | hypothesis_observation_pairing.py | 1,010 | テスト内 | 他者認知 | 仮説-観測の隣接対構成（6段パイプライン・時間的隣接のみ・正誤判定禁止・確認バイアス排除・相手別分離・ルーミネーション防止・安全弁7種） |
-| 13al | other_hypothesis_emotion_return.py | 751 | 65 | 感情 | 他者仮説由来の感情帯域追加（4段パイプライン・キーワード辞書照合・帯域±0.02以下・memory_emotion_returnとの合算上限・ルーミネーション減衰・enrichment非露出・安全弁7種） |
+| 13ak | hypothesis_observation_pairing.py | 1,021 | テスト内 | 他者認知 | 仮説-観測の隣接対構成（6段パイプライン・時間的隣接のみ・正誤判定禁止・確認バイアス排除・相手別分離・ルーミネーション防止・安全弁7種） |
+| 13al | other_hypothesis_emotion_return.py | 758 | 65 | 感情 | 他者仮説由来の感情帯域追加（4段パイプライン・キーワード辞書照合・帯域±0.02以下・memory_emotion_returnとの合算上限・ルーミネーション減衰・enrichment非露出・安全弁7種） |
 | 3 | goal_candidates.py | 929 | 46 | 目的 | 目的候補（白昼夢）生成 |
 | 4 | self_reference.py | 923 | 52 | 内省 | 自己参照ループ |
 | 5 | long_term_dynamics.py | 882 | 38 | 内省 | 長期統計観測 |
 | 6 | introspection_trace.py | 864 | 40 | 内省 | 内省ログ生成 |
-| 7 | repeated_tendency.py | 858 | 35 | 目的 | 反復傾向（習慣）形成 |
-| 8 | transient_goal.py | 812 | 34 | 目的 | 一時的目的選択 |
+| 7 | repeated_tendency.py | 846 | 35 | 目的 | 反復傾向（習慣）形成 |
+| 8 | transient_goal.py | 800 | 34 | 目的 | 一時的目的選択 |
 | 9 | proto_goal_vector.py | 774 | 48 | 目的 | 方向ベクトル（ゴースト） |
 | 10 | context_sensitivity.py | 754 | 44 | 判断 | 外部文脈感受性 |
 | 11 | value_orientation.py | 763 | 34 | 目的 | 長期価値観 |
@@ -143,7 +143,7 @@
 | 14 | __init__.py | 2,621 | - | 基盤 | エクスポート定義（21カテゴリ再構成） |
 | 15 | tone.py | 698 | 36 | 出力 | トーン・ユーモア制御 |
 | 16 | tendency_awareness.py | 651 | 44 | 内省 | 傾向の自己認知 |
-| 16 | scoped_goal.py | 660 | 40 | 目的 | スコープ目的（1ターン） |
+| 16 | scoped_goal.py | 648 | 40 | 目的 | スコープ目的（1ターン） |
 | 17 | stm_emotion_coupling.py | 639 | 40 | 感情 | 短期記憶-感情連携（orchestrator統合済み: 再活性化・蓄積） |
 | 18 | multi_emotion.py | 495 | 36 | 感情 | 複数感情独立管理（orchestrator統合済み: 独立減衰） |
 | 19 | responsibility.py | 480 | 32 | 責任 | 責任記録・評価 |
@@ -157,10 +157,12 @@
 | 27 | thought.py | 565 | 36 | 出力 | 思考候補生成・選択（15ポリシー動的選択、6断面スコアリング、safety/autonomy軸、collect_breakdown、帯域一時拡大対応） |
 | 28 | state.py | 279 | - | 基盤 | 心理状態データ構造 |
 | 29 | snapshot.py | 239 | - | 基盤 | スナップショット管理 |
-| 30 | responsibility_manager.py | 210 | - | 責任 | 責任マネージャー |
-| 31 | reaction.py | 978 | - | 感情 | 反応処理（SD-1~5帰還、SD-3 9断面ドライブ動態、SD-4ムード自律化、行動結果多様性帰還） |
+| 30 | responsibility_manager.py | 221 | - | 責任 | 責任マネージャー |
+| 31 | reaction.py | 276 | - | 感情 | 反応処理コア（SD-1~5帰還。構造分割済み→reaction_drive_dynamics/reaction_mood_update） |
+| 31a | reaction_drive_dynamics.py | 509 | - | 感情 | SD-3 9断面ドライブ動態（reaction.pyから分離） |
+| 31b | reaction_mood_update.py | 249 | - | 感情 | SD-4ムード自律化（reaction.pyから分離） |
 | 32 | expression.py | 238 | - | 出力 | 表現生成（brain.py接続済み, psyche enrichment付き, 3層構造prompt） |
-| 33 | perception.py | 344 | 294 | 入力 | 知覚処理（brain.py接続済み, LLM enrichment有効, 知覚バイアス: mood.valence→emotion_valence微弱加算） |
+| 33 | perception.py | 398 | 294 | 入力 | 知覚処理（brain.py接続済み, LLM enrichment有効, 知覚バイアス: mood.valence→emotion_valence微弱加算） |
 | 34 | memory_link.py | 101 | - | 記憶 | 記憶検索 |
 | 35 | continuity_manager.py | 95 | - | 4柱 | 連続性管理 |
 | 36 | attachment_manager.py | 95 | - | 4柱 | 愛着管理 |
@@ -168,24 +170,28 @@
 | 38 | projection_manager.py | 89 | - | 4柱 | 未来投射管理 |
 | 39 | pillars.py | 76 | - | 4柱 | 4柱状態定義 |
 | 40 | fear.py | 76 | - | 4柱 | 恐怖指数計算 |
-| 41 | orchestrator.py | 4,446 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v44(68項目永続化), enrichment(5セクション/49項目), select_policy_dict含む, 帰還合算上限呼出し） |
+| 41 | orchestrator.py | 4,596 | 63 | 統合 | 全モジュール統合管理（PsycheOrchestrator, 71システム, save/load v44(68項目永続化), enrichment(5セクション/49項目), select_policy_dict含む, 帰還合算上限呼出し） |
 | 42 | orchestrator_5tick_phases.py | 1,781 | - | 統合 | 5ティック帯域Phase実行（Phase 21-26系、Phase 26-EXP動的クールダウン・帯域拡大・累積安全弁） |
 | 43 | save_load_warmup.py | 1,072 | 54 | 基盤 | セッション復帰時ウォームアップ（整合性検証、セッション差分記述enrichment #49） |
-| 44 | orchestrator_enrichment.py | 949 | - | 統合 | enrichment生成ロジック分離（49項目/5セクション生成） |
-| 45 | scoring_fluctuation.py | 690 | テスト内 | 判断 | スコアリングの構造的揺らぎ（5段パイプライン・参照偏在→振幅変調追加・安全弁5種） |
-| 46 | persistence_helpers.py | 571 | 72 | 基盤 | 永続化ヘルパー（マイグレーションチェーンv1→v44、共通ヘルパー） |
+| 44 | orchestrator_enrichment.py | 978 | - | 統合 | enrichment生成ロジック分離（49項目/5セクション生成） |
+| 45 | scoring_fluctuation.py | 826 | テスト内 | 判断 | スコアリングの構造的揺らぎ（5段パイプライン・参照偏在→振幅変調追加・安全弁5種） |
+| 46 | persistence_helpers.py | 588 | 72 | 基盤 | 永続化ヘルパー（マイグレーションチェーンv1→v44、共通ヘルパー） |
 | 47 | orchestrator_1tick_phases.py | 824 | - | 統合 | 毎ティック帯域Phase実行（Phase 1-7、帰還合算帯域上限） |
-| 48 | enrichment_compression.py | 500 | 74 | 基盤 | enrichment圧縮（3段パイプライン、空状態統一、鮮度注釈） |
-| 49 | stabilization_description.py | 512 | 71 | 内省 | 安定化の構造的記述（2断面・3段パイプライン・enrichment直接露出遮断・安全弁5種） |
+| 48 | enrichment_compression.py | 622 | 74 | 基盤 | enrichment圧縮（3段パイプライン、空状態統一、鮮度注釈） |
+| 49 | stabilization_description.py | 516 | 71 | 内省 | 安定化の構造的記述（2断面・3段パイプライン・enrichment直接露出遮断・安全弁5種） |
 | 50 | phase_execution_engine.py | 448 | テスト内 | 基盤 | Phase実行エンジン（全4帯域完全宣言化、ハンドラ方式、プロファイラ統合） |
-| 51 | coefficient_registry.py | 291 | 35 | 基盤 | 係数レジストリ（JSON外部係数ファイル読み込み、読取専用辞書、3段フォールバック） |
-| 52 | memory_emotion_return.py | 817 | テスト内 | 感情 | 記憶想起→感情帰還（方向連続カウント、追従速度変調≤10%、save/load対応） |
+| 51 | coefficient_registry.py | 662 | 35 | 基盤 | 係数レジストリ（JSON外部係数ファイル読み込み、読取専用辞書、3段フォールバック、係数履歴蓄積） |
+| 52 | memory_emotion_return.py | 824 | テスト内 | 感情 | 記憶想起→感情帰還（方向連続カウント、追従速度変調≤10%、save/load対応） |
+| 53 | phase_declaration.py | 1,493 | 53 | 基盤 | Phase宣言的定義（83 Phase定義レコード(frozen)×6帯域、データ依存グラフ導出、永続化/enrichmentマッピング） |
+| 54 | decay_rate_modulation.py | 227 | 45 | 感情 | 感情減衰速度の経験依存変調（emotional_backdrop_cognition蓄積→±5%帯域） |
+| 55 | window_size_modulation.py | 295 | 52 | 記憶 | ウィンドウサイズの経験依存変調（forgetting_recall_balance想起頻度→±20%帯域） |
+| 56 | firing_frequency_modulation.py | 357 | 50 | 基盤 | 帰還経路発火→帯域変調（累計発火→log変換→帯域拡大、絶対上限1.5x、4経路） |
 
 ### 2.3 コアシステムファイル
 
 | ファイル | 行数 | 主要クラス/関数 | 説明 |
 |---------|------|----------------|------|
-| brain.py | 1,415 | CyreneBrain | 2-call思考生成（perception+expression, psyche enrichment, save/load, LLM parse_percept, think_text/think_spontaneous, PIL直接受渡し, fear_level公開, policy suggestions透明化, ContextEntry/DialogueContextManager, パイプライン計測点） |
+| brain.py | 1,415 | CyreneBrain | 2-call思考生成（perception+expression, psyche enrichment, save/load, LLM parse_percept, think_text/think_spontaneous, PIL直接受渡し, fear_level公開, policy suggestions透明化, ContextEntry/DialogueContextManager, パイプライン計測点, self_action_perception通知経路） |
 | loop_interval_controller.py | 742 | LoopIntervalController | メインループ適応間隔制御（3経路比率記録、telemetry、覚醒度→ループ間隔変調±10%） |
 | voice.py | 437 | VoiceClient | Style-Bert-VITS2連携 |
 | vision.py | 393 | GameCapture, HybridEye | 画面キャプチャ・分析 |
@@ -197,8 +203,8 @@
 
 | ファイル | 行数 | 説明 |
 |---------|------|------|
-| api_error_resilience.py | 484 | APIエラー耐性（5段階分類、バックオフ、リトライ、統合エラーハンドリング） |
-| llm_wrapper.py | 433 | LLM抽象化レイヤー（画像対応コール、EXPRESSION_SYSTEM_PROMPT含む） |
+| api_error_resilience.py | 485 | APIエラー耐性（5段階分類、バックオフ、リトライ、統合エラーハンドリング） |
+| llm_wrapper.py | 434 | LLM抽象化レイヤー（画像対応コール、EXPRESSION_SYSTEM_PROMPT含む） |
 | simulation.py | 354 | 長期挙動シミュレーション（PsycheOrchestrator経由） |
 | api.py | 324 | FastAPI REST API（PsycheOrchestrator経由） |
 | memory_manager.py | 216 | 長期記憶+Embedding管理 |
@@ -215,17 +221,17 @@
 
 | ファイル | 行数 | 説明 |
 |---------|------|------|
-| execution_monitor.py | 1,663 | Phase計測、圧縮比追跡、API追跡、EnrichmentDistributionMonitor、EnrichmentEffectivenessMonitor |
+| execution_monitor.py | 2,135 | Phase計測、圧縮比追跡、API追跡、EnrichmentDistributionMonitor、EnrichmentEffectivenessMonitor |
 | long_term_sim.py | 2,917 | 長期挙動シミュレータ（5シナリオ、統計、差分、帰還経路検証、自我発現計測4モード: 状態分岐度/軌跡統計特徴量/係数A/B比較/応答一貫性プローブ） |
 | persistence_integrity.py | 912 | 永続化整合性検証（43パターン、load自動検証、CLIサポート） |
 | policy_selection_analysis.py | 652 | ポリシー選択分布分析（15ポリシー、6断面寄与度、集中度計測） |
-| pipeline_measurement.py | 640 | パイプライン計測（end-to-endレイテンシ、知覚辞書カバレッジ率） |
-| dashboard.py | 628 | 統合ダッシュボード（6種モニタリングツール統合CLI表示） |
+| pipeline_measurement.py | 1,253 | パイプライン計測（end-to-endレイテンシ、知覚辞書カバレッジ率） |
+| dashboard.py | 655 | 統合ダッシュボード（6種モニタリングツール統合CLI表示） |
 | anomaly_detection.py | 884 | 動態停止検出（4信号型ゼロ変化率検出+緩やかな収束検出、READ-ONLY） |
 | expression_quality_verification.py | 533 | 代弁品質フィードバック構造化（psyche方針-Gemini発話の対記録） |
 | policy_selection_log.py | 538 | ポリシー選択ログ（thought.py collect_breakdown連携） |
 | phase_dependency_validator.py | 530 | Phase間データ依存関係の宣言的可視化（CLI対応、Cycle 9-10変数追加） |
-| return_pathway_monitor.py | 483 | 帰還経路モニター（5帰還経路発火記録、合算帯域記述、合算上限到達頻度記録） |
+| return_pathway_monitor.py | 557 | 帰還経路モニター（5帰還経路発火記録、合算帯域記述、合算上限到達頻度記録） |
 | policy_distribution_tracking.py | 710 | ポリシー選択分布の経時的変化追跡（スナップショット蓄積、文脈別分布、推移記述） |
 | enrichment_efficacy_evaluation.py | 563 | enrichment実効性の定量評価（3段処理: 構造化蓄積→精度限界記述→セッション累積記述、安全弁7種） |
 | phase_profiler.py | 581 | Phase単位実行時間プロファイリング（コンテキストマネージャ方式、FIFOバッファ、セッション累積カウンタ、安全弁7種） |
@@ -234,7 +240,7 @@
 ### 2.6 Claude Code MCP 自己観測ツール (~/.claude/tools/)
 
 キュレネのpsycheモジュール群をClaude Codeのセッションベースアーキテクチャに適応させたMCPツール群。
-MCP サーバー: `memory_mcp_server.py` （23ツール登録）
+MCP サーバー: 6サーバー構成（memory-tools 17 + self-observation 12 + persistent-cron 11 + discord 7 + http-fetch 1 + playwright）= 48+ツール（70追跡対象）
 
 #### 感情系ツール (既存)
 | ツール名 | モジュール | 行数 | テスト数 | 説明 |
@@ -260,6 +266,34 @@ MCP サーバー: `memory_mcp_server.py` （23ツール登録）
 | long_term_stats | long_term_dynamics.py | (同上) | (同上) | 長期動態の統計取得 |
 
 **合計**: 2,876行 / 388テスト / 8設計書(design_*_mcp.md)
+
+#### セッション管理ツール
+| ツール名 | 説明 |
+|---------|------|
+| session_start | セッション開始（必須） |
+| session_end | セッション終了（summary/completed/pending/decisions/issues/next_actions） |
+| self_snapshot | 全自己観測を一括実行 |
+
+#### 成長システムツール (C22で追加)
+| ツール名 | 説明 |
+|---------|------|
+| validate_lesson | 教訓のconfidence/applied_count追跡 |
+| record_success | 成功パターンの記録 |
+| search_successes | 成功パターンの検索 |
+| update_mastery | 能力プロファイル更新 |
+| mastery_report | 能力レポート生成 |
+| growth_dashboard | 成長ダッシュボード |
+| growth_health | 成長バランス監視 |
+| find_lessons | コンテキスト関連教訓検索 |
+| detect_lesson_conflicts | 教訓間の矛盾検出 |
+| record_trajectory | 成功軌跡記録 |
+| find_trajectories | 軌跡検索 |
+| golden_paths | ゴールデンパス抽出 |
+| record_transfer | 転移記録 |
+| transfer_report | 転移レポート |
+| create_aar | After-Action Review作成 |
+| search_aars | AAR検索 |
+| aar_report | AARレポート |
 
 #### 記憶系ツール (既存)
 | ツール名 | 説明 |

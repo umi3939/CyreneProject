@@ -1055,18 +1055,306 @@ def classify_session_difference(scalar: Optional[float]) -> str:
     return _SESSION_DIFF_LARGE_LABEL
 
 
-def build_session_diff_enrichment_text(scalar: Optional[float]) -> str:
+# ── 感情段階値の固定区間分割（記述A用）────────────────────────────────
+#
+# 安全弁5: 段階値変換の固定性。区間境界は静的定義であり実行時に変更されない。
+
+_EMOTION_LEVEL_THRESHOLDS: list[tuple[float, str]] = [
+    (0.1, "微量"),
+    (0.4, "低"),
+    (0.7, "中"),
+]
+_EMOTION_LEVEL_HIGH_LABEL = "高"
+
+# 7次元感情ベクトルの次元名
+_EMOTION_DIMS = ("joy", "anger", "sorrow", "fear", "surprise", "love", "fun")
+
+# 気分（valence/arousal）の段階値区間
+_MOOD_VALENCE_THRESHOLDS: list[tuple[float, str]] = [
+    (-0.5, "負・高"),
+    (-0.2, "負"),
+    (0.2, "中立"),
+    (0.5, "正"),
+]
+_MOOD_VALENCE_HIGH_LABEL = "正・高"
+
+_MOOD_AROUSAL_THRESHOLDS: list[tuple[float, str]] = [
+    (0.2, "低"),
+    (0.5, "中"),
+    (0.7, "高"),
+]
+_MOOD_AROUSAL_HIGH_LABEL = "高・強"
+
+# 記述Aで列挙する感情の最小段階値（これ以下はスキップ＝情報量制御）
+_EMOTION_LISTING_MIN_THRESHOLD = 0.1
+
+# ── フィールド群の定義（記述C用）────────────────────────────────────────
+#
+# FIELD_DEFINITIONS の SemanticGroup に対応する群名と、各群に属するキーの
+# 静的マッピング。FIELD_DEFINITIONS を動的に参照せず、静的定義とする。
+# 安全弁5: 段階値変換の固定性。
+
+_FIELD_GROUP_KEYS: dict[str, list[str]] = {
+    "感情系": [
+        "psyche", "loop_state", "dynamics", "amplitude",
+        "value_orientation", "tendency_state", "vector_state",
+        "candidate_state", "transient_goal_state", "stability_valve",
+        "dispersion_state", "context_sensitivity_state", "last_coupling",
+        "policy_expansion_state", "spontaneous_state",
+        "vo_validation_state", "persistent_commitment_state",
+    ],
+    "自己認識系": [
+        "self_ref_state", "last_self_view", "tendency_awareness",
+        "last_diff_summary", "last_strain", "last_self_image",
+        "last_coherence", "last_narrative", "last_trace",
+        "last_consumption", "last_expectations", "last_motives",
+        "self_action_perception_state", "intent_action_gap_state",
+        "introspection_cross_section_state", "selection_attribution_state",
+    ],
+    "記憶系": [
+        "last_episodes", "last_bindings", "memory_integration_state",
+        "forgetting_fixation_state", "action_result_state",
+        "expectation_action_diff_log", "multi_path_recall_state",
+        "reference_frequency_state", "spontaneous_recall_state",
+        "memory_emotion_return_state",
+        "other_hypothesis_emotion_return_state",
+    ],
+    "他者モデル系": [
+        "last_other_model", "input_supply", "real_feed_state",
+        "text_dialogue_state", "dialogue_learning_state",
+        "other_boundary_accumulation_state",
+        "hypothesis_observation_pairing_state",
+    ],
+    "記述・認知系": [
+        "meta_emotion_state", "temporal_cognition_state",
+        "perceptual_context_state", "stabilization_description_state",
+        "behavioral_diversity_state", "internal_contradiction_state",
+        "interaction_accumulation_state", "emotional_backdrop_state",
+        "situational_self_presentation_state", "drive_variation_state",
+        "expectation_lifecycle_state", "input_pathway_balance_state",
+        "responsibility_temporal_trace_state",
+        "emotion_cooccurrence_state", "forgetting_recall_balance_state",
+        "attention_distribution_state", "goal_hierarchy_propagation_state",
+        "expectation_perception_matching_state",
+    ],
+}
+
+# フィールド群別変化量の段階値
+_FIELD_GROUP_CHANGE_THRESHOLDS: list[tuple[float, str]] = [
+    (0.1, "ほぼ変化なし"),
+    (2.0, "微小な変化"),
+    (10.0, "変化あり"),
+]
+_FIELD_GROUP_CHANGE_LARGE_LABEL = "大きな変化"
+
+# メタデータキー（差分算出対象外）
+_METADATA_KEYS = {"version", "save_timestamp", "tick_count", "session_diff_scalar"}
+
+# enrichmentテキストの文字数上限（安全弁4）
+_ENRICHMENT_TEXT_MAX_LENGTH = 800
+
+
+def _classify_emotion_level(value: float) -> str:
+    """感情値を段階値に変換する。固定区間分割。"""
+    for threshold, label in _EMOTION_LEVEL_THRESHOLDS:
+        if value <= threshold:
+            return label
+    return _EMOTION_LEVEL_HIGH_LABEL
+
+
+def _classify_mood_valence(value: float) -> str:
+    """mood valenceを段階値に変換する。固定区間分割。"""
+    for threshold, label in _MOOD_VALENCE_THRESHOLDS:
+        if value <= threshold:
+            return label
+    return _MOOD_VALENCE_HIGH_LABEL
+
+
+def _classify_mood_arousal(value: float) -> str:
+    """mood arousalを段階値に変換する。固定区間分割。"""
+    for threshold, label in _MOOD_AROUSAL_THRESHOLDS:
+        if value <= threshold:
+            return label
+    return _MOOD_AROUSAL_HIGH_LABEL
+
+
+def _classify_field_group_change(distance: float) -> str:
+    """フィールド群の距離を段階値に変換する。固定区間分割。"""
+    for threshold, label in _FIELD_GROUP_CHANGE_THRESHOLDS:
+        if distance <= threshold:
+            return label
+    return _FIELD_GROUP_CHANGE_LARGE_LABEL
+
+
+def _build_description_a(prev_snapshot: dict[str, Any]) -> str:
+    """記述A: 前セッション終了時の感情状態の叙述的記述を生成する。
+
+    安全弁2: 感情ベクトル欠損時はスキップ（空文字列返却）。
+    全て事実記述。評価的表現を含まない。
+    """
+    psyche_data = prev_snapshot.get("psyche")
+    if not isinstance(psyche_data, dict):
+        return ""
+
+    parts: list[str] = []
+
+    # 感情ベクトルの段階値（一定以上のもののみ列挙）
+    emotions = psyche_data.get("emotions")
+    if isinstance(emotions, dict):
+        for dim in _EMOTION_DIMS:
+            val = emotions.get(dim)
+            if not isinstance(val, (int, float)):
+                continue
+            if val <= _EMOTION_LISTING_MIN_THRESHOLD:
+                continue
+            level = _classify_emotion_level(val)
+            parts.append(f"{dim}: {level}")
+
+    # 気分のvalence/arousal段階値
+    mood = psyche_data.get("mood")
+    if isinstance(mood, dict):
+        valence = mood.get("valence")
+        arousal = mood.get("arousal")
+        if isinstance(valence, (int, float)):
+            parts.append(f"valence: {_classify_mood_valence(valence)}")
+        if isinstance(arousal, (int, float)):
+            parts.append(f"arousal: {_classify_mood_arousal(arousal)}")
+
+    if not parts:
+        return ""
+
+    return "前セッション感情: " + ", ".join(parts)
+
+
+def _build_description_b(prev_snapshot: dict[str, Any]) -> str:
+    """記述B: 前セッション終了時の注意対象・活動の事実記述を生成する。
+
+    安全弁3: 注意配分欠損時はスキップ（空文字列返却）。
+    全て事実記述。評価的表現を含まない。
+    """
+    att_data = prev_snapshot.get("attention_distribution_state")
+    if not isinstance(att_data, dict):
+        return ""
+
+    history = att_data.get("snapshot_history")
+    if not isinstance(history, list) or len(history) == 0:
+        return ""
+
+    # 最新の断面を取得
+    latest = history[-1]
+    if not isinstance(latest, dict):
+        return ""
+
+    # 段階値の列挙（等価に並置）
+    source_labels = {
+        "知覚": "perception_level",
+        "テキスト": "text_input_level",
+        "自発": "spontaneous_level",
+        "感情": "emotion_level",
+        "記憶": "memory_level",
+        "動機": "motivation_level",
+        "目標": "goal_level",
+        "責任": "responsibility_level",
+    }
+    parts: list[str] = []
+    for label, key in source_labels.items():
+        val = latest.get(key, "absent")
+        parts.append(f"{label}={val}")
+
+    # 集中度
+    conc_level = latest.get("concentration_level", "dispersed")
+    parts.append(f"集中度={conc_level}")
+
+    return "前セッション注意配分: " + " ".join(parts)
+
+
+def _build_description_c(
+    prev_snapshot: dict[str, Any],
+    current_snapshot: dict[str, Any],
+) -> str:
+    """記述C: 状態変化のフィールド群別記述を生成する。
+
+    既存のスカラー段階値はそのまま維持。追加でフィールド群ごとの距離寄与を段階値で表示。
+    個別フィールドの数値は出さない（フィールド群レベルの段階値のみ）。
+    """
+    group_parts: list[str] = []
+
+    for group_name, keys in _FIELD_GROUP_KEYS.items():
+        group_distance = 0.0
+        for key in keys:
+            if key in _METADATA_KEYS:
+                continue
+            prev_val = prev_snapshot.get(key)
+            curr_val = current_snapshot.get(key)
+            if prev_val is None or curr_val is None:
+                continue
+            group_distance += _compute_field_distance(prev_val, curr_val)
+
+        level = _classify_field_group_change(group_distance)
+        group_parts.append(f"{group_name}: {level}")
+
+    if not group_parts:
+        return ""
+
+    return "内訳 " + ", ".join(group_parts)
+
+
+def build_session_diff_enrichment_text(
+    scalar: Optional[float],
+    *,
+    prev_snapshot: Optional[dict[str, Any]] = None,
+    current_snapshot: Optional[dict[str, Any]] = None,
+) -> str:
     """セッション間差分のenrichment項目テキストを生成する。
 
-    安全弁1: enrichment経由の間接参照のみ。
+    安全弁1: enrichment経由の間接参照のみ。自己物語モジュールへの直接注入なし。
     安全弁4: 評価的表現を含まない事実記述のみ。
-    安全弁5: フィールド内訳を含まない（スカラー要約のみ）。
+    安全弁5: 段階値変換は固定区間分割。実行時に変更されない。
+    テキスト長上限: _ENRICHMENT_TEXT_MAX_LENGTH 文字。
+
+    生成される記述:
+      - 記述A: 前セッション終了時の感情状態（prev_snapshotのpsycheから）
+      - 記述B: 前セッション終了時の注意配分（prev_snapshotのattention_distribution_stateから）
+      - 記述C: フィールド群別の変化量（prev_snapshot + current_snapshotから）
 
     Args:
         scalar: セッション間差分のスカラー値。Noneの場合は空状態
+        prev_snapshot: 前セッションのスナップショット辞書（オプショナル）
+        current_snapshot: 現在のスナップショット辞書（オプショナル、記述C用）
 
     Returns:
         enrichment項目テキスト
     """
+    # 既存のスカラー段階値テキスト（常に含む）
     label = classify_session_difference(scalar)
-    return f"セッション間状態変化: {label}"
+    sections: list[str] = [f"セッション間状態変化: {label}"]
+
+    if isinstance(prev_snapshot, dict) and prev_snapshot:
+        # 記述A: 感情状態
+        desc_a = _build_description_a(prev_snapshot)
+        if desc_a:
+            sections.append(desc_a)
+
+        # 記述B: 注意配分
+        desc_b = _build_description_b(prev_snapshot)
+        if desc_b:
+            sections.append(desc_b)
+
+        # 記述C: フィールド群別変化
+        if isinstance(current_snapshot, dict) and current_snapshot:
+            desc_c = _build_description_c(prev_snapshot, current_snapshot)
+            if desc_c:
+                sections.append(desc_c)
+
+    result = " / ".join(sections)
+
+    # 安全弁4: テキスト長上限。記述Cから段階的に省略。
+    if len(result) > _ENRICHMENT_TEXT_MAX_LENGTH:
+        # 記述Cを除いて再構築
+        sections_trimmed = [s for s in sections if not s.startswith("内訳")]
+        result = " / ".join(sections_trimmed)
+
+    if len(result) > _ENRICHMENT_TEXT_MAX_LENGTH:
+        result = result[:_ENRICHMENT_TEXT_MAX_LENGTH]
+
+    return result

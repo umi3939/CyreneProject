@@ -312,7 +312,10 @@ def _collect_enrichment_self(
             pass
     # #49 session_difference (セッション間差分記述)
     try:
-        sd_text = build_session_diff_enrichment_text(orch._session_diff_scalar)
+        sd_text = build_session_diff_enrichment_text(
+            orch._session_diff_scalar,
+            prev_snapshot=orch._session_prev_snapshot,
+        )
         self_items.append(("セッション間変化", sd_text))
     except Exception:
         pass

@@ -76,3 +76,54 @@ data/simulation_results_*.json
 *.tmp
 *.temp
 .cache/
+
+# === Claude / 開発プロセス素材（公開しない） ===
+
+# Claude harness
+.claude/
+/CLAUDE.md
+/.mcp.json
+
+# 公開しないドキュメント
+/README.md
+/identity.md
+
+# 作業文書（Claudeセッション・開発プロセス素材）
+/_review_*.md
+/analysis_*.md
+/audit_*.md
+/candidates.md
+/candidates_*.md
+/code_review_*.md
+/cyrene_learning_layer_report.md
+/design_*.md
+/discussion_*.md
+/fix_observations_analysis.md
+/fixation_*
+/gap_analysis_*.md
+/ideas_*.md
+/risk_analysis_*.md
+/verification_results.md
+
+# 個別モジュール設計書（ルート直下のみ）
+/emotional_memory_binding.md
+/episodic_memory.md
+/expectation_formation.md
+/intrinsic_motivation.md
+/introspection_consumption_layer.md
+/other_agent_model.md
+/other_agent_model_input_supply_design.md
+
+# キャラ設定
+/data/identity.json
+/data/persona.json
+
+# 検証成果物
+/endpoint_test_results.json
+/sim_verification.json
+/fixation_risk_report.txt
+/UserscatanCyreneProjectsim_verification.json
+
+# Hooks (CyreneProject root /hooks/)
+/hooks/
+/docs/

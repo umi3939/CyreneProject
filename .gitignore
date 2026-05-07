@@ -127,3 +127,9 @@ data/simulation_results_*.json
 # Hooks (CyreneProject root /hooks/)
 /hooks/
 /docs/
+
+# I/O entry points (画面キャプチャ・音声合成・統合起動 — psyche本体には不要)
+/main.py
+/vision.py
+/voice.py
+/launch_full.bat
